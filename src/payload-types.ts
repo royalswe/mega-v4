@@ -70,6 +70,8 @@ export interface Config {
     users: User;
     media: Media;
     links: Link;
+    comments: Comment;
+    votes: Vote;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -80,6 +82,8 @@ export interface Config {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     links: LinksSelect<false> | LinksSelect<true>;
+    comments: CommentsSelect<false> | CommentsSelect<true>;
+    votes: VotesSelect<false> | VotesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -124,6 +128,7 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: number;
+  name?: string | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -170,7 +175,35 @@ export interface Link {
   title: string;
   url: string;
   description?: string | null;
-  type: 'article' | 'video' | 'podcast';
+  nsfw?: boolean | null;
+  type?: ('article' | 'video' | 'image' | 'audio' | 'game') | null;
+  status: 'pending' | 'approved' | 'rejected';
+  user: number | User;
+  votes?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "comments".
+ */
+export interface Comment {
+  id: number;
+  comment: string;
+  user: number | User;
+  link: number | Link;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "votes".
+ */
+export interface Vote {
+  id: number;
+  user: number | User;
+  link: number | Link;
+  vote: 'up' | 'down';
   updatedAt: string;
   createdAt: string;
 }
@@ -209,6 +242,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'links';
         value: number | Link;
+      } | null)
+    | ({
+        relationTo: 'comments';
+        value: number | Comment;
+      } | null)
+    | ({
+        relationTo: 'votes';
+        value: number | Vote;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -257,6 +298,7 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+  name?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -300,7 +342,33 @@ export interface LinksSelect<T extends boolean = true> {
   title?: T;
   url?: T;
   description?: T;
+  nsfw?: T;
   type?: T;
+  status?: T;
+  user?: T;
+  votes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "comments_select".
+ */
+export interface CommentsSelect<T extends boolean = true> {
+  comment?: T;
+  user?: T;
+  link?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "votes_select".
+ */
+export interface VotesSelect<T extends boolean = true> {
+  user?: T;
+  link?: T;
+  vote?: T;
   updatedAt?: T;
   createdAt?: T;
 }

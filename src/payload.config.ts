@@ -8,6 +8,8 @@ import sharp from 'sharp'
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
 import { Links } from './collections/Links'
+import { Comments } from './collections/Comments'
+import { Votes } from './collections/Votes'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -18,8 +20,12 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
+    autoLogin: {
+      email: process.env.LOCAL_PAYLOAD_ADMIN_EMAIL,
+      password: process.env.LOCAL_PAYLOAD_ADMIN_PASSWORD,
+    },
   },
-  collections: [Users, Media, Links],
+  collections: [Users, Media, Links, Comments, Votes],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

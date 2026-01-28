@@ -3,32 +3,27 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
-import { VoteButtons } from './VoteButtons'
+import { VoteButtons } from '../VoteButtons'
 
-async function getApprovedLinks() {
+async function getAllLinks() {
   const payload = await getPayload({
     config: configPromise,
   })
 
   const links = await payload.find({
     collection: 'links',
-    where: {
-      status: {
-        equals: 'approved',
-      },
-    },
     sort: '-createdAt',
   })
 
   return links.docs
 }
 
-const HomePage = async () => {
-  const links = await getApprovedLinks()
+const SubmittedLinksPage = async () => {
+  const links = await getAllLinks()
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4">Approved Links</h2>
+      <h2 className="text-xl font-semibold mb-4">All Submitted Links</h2>
       <div className="grid gap-4">
         {links.map((link) => (
           <Card key={link.id}>
@@ -42,6 +37,17 @@ const HomePage = async () => {
             <CardContent>
               <p>{link.description}</p>
               <div className="flex items-center justify-between text-sm text-muted-foreground mt-4">
+                <span
+                  className={`capitalize ${
+                    link.status === 'approved'
+                      ? 'text-green-500'
+                      : link.status === 'rejected'
+                        ? 'text-red-500'
+                        : 'text-yellow-500'
+                  }`}
+                >
+                  {link.status}
+                </span>
                 <div className="flex items-center space-x-2">
                   <VoteButtons linkId={link.id} />
                   <span>{link.votes} votes</span>
@@ -56,4 +62,4 @@ const HomePage = async () => {
   )
 }
 
-export default HomePage
+export default SubmittedLinksPage
