@@ -15,15 +15,49 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { submitLink } from './actions'
+
+const linkType = [
+  {
+    label: 'Article',
+    value: 'article',
+  },
+  {
+    label: 'Video',
+    value: 'video',
+  },
+  {
+    label: 'Image',
+    value: 'image',
+  },
+  {
+    label: 'Audio',
+    value: 'audio',
+  },
+  {
+    label: 'Game',
+    value: 'game',
+  },
+]
 
 const formSchema = z.object({
   title: z.string().min(2, {
     message: 'Title must be at least 2 characters.',
   }),
   url: z.string().url({ message: 'Please enter a valid URL.' }),
+  description: z.string().optional(),
+  nsfw: z.boolean().optional(),
+  type: z.enum(['article', 'video', 'image', 'audio', 'game']).optional(),
 })
 
 export default function LinkForm() {
@@ -33,6 +67,9 @@ export default function LinkForm() {
     defaultValues: {
       title: '',
       url: '',
+      description: '',
+      nsfw: false,
+      type: 'article',
     },
   })
 
@@ -81,6 +118,67 @@ export default function LinkForm() {
                   </FormControl>
                   <FormDescription>The URL of the link.</FormDescription>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Input placeholder="A brief description of the link" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Optional: A brief description to give more context about the link.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Type</FormLabel>
+                  <FormControl></FormControl>
+                  <Select>
+                    <SelectTrigger className="w-100">
+                      <SelectValue placeholder="Link type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="article">Article</SelectItem>
+                      <SelectItem value="video">Video</SelectItem>
+                      <SelectItem value="podcast">Podcast</SelectItem>
+                      <SelectItem value="image">Image</SelectItem>
+                      <SelectItem value="audio">Audio</SelectItem>
+                      <SelectItem value="game">Game</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Optional: Specify the type of content (e.g., article, video).
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="nsfw"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormControl>
+                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>NSFW</FormLabel>
+                    <FormDescription>
+                      Check if the link contains Not Safe For Work content.
+                    </FormDescription>
+                    <FormMessage />
+                  </div>
                 </FormItem>
               )}
             />

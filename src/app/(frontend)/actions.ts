@@ -5,7 +5,7 @@ import configPromise from '@payload-config'
 
 import { revalidatePath } from 'next/cache'
 
-export async function vote(linkId: string, type: 'up' | 'down') {
+export async function vote(linkId: number, type: 'up' | 'down') {
   const payload = await getPayload({
     config: configPromise,
   })

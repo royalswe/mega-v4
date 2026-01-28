@@ -38,9 +38,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </ul>
             </nav>
           </header>
-          <main className="flex-grow container mx-auto py-8 px-6">{children}</main>
+          <main className="grow container mx-auto py-8 px-6">{children}</main>
           <footer className="py-4 px-6 border-t text-center text-sm text-muted-foreground">
-            <p>&copy; {new Date().getFullYear()} Link Hub. All rights reserved.</p>
+            <p>&copy; Link Hub. All rights reserved.</p>
           </footer>
         </div>
       </body>

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { vote } from './actions'
 import { ArrowUp, ArrowDown } from 'lucide-react'
 
-export function VoteButtons({ linkId }: { linkId: string }) {
+export function VoteButtons({ linkId }: { linkId: number }) {
   const [isPending, startTransition] = useTransition()
 
   return (

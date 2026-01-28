@@ -3,7 +3,13 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { revalidatePath } from 'next/cache'
 
-export async function submitLink(values: { title: string; url: string }) {
+export async function submitLink(values: {
+  title: string
+  url: string
+  description?: string
+  nsfw?: boolean
+  type?: 'article' | 'video' | 'image' | 'audio' | 'game'
+}) {
   const payload = await getPayload({
     config: configPromise,
   })
@@ -17,7 +23,7 @@ export async function submitLink(values: { title: string; url: string }) {
     },
   })
 
-  let userId: string
+  let userId: number
 
   if (user.docs.length > 0) {
     userId = user.docs[0].id

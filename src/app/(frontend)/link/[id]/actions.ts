@@ -4,17 +4,18 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { revalidatePath } from 'next/cache'
 
-export async function submitComment(linkId: string, comment: string) {
+export async function submitComment(linkId: number, comment: string) {
   const payload = await getPayload({
     config: configPromise,
   })
+  console.log('linkId:', linkId)
 
   // For now, we'll use the hardcoded dev user
   const { docs: users } = await payload.find({
     collection: 'users',
     where: {
       email: {
-        equals: 'dev@example.com',
+        equals: 'admin@mail.com',
       },
     },
   })

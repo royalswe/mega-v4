@@ -23,7 +23,7 @@ const formSchema = z.object({
   }),
 })
 
-export function CommentForm({ linkId }: { linkId: string }) {
+export function CommentForm({ linkId }: { linkId: number }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { notFound } from 'next/navigation'
 import { CommentForm } from './CommentForm'
 
-async function getLink(id: string) {
+async function getLink(id: number) {
   const payload = await getPayload({
     config: configPromise,
   })
@@ -18,7 +18,7 @@ async function getLink(id: string) {
   return link
 }
 
-async function getComments(linkId: string) {
+async function getComments(linkId: number) {
   const payload = await getPayload({
     config: configPromise,
   })
@@ -36,7 +36,9 @@ async function getComments(linkId: string) {
   return comments.docs
 }
 
-const LinkPage = async ({ params }: { params: { id: string } }) => {
+const LinkPage = async ({ params }: { params: { id: number } }) => {
+  console.log('params.id:', params.id)
+
   const link = await getLink(params.id)
 
   if (!link) {
