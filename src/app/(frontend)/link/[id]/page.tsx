@@ -4,6 +4,7 @@ import configPromise from '@payload-config'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { notFound } from 'next/navigation'
 import { CommentForm } from './CommentForm'
+import { VoteButtons } from '../../VoteButtons' // Import VoteButtons
 
 async function getLink(id: number) {
   const payload = await getPayload({
@@ -37,8 +38,6 @@ async function getComments(linkId: number) {
 }
 
 const LinkPage = async ({ params }: { params: { id: number } }) => {
-  console.log('params.id:', params.id)
-
   const link = await getLink(params.id)
 
   if (!link) {
@@ -60,7 +59,7 @@ const LinkPage = async ({ params }: { params: { id: number } }) => {
         <CardContent>
           <p>{link.description}</p>
           <div className="flex items-center justify-between text-sm text-muted-foreground mt-4">
-            <span>{link.votes} votes</span>
+            <VoteButtons linkId={link.id} votes={link.votes} />
           </div>
         </CardContent>
       </Card>

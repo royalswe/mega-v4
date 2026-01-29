@@ -50,6 +50,7 @@ export const Links: CollectionConfig = {
         },
       ],
       defaultValue: 'article',
+      required: true,
     },
     {
       name: 'status',
@@ -81,6 +82,7 @@ export const Links: CollectionConfig = {
       name: 'votes',
       type: 'number',
       defaultValue: 0,
+      required: true,
     },
   ],
 }

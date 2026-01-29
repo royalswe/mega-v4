@@ -72,6 +72,7 @@ export interface Config {
     links: Link;
     comments: Comment;
     votes: Vote;
+    bookmarks: Bookmark;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -84,6 +85,7 @@ export interface Config {
     links: LinksSelect<false> | LinksSelect<true>;
     comments: CommentsSelect<false> | CommentsSelect<true>;
     votes: VotesSelect<false> | VotesSelect<true>;
+    bookmarks: BookmarksSelect<false> | BookmarksSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -176,10 +178,10 @@ export interface Link {
   url: string;
   description?: string | null;
   nsfw?: boolean | null;
-  type?: ('article' | 'video' | 'image' | 'audio' | 'game') | null;
+  type: 'article' | 'video' | 'image' | 'audio' | 'game';
   status: 'pending' | 'approved' | 'rejected';
   user: number | User;
-  votes?: number | null;
+  votes: number;
   updatedAt: string;
   createdAt: string;
 }
@@ -204,6 +206,17 @@ export interface Vote {
   user: number | User;
   link: number | Link;
   vote: 'up' | 'down';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bookmarks".
+ */
+export interface Bookmark {
+  id: number;
+  user: number | User;
+  link: number | Link;
   updatedAt: string;
   createdAt: string;
 }
@@ -250,6 +263,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'votes';
         value: number | Vote;
+      } | null)
+    | ({
+        relationTo: 'bookmarks';
+        value: number | Bookmark;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -369,6 +386,16 @@ export interface VotesSelect<T extends boolean = true> {
   user?: T;
   link?: T;
   vote?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bookmarks_select".
+ */
+export interface BookmarksSelect<T extends boolean = true> {
+  user?: T;
+  link?: T;
   updatedAt?: T;
   createdAt?: T;
 }
