@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { recalculateVotes } from './hooks/recalculateVotes'
 
 export const Votes: CollectionConfig = {
   slug: 'votes',
@@ -31,4 +32,8 @@ export const Votes: CollectionConfig = {
       required: true,
     },
   ],
+  hooks: {
+    afterChange: [recalculateVotes],
+    afterDelete: [recalculateVotes],
+  },
 }

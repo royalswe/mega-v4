@@ -47,7 +47,7 @@ const SubmittedLinksPage = async () => {
         {links.map((link) => (
           <Card key={link.id} className="flex-row p-4">
             <div className="shrink-0">
-              <VoteButtons linkId={link.id} votes={link.votes} />
+              <VoteButtons linkId={link.id} votes={link.votes || 0} />
             </div>
             <div className="grow flex flex-col justify-center">
               <div className="flex items-center space-x-2 mb-1">
@@ -64,7 +64,8 @@ const SubmittedLinksPage = async () => {
                 </CardTitle>
               </div>
               <p className="text-sm text-muted-foreground mb-2">
-                Submitted by {typeof link.user === 'object' && link.user?.name ? link.user.name : 'Anonymous'}
+                Submitted by{' '}
+                {typeof link.user === 'object' && link.user?.name ? link.user.name : 'Anonymous'}
               </p>
               <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                 <span
@@ -79,8 +80,8 @@ const SubmittedLinksPage = async () => {
                   {link.status}
                 </span>
                 <Link href={`/link/${link.id}`} className="flex items-center hover:underline">
-                  <MessageCircle className="w-4 h-4 mr-1" />{' '}
-                  {link.comments ? link.comments.length : 0} Comments
+                  <MessageCircle className="w-4 h-4 mr-1" />
+                  {link.relatedComments?.docs?.length || 0} Comments
                 </Link>
                 <BookmarkButton linkId={link.id} />
               </div>

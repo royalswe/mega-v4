@@ -52,7 +52,7 @@ const HomePage = async () => {
         {links.map((link) => (
           <Card key={link.id} className="flex-row p-4">
             <div className="shrink-0">
-              <VoteButtons linkId={link.id} votes={link.votes} />
+              <VoteButtons linkId={link.id} votes={link.votes || 0} />
             </div>
             <div className="grow flex flex-col justify-center">
               <div className="flex items-center space-x-2 mb-1">
@@ -75,7 +75,7 @@ const HomePage = async () => {
               <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                 <Link href={`/link/${link.id}`} className="flex items-center hover:underline">
                   <MessageCircle className="w-4 h-4 mr-1" />
-                  {link.comments ? link.comments.length : 0} Comments
+                  {link.relatedComments?.docs?.length || 0} Comments
                 </Link>
                 <BookmarkButton linkId={link.id} />
               </div>

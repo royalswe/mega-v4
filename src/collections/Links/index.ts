@@ -4,6 +4,7 @@ export const Links: CollectionConfig = {
   slug: 'links',
   admin: {
     useAsTitle: 'title',
+    // defaultColumns: ['title', 'url', 'status', 'user', 'votes'],
   },
   fields: [
     {
@@ -82,13 +83,29 @@ export const Links: CollectionConfig = {
       name: 'votes',
       type: 'number',
       defaultValue: 0,
-      required: true,
+      admin: { readOnly: true }, // Admin can't manually cheat the votes
     },
+    // VIRTUAL: This shows comments in the UI without storing an array of IDs
     {
-      name: 'comments',
-      type: 'relationship',
-      relationTo: 'comments',
-      hasMany: true,
+      name: 'relatedComments',
+      type: 'join',
+      collection: 'comments',
+      on: 'link',
+      admin: {
+        description: 'Comments related to this link',
+        defaultColumns: ['comment', 'user'],
+      },
+    },
+    // VIRTUAL: This shows who bookmarked it
+    {
+      name: 'saves',
+      type: 'join',
+      collection: 'bookmarks',
+      on: 'link',
+      admin: {
+        description: 'Users who bookmarked this link',
+        defaultColumns: ['user'],
+      },
     },
   ],
 }

@@ -78,7 +78,12 @@ export interface Config {
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
   };
-  collectionsJoins: {};
+  collectionsJoins: {
+    links: {
+      relatedComments: 'comments';
+      saves: 'bookmarks';
+    };
+  };
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
@@ -181,8 +186,23 @@ export interface Link {
   type: 'article' | 'video' | 'image' | 'audio' | 'game';
   status: 'pending' | 'approved' | 'rejected';
   user: number | User;
-  votes: number;
-  comments?: (number | Comment)[] | null;
+  votes?: number | null;
+  /**
+   * Comments related to this link
+   */
+  relatedComments?: {
+    docs?: (number | Comment)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  /**
+   * Users who bookmarked this link
+   */
+  saves?: {
+    docs?: (number | Bookmark)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -200,6 +220,17 @@ export interface Comment {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bookmarks".
+ */
+export interface Bookmark {
+  id: number;
+  user: number | User;
+  link: number | Link;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "votes".
  */
 export interface Vote {
@@ -207,17 +238,6 @@ export interface Vote {
   user: number | User;
   link: number | Link;
   vote: 'up' | 'down';
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "bookmarks".
- */
-export interface Bookmark {
-  id: number;
-  user: number | User;
-  link: number | Link;
   updatedAt: string;
   createdAt: string;
 }
@@ -365,7 +385,8 @@ export interface LinksSelect<T extends boolean = true> {
   status?: T;
   user?: T;
   votes?: T;
-  comments?: T;
+  relatedComments?: T;
+  saves?: T;
   updatedAt?: T;
   createdAt?: T;
 }

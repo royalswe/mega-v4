@@ -8,12 +8,14 @@ export const Bookmarks: CollectionConfig = {
       type: 'relationship',
       relationTo: 'users',
       required: true,
+      index: true,
     },
     {
       name: 'link',
       type: 'relationship',
       relationTo: 'links',
       required: true,
+      index: true,
     },
   ],
 }

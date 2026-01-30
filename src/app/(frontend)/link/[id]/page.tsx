@@ -38,8 +38,7 @@ async function getComments(linkId: number) {
 }
 
 const LinkPage = async ({ params }: { params: { id: string } }) => {
-  const { id } = await params
-  const linkId = Number(id)
+  const linkId = Number(params.id)
   const link = await getLink(linkId)
 
   if (!link) {
@@ -61,7 +60,7 @@ const LinkPage = async ({ params }: { params: { id: string } }) => {
         <CardContent>
           <p>{link.description}</p>
           <div className="flex items-center justify-between text-sm text-muted-foreground mt-4">
-            <VoteButtons linkId={link.id} votes={link.votes} />
+            <VoteButtons linkId={link.id} votes={link.votes || 0} />
           </div>
         </CardContent>
       </Card>
