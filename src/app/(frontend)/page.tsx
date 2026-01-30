@@ -74,7 +74,7 @@ const HomePage = async () => {
               </p>
               <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                 <Link href={`/link/${link.id}`} className="flex items-center hover:underline">
-                  <MessageCircle className="w-4 h-4 mr-1" /> {/* @ts-expect-error */}{' '}
+                  <MessageCircle className="w-4 h-4 mr-1" />
                   {link.comments ? link.comments.length : 0} Comments
                 </Link>
                 <BookmarkButton linkId={link.id} />

@@ -37,14 +37,16 @@ async function getComments(linkId: number) {
   return comments.docs
 }
 
-const LinkPage = async ({ params }: { params: { id: number } }) => {
-  const link = await getLink(params.id)
+const LinkPage = async ({ params }: { params: { id: string } }) => {
+  const { id } = await params
+  const linkId = Number(id)
+  const link = await getLink(linkId)
 
   if (!link) {
     return notFound()
   }
 
-  const comments = await getComments(params.id)
+  const comments = await getComments(linkId)
 
   return (
     <div>
@@ -66,7 +68,7 @@ const LinkPage = async ({ params }: { params: { id: number } }) => {
 
       <div className="mt-8">
         <h2 className="text-xl font-semibold mb-4">Comments</h2>
-        <CommentForm linkId={params.id} />
+        <CommentForm linkId={linkId} />
         <div className="grid gap-4 mt-4">
           {comments.map((comment) => (
             <Card key={comment.id}>

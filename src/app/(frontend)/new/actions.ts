@@ -23,21 +23,7 @@ export async function submitLink(values: {
     },
   })
 
-  let userId: number
-
-  if (user.docs.length > 0) {
-    userId = user.docs[0].id
-  } else {
-    const newUser = await payload.create({
-      collection: 'users',
-      data: {
-        email: 'dev@example.com',
-        password: 'password',
-        name: 'Dev User',
-      },
-    })
-    userId = newUser.id
-  }
+  const userId = user.docs[0].id
 
   await payload.create({
     collection: 'links',
@@ -46,6 +32,7 @@ export async function submitLink(values: {
       user: userId,
       status: 'pending',
     },
+    draft: true,
   })
 
   revalidatePath('/')

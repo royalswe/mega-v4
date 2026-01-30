@@ -8,7 +8,6 @@ export async function submitComment(linkId: number, comment: string) {
   const payload = await getPayload({
     config: configPromise,
   })
-  console.log('linkId:', linkId)
 
   // For now, we'll use the hardcoded dev user
   const { docs: users } = await payload.find({
@@ -36,4 +35,5 @@ export async function submitComment(linkId: number, comment: string) {
   })
 
   revalidatePath(`/link/${linkId}`)
+  revalidatePath('/')
 }

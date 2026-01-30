@@ -27,29 +27,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { submitLink } from './actions'
 
-const linkType = [
-  {
-    label: 'Article',
-    value: 'article',
-  },
-  {
-    label: 'Video',
-    value: 'video',
-  },
-  {
-    label: 'Image',
-    value: 'image',
-  },
-  {
-    label: 'Audio',
-    value: 'audio',
-  },
-  {
-    label: 'Game',
-    value: 'game',
-  },
-]
-
 const formSchema = z.object({
   title: z.string().min(2, {
     message: 'Title must be at least 2 characters.',

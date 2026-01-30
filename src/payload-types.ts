@@ -130,7 +130,7 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: number;
-  name?: string | null;
+  name: string;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -182,6 +182,7 @@ export interface Link {
   status: 'pending' | 'approved' | 'rejected';
   user: number | User;
   votes: number;
+  comments?: (number | Comment)[] | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -364,6 +365,7 @@ export interface LinksSelect<T extends boolean = true> {
   status?: T;
   user?: T;
   votes?: T;
+  comments?: T;
   updatedAt?: T;
   createdAt?: T;
 }

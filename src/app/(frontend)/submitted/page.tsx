@@ -1,10 +1,10 @@
 import React from 'react'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { VoteButtons } from '../VoteButtons'
-import { Bookmark, MessageCircle, Image, Video, FileText, Music, Gamepad2 } from 'lucide-react'
+import { MessageCircle, Image, Video, FileText, Music, Gamepad2 } from 'lucide-react'
 import { BookmarkButton } from '../BookmarkButton'
 
 async function getAllLinks() {
@@ -64,7 +64,7 @@ const SubmittedLinksPage = async () => {
                 </CardTitle>
               </div>
               <p className="text-sm text-muted-foreground mb-2">
-                Submitted by {/* @ts-expect-error */} {link.user.name || 'Anonymous'}
+                Submitted by {typeof link.user === 'object' && link.user?.name ? link.user.name : 'Anonymous'}
               </p>
               <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                 <span
@@ -79,7 +79,7 @@ const SubmittedLinksPage = async () => {
                   {link.status}
                 </span>
                 <Link href={`/link/${link.id}`} className="flex items-center hover:underline">
-                  <MessageCircle className="w-4 h-4 mr-1" /> {/* @ts-expect-error */}{' '}
+                  <MessageCircle className="w-4 h-4 mr-1" />{' '}
                   {link.comments ? link.comments.length : 0} Comments
                 </Link>
                 <BookmarkButton linkId={link.id} />

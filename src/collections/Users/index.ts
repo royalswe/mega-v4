@@ -11,6 +11,8 @@ export const Users: CollectionConfig = {
     {
       name: 'name',
       type: 'text',
+      defaultValue: 'Anonymous',
+      required: true,
     },
   ],
 }

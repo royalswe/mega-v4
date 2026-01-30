@@ -84,5 +84,11 @@ export const Links: CollectionConfig = {
       defaultValue: 0,
       required: true,
     },
+    {
+      name: 'comments',
+      type: 'relationship',
+      relationTo: 'comments',
+      hasMany: true,
+    },
   ],
 }
