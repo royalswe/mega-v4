@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic' // This stops the build-time DB check
+
 import React from 'react'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
