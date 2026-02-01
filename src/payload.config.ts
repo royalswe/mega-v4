@@ -5,6 +5,7 @@ import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 
+import { migrations } from './migrations' // Payload now generates an index.ts here!
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
 import { Links } from './collections/Links'
@@ -15,16 +16,21 @@ import { Bookmarks } from './collections/Bookmarks'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
+const autoLogin =
+  process.env.NODE_ENV === 'development' && process.env.LOCAL_PAYLOAD_ADMIN_EMAIL
+    ? {
+        email: process.env.LOCAL_PAYLOAD_ADMIN_EMAIL,
+        password: process.env.LOCAL_PAYLOAD_ADMIN_PASSWORD,
+      }
+    : false
+
 export default buildConfig({
   admin: {
     user: Users.slug,
     importMap: {
       baseDir: path.resolve(dirname),
     },
-    autoLogin: {
-      email: process.env.LOCAL_PAYLOAD_ADMIN_EMAIL,
-      password: process.env.LOCAL_PAYLOAD_ADMIN_PASSWORD,
-    },
+    autoLogin,
   },
   collections: [Users, Media, Links, Comments, Votes, Bookmarks],
   editor: lexicalEditor(),
@@ -36,6 +42,7 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
     },
+    prodMigrations: migrations,
   }),
   sharp,
   plugins: [],
