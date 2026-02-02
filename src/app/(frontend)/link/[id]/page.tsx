@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic' // This stops the build-time DB check
 import React from 'react'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { notFound } from 'next/navigation'
 import { CommentForm } from '@/components/comments/CommentForm'
 import { VoteButtons } from '@/components/links/VoteButtons'
