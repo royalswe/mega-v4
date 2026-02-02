@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/form'
 import { Textarea } from '@/components/ui/textarea'
 import { submitComment } from '@/app/actions/comments'
+import Link from 'next/link'
 
 const formSchema = z.object({
   comment: z.string().min(1, {
@@ -23,7 +24,8 @@ const formSchema = z.object({
   }),
 })
 
-export function CommentForm({ linkId }: { linkId: number }) {
+
+export function CommentForm({ linkId, userId }: { linkId: number; userId?: string | number | null }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -42,6 +44,20 @@ export function CommentForm({ linkId }: { linkId: number }) {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (!userId) {
+    return (
+      <div className="p-4 border rounded-md bg-muted text-muted-foreground text-center">
+        <p>
+          Please{' '}
+          <Link href="/login" className="underline hover:text-foreground">
+            log in
+          </Link>{' '}
+          to comment.
+        </p>
+      </div>
+    )
   }
 
   return (

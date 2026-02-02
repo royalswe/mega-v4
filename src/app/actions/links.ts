@@ -5,6 +5,11 @@ import { getAuthenticatedUser } from '@/lib/auth'
 
 export async function vote(linkId: number, type: 'up' | 'down') {
   const { user, payload } = await getAuthenticatedUser()
+
+  if (!user) {
+    throw new Error('You must be logged in to vote')
+  }
+
   const userId = user.id
 
   // Find existing vote
@@ -40,6 +45,11 @@ export async function vote(linkId: number, type: 'up' | 'down') {
 
 export async function toggleBookmark(linkId: number) {
   const { user, payload } = await getAuthenticatedUser()
+
+  if (!user) {
+    throw new Error('You must be logged in to bookmark')
+  }
+
   const userId = user.id
 
   const { docs: existingBookmarks } = await payload.find({
@@ -84,6 +94,11 @@ export async function submitLink(values: {
   type?: 'article' | 'video' | 'image' | 'audio' | 'game'
 }) {
   const { user, payload } = await getAuthenticatedUser()
+
+  if (!user) {
+    throw new Error('You must be logged in to submit a link')
+  }
+
   const userId = user.id
 
   await payload.create({

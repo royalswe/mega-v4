@@ -117,7 +117,7 @@ export function LinkSubmitForm() {
             <FormField
               control={form.control}
               name="type"
-              render={({ field }) => (
+              render={() => (
                 <FormItem>
                   <FormLabel>Type</FormLabel>
                   <FormControl></FormControl>

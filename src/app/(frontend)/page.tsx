@@ -4,13 +4,14 @@ import React from 'react'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { LinkCard } from '@/components/links/LinkCard'
+import { headers } from 'next/headers'
 
-async function getApprovedLinks() {
-  const payload = await getPayload({
-    config: configPromise,
-  })
+export default async function HomePage() {
+  const headersList = await headers()
+  const payload = await getPayload({ config: configPromise })
+  const { user } = await payload.auth({ headers: headersList })
 
-  const links = await payload.find({
+  const { docs: links } = await payload.find({
     collection: 'links',
     where: {
       status: {
@@ -20,22 +21,14 @@ async function getApprovedLinks() {
     sort: '-createdAt',
   })
 
-  return links.docs
-}
-
-const HomePage = async () => {
-  const links = await getApprovedLinks()
-
   return (
-    <div>
+    <div className="space-y-4">
       <h2 className="text-xl font-semibold mb-4">Approved Links</h2>
       <div className="grid gap-4">
         {links.map((link) => (
-          <LinkCard key={link.id} link={link} />
+          <LinkCard key={link.id} link={link} userId={user?.id} />
         ))}
       </div>
     </div>
   )
 }
-
-export default HomePage

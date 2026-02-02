@@ -7,19 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { notFound } from 'next/navigation'
 import { CommentForm } from '@/components/comments/CommentForm'
 import { VoteButtons } from '@/components/links/VoteButtons'
-
-async function getLink(id: number) {
-  const payload = await getPayload({
-    config: configPromise,
-  })
-
-  const link = await payload.findByID({
-    collection: 'links',
-    id,
-  })
-
-  return link
-}
+import { headers } from 'next/headers'
+import { LinkIcon } from '@/components/links/LinkIcon'
+import { BookmarkButton } from '@/components/links/BookmarkButton'
 
 async function getComments(linkId: number) {
   const payload = await getPayload({
@@ -39,37 +29,57 @@ async function getComments(linkId: number) {
   return comments.docs
 }
 
-const LinkPage = async ({ params }: { params: { id: string } }) => {
-  const linkId = Number(params.id)
-  const link = await getLink(linkId)
+export default async function LinkPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const headersList = await headers()
+  const payload = await getPayload({ config: configPromise })
+  const { user } = await payload.auth({ headers: headersList })
 
-  if (!link) {
+  const { docs: links } = await payload.find({
+    collection: 'links',
+    where: {
+      id: {
+        equals: parseInt(id),
+      },
+    },
+  })
+
+  if (!links.length) {
     return notFound()
   }
 
-  const comments = await getComments(linkId)
+  const link = links[0]
+
+  const comments = await getComments(link.id)
 
   return (
-    <div>
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <a href={link.url} target="_blank" rel="noopener noreferrer">
-              {link.title}
-            </a>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>{link.description}</p>
-          <div className="flex items-center justify-between text-sm text-muted-foreground mt-4">
-            <VoteButtons linkId={link.id} votes={link.votes || 0} />
+    <div className="max-w-4xl mx-auto p-4">
+      <div className="flex gap-4 mb-8">
+        <div className="shrink-0">
+          <VoteButtons linkId={link.id} votes={link.votes || 0} userId={user?.id} />
+        </div>
+        <div className="grow">
+          <div className="flex items-center gap-2 mb-2">
+            <LinkIcon type={link.type} />
+            <h1 className="text-2xl font-bold hover:underline">
+              <a href={link.url} target="_blank" rel="noopener noreferrer">
+                {link.title}
+              </a>
+            </h1>
           </div>
-        </CardContent>
-      </Card>
+          <p className="text-muted-foreground mb-4">
+            Submitted by {(typeof link.user === 'object' && link.user?.username) || 'Ghost'}
+          </p>
+          <div className="flex gap-4 mb-6">
+            <BookmarkButton linkId={link.id} userId={user?.id} />
+          </div>
+          <p className="whitespace-pre-wrap">{link.description}</p>
+        </div>
+      </div>
 
-      <div className="mt-8">
-        <h2 className="text-xl font-semibold mb-4">Comments</h2>
-        <CommentForm linkId={linkId} />
+      <div className="mb-8">
+        <h2 className="text-xl font-bold mb-4">Comments</h2>
+        <CommentForm linkId={link.id} userId={user?.id} />
         <div className="grid gap-4 mt-4">
           {comments.map((comment) => (
             <Card key={comment.id}>
@@ -87,5 +97,3 @@ const LinkPage = async ({ params }: { params: { id: string } }) => {
     </div>
   )
 }
-
-export default LinkPage

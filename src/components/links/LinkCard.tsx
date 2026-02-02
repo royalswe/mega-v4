@@ -12,11 +12,17 @@ import type { Link as LinkType } from '@/payload-types'
 // If payload-types.ts is not perfectly matching what we get from `find`, we might need to adjust.
 // For now, let's assume `link` passed here matches the structure we need.
 
-export function LinkCard({ link }: { link: LinkType }) {
+export function LinkCard({
+  link,
+  userId,
+}: {
+  link: LinkType
+  userId?: string | number | null
+}) {
   return (
     <Card className="flex-row p-4">
       <div className="shrink-0">
-        <VoteButtons linkId={link.id} votes={link.votes || 0} />
+        <VoteButtons linkId={link.id} votes={link.votes || 0} userId={userId} />
       </div>
       <div className="grow flex flex-col justify-center">
         <div className="flex items-center space-x-2 mb-1">
@@ -40,7 +46,7 @@ export function LinkCard({ link }: { link: LinkType }) {
             <MessageCircle className="w-4 h-4 mr-1" />
             {link.relatedComments?.docs?.length || 0} Comments
           </Link>
-          <BookmarkButton linkId={link.id} />
+          <BookmarkButton linkId={link.id} userId={userId} />
         </div>
       </div>
     </Card>

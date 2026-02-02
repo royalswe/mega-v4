@@ -11,6 +11,10 @@ export async function submitLink(values: {
 }) {
   const { user, payload } = await getAuthenticatedUser()
 
+  if (!user) {
+    throw new Error('You must be logged in to vote')
+  }
+
   await payload.create({
     collection: 'links',
     data: {

@@ -5,15 +5,24 @@ import { Button } from '@/components/ui/button'
 import { vote } from '@/app/actions/links'
 import { ArrowUp, ArrowDown } from 'lucide-react'
 
-export function VoteButtons({ linkId, votes }: { linkId: number; votes: number }) {
+export function VoteButtons({
+  linkId,
+  votes,
+  userId,
+}: {
+  linkId: number
+  votes: number
+  userId?: string | number | null
+}) {
   const [isPending, startTransition] = useTransition()
+  const isEnabled = !!userId
 
   return (
     <div className="flex flex-col items-center">
       <Button
         size="sm"
         variant="ghost"
-        disabled={isPending}
+        disabled={isPending || !isEnabled}
         onClick={() => startTransition(() => vote(linkId, 'up'))}
       >
         <ArrowUp className="w-4 h-4" />
@@ -22,7 +31,7 @@ export function VoteButtons({ linkId, votes }: { linkId: number; votes: number }
       <Button
         size="sm"
         variant="ghost"
-        disabled={isPending}
+        disabled={isPending || !isEnabled}
         onClick={() => startTransition(() => vote(linkId, 'down'))}
       >
         <ArrowDown className="w-4 h-4" />

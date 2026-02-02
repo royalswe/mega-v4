@@ -7,9 +7,5 @@ export async function getAuthenticatedUser() {
   const payload = await getPayload({ config: configPromise })
   const { user } = await payload.auth({ headers: headersList })
 
-  if (!user) {
-    throw new Error('You must be logged in to perform this action.')
-  }
-
   return { user, payload }
 }
