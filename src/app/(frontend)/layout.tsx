@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { ThemeProvider } from './ThemeProvider'
 import { ThemeToggle } from './ThemeToggle'
 
+import { Header } from '@/components/layout/Header'
+
 export const metadata: Metadata = {
   title: 'Link Hub',
   description: 'A place to share and discover links.',
@@ -22,31 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           disableTransitionOnChange
         >
           <div className="flex flex-col min-h-screen">
-            <header className="py-4 px-6 border-b flex items-center justify-between">
-              <h1 className="text-2xl font-bold">
-                <Link href="/">Link Hub</Link>
-              </h1>
-              <nav className="flex items-center space-x-4">
-                <ul className="flex items-center space-x-4">
-                  <li>
-                    <Button variant="ghost" asChild>
-                      <Link href="/">Home</Link>
-                    </Button>
-                  </li>
-                  <li>
-                    <Button variant="ghost" asChild>
-                      <Link href="/submitted">Submitted</Link>
-                    </Button>
-                  </li>
-                  <li>
-                    <Button variant="ghost" asChild>
-                      <Link href="/new">New Link</Link>
-                    </Button>
-                  </li>
-                </ul>
-                <ThemeToggle />
-              </nav>
-            </header>
+            <Header />
             <main className="grow container mx-auto py-8 px-6">{children}</main>
             <footer className="py-4 px-6 border-t text-center text-sm text-muted-foreground">
               <p>&copy; Link Hub. All rights reserved.</p>

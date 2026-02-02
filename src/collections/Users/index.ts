@@ -1,18 +1,91 @@
 import type { CollectionConfig } from 'payload'
+import { admins } from '@/access/admins'
+import { adminsAndUser } from '@/access/adminsAndUser'
+import { anyone } from '@/access/anyone'
+import { checkRole } from '@/access/checkRole'
+import { checkUserOrAdmin } from '@/access/checkUserOrAdmin'
 
 export const Users: CollectionConfig = {
   slug: 'users',
   admin: {
     useAsTitle: 'email',
   },
-  auth: true,
+  auth: {
+    tokenExpiration: 172800, // 48 hours
+    maxLoginAttempts: 10,
+    lockTime: 600 * 1000, // 10 minutes
+    loginWithUsername: {
+      allowEmailLogin: true, // allow login with email or username
+      requireEmail: false, // Email is not required on signup
+    },
+    cookies: {
+      sameSite: 'None',
+      secure: true,
+    },
+  },
+  access: {
+    read: adminsAndUser,
+    create: anyone,
+    update: adminsAndUser,
+    delete: admins,
+    unlock: admins,
+    admin: ({ req: { user } }) => checkRole(['admin'], user),
+  },
   fields: [
-    // Email added by default
     {
-      name: 'name',
+      name: 'username',
       type: 'text',
-      defaultValue: 'Anonymous',
       required: true,
+      unique: true,
+    },
+    {
+      name: 'email',
+      type: 'email',
+      required: true,
+      unique: true,
+      access: {
+        read: checkUserOrAdmin,
+        update: checkUserOrAdmin,
+      },
+    },
+    // {
+    //   name: 'password',
+    //   type: 'password',
+    //   required: true,
+    //   admin: {
+    //     description: 'Leave blank to keep the current password.',
+    //   },
+    // },
+    {
+      name: 'resetPasswordToken',
+      type: 'text',
+      hidden: true,
+    },
+    {
+      name: 'resetPasswordExpiration',
+      type: 'date',
+      hidden: true,
+    },
+    {
+      name: 'roles',
+      type: 'select',
+      hasMany: true,
+      saveToJWT: true,
+      access: {
+        read: admins,
+        update: admins,
+        create: admins,
+      },
+      options: [
+        {
+          label: 'Admin',
+          value: 'admin',
+        },
+        {
+          label: 'User',
+          value: 'user',
+        },
+      ],
     },
   ],
 }

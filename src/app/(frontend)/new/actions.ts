@@ -3,6 +3,8 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { revalidatePath } from 'next/cache'
 
+import { headers } from 'next/headers'
+
 export async function submitLink(values: {
   title: string
   url: string
@@ -14,16 +16,14 @@ export async function submitLink(values: {
     config: configPromise,
   })
 
-  let user = await payload.find({
-    collection: 'users',
-    where: {
-      email: {
-        equals: 'dev@example.com',
-      },
-    },
-  })
+  const headersList = await headers()
+  const { user } = await payload.auth({ headers: headersList })
 
-  const userId = user.docs[0].id
+  if (!user) {
+    throw new Error('You must be logged in to submit a link')
+  }
+
+  const userId = user.id
 
   await payload.create({
     collection: 'links',
