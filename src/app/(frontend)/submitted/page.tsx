@@ -11,15 +11,26 @@ import { BookmarkButton } from '@/components/links/BookmarkButton'
 
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import { getAuthenticatedUser } from '@/lib/auth'
+import { User } from '@/payload-types'
 
-async function getAllLinks() {
+async function getAllLinks(showNSFW: boolean) {
+  const where: any = {
+    sort: '-createdAt',
+  }
+
+  if (!showNSFW) {
+    where.nsfw = {
+      not_equals: true,
+    }
+  }
+
   const payload = await getPayload({
     config: configPromise,
   })
 
   const links = await payload.find({
     collection: 'links',
-    sort: '-createdAt',
+    where,
   })
 
   return links.docs
@@ -27,9 +38,10 @@ async function getAllLinks() {
 
 const SubmittedLinksPage = async () => {
   const { user } = await getAuthenticatedUser()
+  const showNSFW = user?.settings?.nsfw === true
 
-  const links = await getAllLinks()
-  
+  const links = await getAllLinks(showNSFW)
+
   // Fetch user interactions
   const linkIds = links.map((link) => link.id)
   const { votes, bookmarks } = await getUserInteractions(user?.id || '', linkIds)
@@ -56,7 +68,7 @@ const SubmittedLinksPage = async () => {
       <h2 className="text-xl font-semibold mb-4">All Submitted Links</h2>
       <div className="grid gap-4">
         {links.map((link) => (
-          <Card key={link.id} className="flex-row p-4">
+          <Card key={link.id} className="flex-row p-4 ">
             <div className="shrink-0">
               <VoteButtons
                 linkId={link.id}
@@ -68,7 +80,9 @@ const SubmittedLinksPage = async () => {
             <div className="grow flex flex-col justify-center">
               <div className="flex items-center space-x-2 mb-1">
                 {getLinkIcon(link.type)}
-                <CardTitle className="text-lg font-semibold leading-none">
+                <CardTitle
+                  className={`text-lg font-semibold leading-none ${link.nsfw ? 'nsfw-text' : ''}`}
+                >
                   <a
                     href={link.url}
                     target="_blank"

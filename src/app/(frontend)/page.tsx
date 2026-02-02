@@ -44,6 +44,7 @@ export default async function HomePage() {
             userId={user?.id}
             userVote={votes[link.id]}
             isBookmarked={bookmarks[link.id]}
+            className={link.nsfw ? 'nsfw-text' : ''}
           />
         ))}
       </div>

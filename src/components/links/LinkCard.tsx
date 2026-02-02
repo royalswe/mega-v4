@@ -17,26 +17,23 @@ export function LinkCard({
   userId,
   userVote,
   isBookmarked,
+  className,
 }: {
   link: LinkType
   userId?: string | number | null
   userVote?: 'up' | 'down'
   isBookmarked?: boolean
+  className?: string
 }) {
   return (
-    <Card className="flex-row p-4">
+    <Card className={`flex-row p-4`}>
       <div className="shrink-0">
-        <VoteButtons
-          linkId={link.id}
-          votes={link.votes || 0}
-          userId={userId}
-          userVote={userVote}
-        />
+        <VoteButtons linkId={link.id} votes={link.votes || 0} userId={userId} userVote={userVote} />
       </div>
       <div className="grow flex flex-col justify-center">
         <div className="flex items-center space-x-2 mb-1">
           <LinkIcon type={link.type} />
-          <CardTitle className="text-lg font-semibold leading-none">
+          <CardTitle className={`text-lg font-semibold leading-none ${className}`}>
             <a
               href={link.url}
               target="_blank"
