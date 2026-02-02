@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -54,9 +55,11 @@ export function LinkSubmitForm() {
     setIsSubmitting(true)
     try {
       await submitLink(values)
+      toast.success('Link submitted successfully!')
       form.reset()
     } catch (error) {
       console.error(error)
+      toast.error('Failed to submit link. Please try again.')
     } finally {
       setIsSubmitting(false)
     }

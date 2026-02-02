@@ -4,6 +4,7 @@ import React from 'react'
 import { ThemeProvider } from './ThemeProvider'
 
 import { Header } from '@/components/layout/Header'
+import { Toaster } from '@/components/ui/sonner'
 
 export const metadata: Metadata = {
   title: 'Link Hub',
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <p>&copy; Link Hub. All rights reserved.</p>
             </footer>
           </div>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

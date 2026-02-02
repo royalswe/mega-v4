@@ -15,14 +15,23 @@ import type { Link as LinkType } from '@/payload-types'
 export function LinkCard({
   link,
   userId,
+  userVote,
+  isBookmarked,
 }: {
   link: LinkType
   userId?: string | number | null
+  userVote?: 'up' | 'down'
+  isBookmarked?: boolean
 }) {
   return (
     <Card className="flex-row p-4">
       <div className="shrink-0">
-        <VoteButtons linkId={link.id} votes={link.votes || 0} userId={userId} />
+        <VoteButtons
+          linkId={link.id}
+          votes={link.votes || 0}
+          userId={userId}
+          userVote={userVote}
+        />
       </div>
       <div className="grow flex flex-col justify-center">
         <div className="flex items-center space-x-2 mb-1">
@@ -46,7 +55,7 @@ export function LinkCard({
             <MessageCircle className="w-4 h-4 mr-1" />
             {link.relatedComments?.docs?.length || 0} Comments
           </Link>
-          <BookmarkButton linkId={link.id} userId={userId} />
+          <BookmarkButton linkId={link.id} userId={userId} isBookmarked={isBookmarked} />
         </div>
       </div>
     </Card>

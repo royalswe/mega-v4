@@ -17,6 +17,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { submitComment } from '@/app/actions/comments'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 const formSchema = z.object({
   comment: z.string().min(1, {
@@ -38,9 +39,11 @@ export function CommentForm({ linkId, userId }: { linkId: number; userId?: strin
     setIsSubmitting(true)
     try {
       await submitComment(linkId, values.comment)
+      toast.success('Comment added!')
       form.reset()
     } catch (error) {
       console.error(error)
+      toast.error('Failed to add comment')
     } finally {
       setIsSubmitting(false)
     }

@@ -6,6 +6,8 @@ import configPromise from '@payload-config'
 import { LinkCard } from '@/components/links/LinkCard'
 import { headers } from 'next/headers'
 
+import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
+
 export default async function HomePage() {
   const headersList = await headers()
   const payload = await getPayload({ config: configPromise })
@@ -21,12 +23,22 @@ export default async function HomePage() {
     sort: '-createdAt',
   })
 
+  // Fetch user interactions (votes/bookmarks)
+  const linkIds = links.map((link) => link.id)
+  const { votes, bookmarks } = await getUserInteractions(user?.id || 0, linkIds)
+
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-semibold mb-4">Approved Links</h2>
       <div className="grid gap-4">
         {links.map((link) => (
-          <LinkCard key={link.id} link={link} userId={user?.id} />
+          <LinkCard
+            key={link.id}
+            link={link}
+            userId={user?.id}
+            userVote={votes[link.id]}
+            isBookmarked={bookmarks[link.id]}
+          />
         ))}
       </div>
     </div>

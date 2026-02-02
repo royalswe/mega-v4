@@ -29,6 +29,8 @@ async function getComments(linkId: number) {
   return comments.docs
 }
 
+import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
+
 export default async function LinkPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const headersList = await headers()
@@ -52,11 +54,21 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
 
   const comments = await getComments(link.id)
 
+  // Fetch user interactions
+  const { votes, bookmarks } = await getUserInteractions(user?.id || 0, [link.id])
+  const userVote = votes[link.id]
+  const isBookmarked = bookmarks[link.id]
+
   return (
     <div className="max-w-4xl mx-auto p-4">
       <div className="flex gap-4 mb-8">
         <div className="shrink-0">
-          <VoteButtons linkId={link.id} votes={link.votes || 0} userId={user?.id} />
+          <VoteButtons
+            linkId={link.id}
+            votes={link.votes || 0}
+            userId={user?.id}
+            userVote={userVote}
+          />
         </div>
         <div className="grow">
           <div className="flex items-center gap-2 mb-2">
@@ -71,7 +83,11 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
             Submitted by {(typeof link.user === 'object' && link.user?.username) || 'Ghost'}
           </p>
           <div className="flex gap-4 mb-6">
-            <BookmarkButton linkId={link.id} userId={user?.id} />
+            <BookmarkButton
+              linkId={link.id}
+              userId={user?.id}
+              isBookmarked={isBookmarked}
+            />
           </div>
           <p className="whitespace-pre-wrap">{link.description}</p>
         </div>

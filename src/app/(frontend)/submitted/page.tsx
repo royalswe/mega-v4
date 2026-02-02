@@ -9,6 +9,9 @@ import { VoteButtons } from '@/components/links/VoteButtons'
 import { MessageCircle, Image, Video, FileText, Music, Gamepad2 } from 'lucide-react'
 import { BookmarkButton } from '@/components/links/BookmarkButton'
 
+import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
+import { getAuthenticatedUser } from '@/lib/auth'
+
 async function getAllLinks() {
   const payload = await getPayload({
     config: configPromise,
@@ -23,7 +26,13 @@ async function getAllLinks() {
 }
 
 const SubmittedLinksPage = async () => {
+  const { user } = await getAuthenticatedUser()
+
   const links = await getAllLinks()
+  
+  // Fetch user interactions
+  const linkIds = links.map((link) => link.id)
+  const { votes, bookmarks } = await getUserInteractions(user?.id || '', linkIds)
 
   const getLinkIcon = (type: string) => {
     switch (type) {
@@ -49,7 +58,12 @@ const SubmittedLinksPage = async () => {
         {links.map((link) => (
           <Card key={link.id} className="flex-row p-4">
             <div className="shrink-0">
-              <VoteButtons linkId={link.id} votes={link.votes || 0} />
+              <VoteButtons
+                linkId={link.id}
+                votes={link.votes || 0}
+                userId={user?.id}
+                userVote={votes[link.id]}
+              />
             </div>
             <div className="grow flex flex-col justify-center">
               <div className="flex items-center space-x-2 mb-1">
@@ -84,7 +98,11 @@ const SubmittedLinksPage = async () => {
                   <MessageCircle className="w-4 h-4 mr-1" />
                   {link.relatedComments?.docs?.length || 0} Comments
                 </Link>
-                <BookmarkButton linkId={link.id} />
+                <BookmarkButton
+                  linkId={link.id}
+                  userId={user?.id}
+                  isBookmarked={bookmarks[link.id]}
+                />
               </div>
             </div>
           </Card>
