@@ -1,10 +1,7 @@
 import type { Metadata } from 'next'
-import React from 'react'
 import './globals.css'
-import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import React from 'react'
 import { ThemeProvider } from './ThemeProvider'
-import { ThemeToggle } from './ThemeToggle'
 
 import { Header } from '@/components/layout/Header'
 

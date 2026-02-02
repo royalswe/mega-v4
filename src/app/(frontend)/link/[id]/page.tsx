@@ -5,8 +5,8 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { notFound } from 'next/navigation'
-import { CommentForm } from './CommentForm'
-import { VoteButtons } from '../../VoteButtons' // Import VoteButtons
+import { CommentForm } from '@/components/comments/CommentForm'
+import { VoteButtons } from '@/components/links/VoteButtons'
 
 async function getLink(id: number) {
   const payload = await getPayload({
@@ -76,8 +76,8 @@ const LinkPage = async ({ params }: { params: { id: string } }) => {
               <CardContent>
                 <p className="py-4">{comment.comment}</p>
                 <span className="text-sm text-muted-foreground">
-                  {/* @ts-expect-error */}
-                  Posted by {comment.user.name || 'Anonymous'}
+                  Posted by{' '}
+                  {(typeof comment.user === 'object' && comment.user?.username) || 'Ghost'}
                 </span>
               </CardContent>
             </Card>

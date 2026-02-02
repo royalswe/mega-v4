@@ -15,7 +15,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Textarea } from '@/components/ui/textarea'
-import { submitComment } from './actions'
+import { submitComment } from '@/app/actions/comments'
 
 const formSchema = z.object({
   comment: z.string().min(1, {

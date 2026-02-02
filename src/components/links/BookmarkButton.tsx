@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react'
 import { Bookmark } from 'lucide-react'
-import { toggleBookmark } from './actions'
+import { toggleBookmark } from '@/app/actions/links'
 
 export function BookmarkButton({ linkId }: { linkId: number }) {
   const [isPending, startTransition] = useTransition()

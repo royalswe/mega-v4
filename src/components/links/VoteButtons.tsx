@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react'
 import { Button } from '@/components/ui/button'
-import { vote } from './actions'
+import { vote } from '@/app/actions/links'
 import { ArrowUp, ArrowDown } from 'lucide-react'
 
 export function VoteButtons({ linkId, votes }: { linkId: number; votes: number }) {

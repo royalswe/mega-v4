@@ -5,9 +5,9 @@ import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { Card, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
-import { VoteButtons } from '../VoteButtons'
+import { VoteButtons } from '@/components/links/VoteButtons'
 import { MessageCircle, Image, Video, FileText, Music, Gamepad2 } from 'lucide-react'
-import { BookmarkButton } from '../BookmarkButton'
+import { BookmarkButton } from '@/components/links/BookmarkButton'
 
 async function getAllLinks() {
   const payload = await getPayload({
@@ -66,8 +66,7 @@ const SubmittedLinksPage = async () => {
                 </CardTitle>
               </div>
               <p className="text-sm text-muted-foreground mb-2">
-                Submitted by{' '}
-                {typeof link.user === 'object' && link.user?.name ? link.user.name : 'Anonymous'}
+                Submitted by {(typeof link.user === 'object' && link.user?.username) || 'Anonymous'}
               </p>
               <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                 <span

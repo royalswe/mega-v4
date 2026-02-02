@@ -25,7 +25,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import { submitLink } from '@/app/(frontend)/new/actions'
+import { submitLink } from '@/app/actions/submitLink'
 
 const formSchema = z.object({
   title: z.string().min(2, {
