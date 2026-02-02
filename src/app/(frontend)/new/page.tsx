@@ -1,15 +1,10 @@
 import { LinkSubmitForm } from '@/components/links/LinkSubmitForm'
-import { getPayload } from 'payload'
-import configPromise from '@payload-config'
-import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import React from 'react'
+import { getAuthenticatedUser } from '@/lib/auth'
 
 export default async function NewLinkPage() {
-  const headersList = await headers()
-  const payload = await getPayload({ config: configPromise })
-  const { user } = await payload.auth({ headers: headersList })
-
+  const { user } = await getAuthenticatedUser()
   if (!user) {
     redirect('/login?error=You must be logged in to submit a link')
   }

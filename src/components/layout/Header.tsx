@@ -2,17 +2,18 @@ import React from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/app/(frontend)/ThemeToggle'
-import { getPayload } from 'payload'
-import configPromise from '@payload-config'
-import { headers } from 'next/headers'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { User, LogOut } from 'lucide-react'
 import { logout } from '@/app/actions/auth'
+import { getAuthenticatedUser } from '@/lib/auth'
 
 export async function Header() {
-  const headersList = await headers()
-  const payload = await getPayload({ config: configPromise })
-  const { user } = await payload.auth({ headers: headersList })
+  const { user } = await getAuthenticatedUser()
 
   return (
     <header className="py-4 px-6 border-b flex items-center justify-between">
@@ -40,7 +41,7 @@ export async function Header() {
 
         <div className="flex items-center space-x-2">
           <ThemeToggle />
-          
+
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -53,13 +54,13 @@ export async function Header() {
                 <DropdownMenuItem className="font-medium">
                   {user.username || user.email}
                 </DropdownMenuItem>
-                 <DropdownMenuItem asChild>
-                   <form action={logout} className="w-full">
-                     <button className="flex w-full items-center text-red-600">
-                       <LogOut className="mr-2 h-4 w-4" />
-                       <span>Log out</span>
-                     </button>
-                   </form>
+                <DropdownMenuItem asChild>
+                  <form action={logout} className="w-full">
+                    <button className="flex w-full items-center text-red-600">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Log out</span>
+                    </button>
+                  </form>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
