@@ -1,25 +1,31 @@
 export const dynamic = 'force-dynamic' // This stops the build-time DB check
 
 import React from 'react'
-import { getPayload } from 'payload'
-import configPromise from '@payload-config'
 import { LinkCard } from '@/components/links/LinkCard'
-import { headers } from 'next/headers'
 
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
+import { getAuthenticatedUser } from '@/lib/auth'
 
 export default async function HomePage() {
-  const headersList = await headers()
-  const payload = await getPayload({ config: configPromise })
-  const { user } = await payload.auth({ headers: headersList })
+  const { user, payload } = await getAuthenticatedUser()
+
+  const showNSFW = user?.settings?.nsfw === true
+
+  const where: any = {
+    status: {
+      equals: 'approved',
+    },
+  }
+
+  if (!showNSFW) {
+    where.nsfw = {
+      not_equals: true,
+    }
+  }
 
   const { docs: links } = await payload.find({
     collection: 'links',
-    where: {
-      status: {
-        equals: 'approved',
-      },
-    },
+    where,
     sort: '-createdAt',
   })
 

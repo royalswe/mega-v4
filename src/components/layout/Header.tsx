@@ -11,6 +11,7 @@ import {
 import { User, LogOut } from 'lucide-react'
 import { logout } from '@/app/actions/auth'
 import { getAuthenticatedUser } from '@/lib/auth'
+import { NSFWToggle } from '@/components/layout/NSFWToggle'
 
 export async function Header() {
   const { user } = await getAuthenticatedUser()
@@ -53,6 +54,9 @@ export async function Header() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem className="font-medium">
                   {user.username || user.email}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="p-0 focus:bg-transparent">
+                  <NSFWToggle initialValue={user.settings?.nsfw || false} />
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <form action={logout} className="w-full">

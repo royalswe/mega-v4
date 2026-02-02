@@ -87,5 +87,17 @@ export const Users: CollectionConfig = {
         },
       ],
     },
+    {
+      name: 'settings',
+      type: 'group',
+      fields: [
+        {
+          name: 'nsfw',
+          type: 'checkbox',
+          defaultValue: false,
+          label: 'Show NSFW Content',
+        },
+      ],
+    },
   ],
 }
