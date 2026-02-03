@@ -1,6 +1,10 @@
 import type { CollectionConfig } from 'payload'
 import { recalculateVotes } from './hooks/recalculateVotes'
 
+/**
+ * Votes collection configuration.
+ * This collection tracks user votes on links and ensures that each user can only vote once per link.
+ */
 export const Votes: CollectionConfig = {
   slug: 'votes',
   fields: [
@@ -32,8 +36,13 @@ export const Votes: CollectionConfig = {
       required: true,
     },
   ],
+  access: {
+    create: ({ req: { user } }) => !!user,
+    update: ({ req: { user } }) => !!user,
+    delete: ({ req: { user } }) => !!user,
+  },
   hooks: {
-    afterChange: [recalculateVotes],
-    afterDelete: [recalculateVotes],
+    afterChange: [recalculateVotes], // Recalculate votes after a vote is created or updated
+    afterDelete: [recalculateVotes], // Recalculate votes after a vote is deleted
   },
 }

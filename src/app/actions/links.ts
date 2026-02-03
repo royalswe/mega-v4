@@ -23,6 +23,8 @@ export async function vote(linkId: number, type: 'up' | 'down') {
 
   // Just perform the operation.
   // The HOOK in your collection will automatically update the Link's vote count.
+  // BUT: We also manually update here to ensure atomic consistency before revalidation
+  // to avoid UI flicker (where the hook hasn't finished yet).
   if (existingVotes.length > 0) {
     if (existingVotes[0].vote === type) {
       await payload.delete({ collection: 'votes', id: existingVotes[0].id })
@@ -39,6 +41,34 @@ export async function vote(linkId: number, type: 'up' | 'down') {
       data: { user: userId, link: linkId, vote: type },
     })
   }
+
+  // ATOMIC UPDATE: Recalculate immediately
+  // Fetch all votes for this specific link (using the same payload instance which is request-scoped but should be fine here)
+  // Actually, let's use the same robust logic as the hook: find ALL votes.
+  const { docs: allVotes } = await payload.find({
+    collection: 'votes',
+    where: {
+      link: { equals: linkId },
+    },
+    limit: 5000,
+    depth: 0,
+    overrideAccess: true,
+  })
+
+  // Calculate the total score
+  const totalScore = allVotes.reduce((acc, curr) => {
+    return curr.vote === 'up' ? acc + 1 : curr.vote === 'down' ? acc - 1 : acc
+  }, 0)
+
+  // Update the Link document with the new count
+  await payload.update({
+    collection: 'links',
+    id: linkId,
+    data: {
+      votes: totalScore,
+    },
+    overrideAccess: true,
+  })
 
   revalidatePath('/')
 }
