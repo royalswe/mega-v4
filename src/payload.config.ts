@@ -5,6 +5,7 @@ import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 
+import { migrations } from './migrations' // Payload now generates an index.ts here!
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
 import { Links } from './collections/Links'
@@ -41,6 +42,7 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
     },
+    prodMigrations: migrations,
   }),
   sharp,
   plugins: [],
