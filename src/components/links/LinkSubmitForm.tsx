@@ -135,7 +135,6 @@ export function LinkSubmitForm({ dict }: { dict: Record<string, any> }) {
                       <SelectContent>
                         <SelectItem value="article">{dict.linkForm.types.article}</SelectItem>
                         <SelectItem value="video">{dict.linkForm.types.video}</SelectItem>
-                        <SelectItem value="podcast">{dict.linkForm.types.podcast}</SelectItem>
                         <SelectItem value="image">{dict.linkForm.types.image}</SelectItem>
                         <SelectItem value="audio">{dict.linkForm.types.audio}</SelectItem>
                         <SelectItem value="game">{dict.linkForm.types.game}</SelectItem>

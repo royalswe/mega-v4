@@ -70,7 +70,7 @@ export default async function HomePage({
         <h2 className="text-xl font-semibold">{dict.pages.title}</h2>
         {user && <BookmarksFilter label={dict.pages.bookmarksOnly} />}
       </div>
-      <div className="grid gap-4">
+      <div className="flex flex-col gap-4">
         {links.length > 0 ? (
           links.map((link) => (
             <LinkCard

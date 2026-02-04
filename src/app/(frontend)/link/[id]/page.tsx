@@ -98,7 +98,7 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
       <div className="mb-8">
         <h2 className="text-xl font-bold mb-4">{dict.common.comments}</h2>
         <CommentForm linkId={link.id} userId={user?.id} dict={dict} />
-        <div className="grid gap-4 mt-4">
+        <div className="flex flex-col gap-4 mt-4">
           {comments.map((comment) => (
             <Card key={comment.id}>
               <CardContent>

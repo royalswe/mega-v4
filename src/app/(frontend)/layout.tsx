@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           <div className="flex flex-col min-h-screen">
             <Header />
-            <main className="grow container mx-auto py-8 px-6">{children}</main>
+            <main className="grow w-full max-w-[1140px] mx-auto py-8 px-2 sm:px-6">{children}</main>
             <footer className="py-4 px-6 border-t text-center text-sm text-muted-foreground">
               <p>&copy; Link Hub. All rights reserved.</p>
             </footer>

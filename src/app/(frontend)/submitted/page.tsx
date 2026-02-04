@@ -66,7 +66,7 @@ const SubmittedLinksPage = async () => {
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">{dict.pages.submittedTitle}</h2>
-      <div className="grid gap-4">
+      <div className="flex flex-col gap-4">
         {links.map((link) => (
           <Card key={link.id} className="flex-row p-4 ">
             <div className="shrink-0">
