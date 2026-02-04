@@ -29,6 +29,8 @@ const dictionaries: Record<UserLanguage, Record<string, any>> = {
     pages: {
       title: 'Approved Links',
       bookmarksOnly: 'Show Bookmarks Only',
+      noBookmarks: 'No bookmarks found',
+      noLinks: 'No links found',
       submittedTitle: 'All Submitted Links',
     },
     settings: {
@@ -111,7 +113,6 @@ const dictionaries: Record<UserLanguage, Record<string, any>> = {
       types: {
         article: 'Article',
         video: 'Video',
-        podcast: 'Podcast',
         image: 'Image',
         audio: 'Audio',
         game: 'Game',
@@ -147,6 +148,8 @@ const dictionaries: Record<UserLanguage, Record<string, any>> = {
     pages: {
       title: 'Godkända Länkar',
       bookmarksOnly: 'Visa endast bokmärken',
+      noBookmarks: 'Inga bokmärken hittades',
+      noLinks: 'Inga länkar hittades',
       submittedTitle: 'Alla inskickade länkar',
     },
     settings: {
@@ -234,7 +237,6 @@ const dictionaries: Record<UserLanguage, Record<string, any>> = {
       types: {
         article: 'Artikel',
         video: 'Video',
-        podcast: 'Podcast',
         image: 'Bild',
         audio: 'Ljud',
         game: 'Spel',

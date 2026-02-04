@@ -28,14 +28,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { submitLink } from '@/app/actions/links'
 
-export function LinkSubmitForm({ dict }: { dict: any }) {
+export function LinkSubmitForm({ dict }: { dict: Record<string, any> }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const formSchema = z.object({
     title: z.string().min(2, {
       message: dict.linkForm.titleRequired,
     }),
-    url: z.string().url({ message: dict.linkForm.urlInvalid }),
+    url: z.url({ message: dict.linkForm.urlInvalid }),
     description: z.string().optional(),
     nsfw: z.boolean().optional(),
     type: z.enum(['article', 'video', 'image', 'audio', 'game']).optional(),
@@ -124,24 +124,24 @@ export function LinkSubmitForm({ dict }: { dict: any }) {
               render={() => (
                 <FormItem>
                   <FormLabel>{dict.linkForm.typeLabel}</FormLabel>
-                  <FormControl></FormControl>
-                  <Select
-                    onValueChange={form.setValue.bind(null, 'type')}
-                    defaultValue={form.getValues().type}
-                  >
-                    <SelectTrigger className="w-100">
-                      <SelectValue placeholder={dict.linkForm.typePlaceholder} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="article">{dict.linkForm.types.article}</SelectItem>
-                      <SelectItem value="video">{dict.linkForm.types.video}</SelectItem>
-                      <SelectItem value="podcast">{dict.linkForm.types.podcast}</SelectItem>
-                      <SelectItem value="image">{dict.linkForm.types.image}</SelectItem>
-                      <SelectItem value="audio">{dict.linkForm.types.audio}</SelectItem>
-                      <SelectItem value="game">{dict.linkForm.types.game}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>{dict.linkForm.typeDesc}</FormDescription>
+                  <FormControl>
+                    <Select
+                      onValueChange={form.setValue.bind(null, 'type')}
+                      defaultValue={form.getValues().type}
+                    >
+                      <SelectTrigger className="w-100">
+                        <SelectValue placeholder={dict.linkForm.typePlaceholder} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="article">{dict.linkForm.types.article}</SelectItem>
+                        <SelectItem value="video">{dict.linkForm.types.video}</SelectItem>
+                        <SelectItem value="podcast">{dict.linkForm.types.podcast}</SelectItem>
+                        <SelectItem value="image">{dict.linkForm.types.image}</SelectItem>
+                        <SelectItem value="audio">{dict.linkForm.types.audio}</SelectItem>
+                        <SelectItem value="game">{dict.linkForm.types.game}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

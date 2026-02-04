@@ -27,7 +27,23 @@ import { AlertCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-export function LoginForm({ dict }: { dict: any }) {
+interface AuthFormDict {
+  loginTitle: string
+  loginDesc: string
+  errorTitle: string
+  emailOrUsername: string
+  password: string
+  loggingIn: string
+  loginButton: string
+  forgotPassword: string
+  noAccount: string
+  signupButton: string
+  loginRequired: string
+  passwordRequired: string
+  genericError: string
+}
+
+export function LoginForm({ dict }: any) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
@@ -53,7 +69,7 @@ export function LoginForm({ dict }: { dict: any }) {
 
     try {
       // Check if input is an email
-      const isEmail = z.string().email().safeParse(data.login).success
+      const isEmail = z.email().safeParse(data.login).success
 
       const payload = {
         email: isEmail ? data.login : undefined,

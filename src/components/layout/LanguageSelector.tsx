@@ -15,11 +15,13 @@ type UserLanguage = NonNullable<NonNullable<User['settings']>['language']>
 export function LanguageSelector({ currentLang }: { currentLang: UserLanguage }) {
   const router = useRouter()
   const handleLanguageChange = async (lang: UserLanguage) => {
-    // Set cookie
     document.cookie = `lang=${lang}; path=/; max-age=31536000`
-    // Update DB if user is logged in
-
-    await updateLanguage(lang)
+    try {
+      // Update DB (no-op if user is not logged in)
+      await updateLanguage(lang)
+    } catch (error) {
+      console.error('Failed to update language preference:', error)
+    }
     router.refresh()
   }
 
@@ -31,8 +33,8 @@ export function LanguageSelector({ currentLang }: { currentLang: UserLanguage })
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="w-9 px-0">
-          <span className="text-xl" aria-label="Toggle language">
+        <Button variant="ghost" size="icon" className="w-9 px-0" aria-label="Select language">
+          <span className="text-xl" aria-hidden="true">
             {flags[currentLang]}
           </span>
         </Button>

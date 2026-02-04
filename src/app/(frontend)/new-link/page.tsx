@@ -9,7 +9,7 @@ export default async function NewLinkPage() {
   const { dict } = await getDictionary()
 
   if (!user) {
-    redirect('/login?error=You must be logged in to submit a link')
+    redirect(`/login?error=${encodeURIComponent('You must be logged in to submit a link')}`)
   }
 
   return (

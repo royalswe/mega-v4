@@ -26,20 +26,22 @@ export async function toggleNSFW(enabled: boolean) {
 
 export async function updateLanguage(lang: User['settings']['language']) {
   const { user, payload } = await getAuthenticatedUser()
-  if (user) {
-    await payload.update({
-      collection: 'users',
-      id: user.id,
-      data: {
-        settings: {
-          language: lang,
-        },
-      },
-    })
+
+  if (!user) {
+    // Guest users rely on client-side cookie; no server-side persistence needed
+    revalidatePath('/', 'layout')
+    return
   }
 
-  // We rely on the client component to set the cookie for immediate feedback
-  // but we could also strictly enforce it here if we wanted to be server-only.
-  // For now, the client-side cookie set is sufficient for the session.
+  await payload.update({
+    collection: 'users',
+    id: user.id,
+    data: {
+      settings: {
+        language: lang,
+      },
+    },
+  })
+
   revalidatePath('/', 'layout')
 }

@@ -27,7 +27,7 @@ import { AlertCircle } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-export function ResetPasswordForm({ dict }: { dict: any }) {
+export function ResetPasswordForm({ dict }: { dict: Record<string, any> }) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()

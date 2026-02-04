@@ -8,7 +8,11 @@ import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 import { BookmarksFilter } from '@/components/links/BookmarksFilter'
 
-export default async function HomePage({ searchParams }: { searchParams: { bookmarks?: string } }) {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ bookmarks?: string }>
+}) {
   const { user, payload } = await getAuthenticatedUser()
   const { dict } = await getDictionary()
 
@@ -80,7 +84,7 @@ export default async function HomePage({ searchParams }: { searchParams: { bookm
           ))
         ) : (
           <p className="text-muted-foreground text-center py-8">
-            {showBookmarksOnly ? 'No bookmarks found.' : 'No links found.'}
+            {showBookmarksOnly ? dict.pages.noBookmarks : dict.pages.noLinks}{' '}
           </p>
         )}
       </div>

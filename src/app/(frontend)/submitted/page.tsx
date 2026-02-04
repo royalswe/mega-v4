@@ -95,7 +95,7 @@ const SubmittedLinksPage = async () => {
               </div>
               <p className="text-sm text-muted-foreground mb-2">
                 {dict.common.submittedBy}{' '}
-                {(typeof link.user === 'object' && link.user?.username) || 'Anonymous'}
+                {(typeof link.user === 'object' && link.user?.username) || 'Ghost'}
               </p>
               <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                 <span
