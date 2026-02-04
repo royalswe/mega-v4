@@ -5,6 +5,7 @@ import { MessageCircle } from 'lucide-react'
 import { VoteButtons } from '@/components/links/VoteButtons'
 import { BookmarkButton } from '@/components/links/BookmarkButton'
 import { LinkIcon } from '@/components/links/LinkIcon'
+import { getDictionary } from '@/lib/dictionaries'
 
 import type { Link as LinkType } from '@/payload-types'
 // We need a partial type since we might not have the full depth or specific relations populated exactly as the generated type expects in all contexts,
@@ -12,7 +13,7 @@ import type { Link as LinkType } from '@/payload-types'
 // If payload-types.ts is not perfectly matching what we get from `find`, we might need to adjust.
 // For now, let's assume `link` passed here matches the structure we need.
 
-export function LinkCard({
+export async function LinkCard({
   link,
   userId,
   userVote,
@@ -25,6 +26,8 @@ export function LinkCard({
   isBookmarked?: boolean
   className?: string
 }) {
+  const { dict } = await getDictionary()
+
   return (
     <Card className={`flex-row p-4`}>
       <div className="shrink-0">
@@ -45,14 +48,20 @@ export function LinkCard({
           </CardTitle>
         </div>
         <p className="text-sm text-muted-foreground mb-2">
-          Submitted by {(typeof link.user === 'object' && link.user?.email) || 'Ghost'}
+          {dict.common.submittedBy}{' '}
+          {(typeof link.user === 'object' && link.user?.username) || 'Ghost'}
         </p>
         <div className="flex items-center space-x-4 text-sm text-muted-foreground">
           <Link href={`/link/${link.id}`} className="flex items-center hover:underline">
             <MessageCircle className="w-4 h-4 mr-1" />
-            {link.relatedComments?.docs?.length || 0} Comments
+            {link.relatedComments?.docs?.length || 0} {dict.common.comments}
           </Link>
-          <BookmarkButton linkId={link.id} userId={userId} isBookmarked={isBookmarked} />
+          <BookmarkButton
+            linkId={link.id}
+            userId={userId}
+            isBookmarked={isBookmarked}
+            dict={dict}
+          />
         </div>
       </div>
     </Card>

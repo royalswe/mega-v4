@@ -8,10 +8,12 @@ export function BookmarkButton({
   linkId,
   userId,
   isBookmarked,
+  dict,
 }: {
   linkId: number
   userId?: string | number | null
   isBookmarked?: boolean
+  dict: Record<string, any>
 }) {
   const [isPending, startTransition] = useTransition()
   const isEnabled = !!userId
@@ -23,7 +25,7 @@ export function BookmarkButton({
       onClick={() => startTransition(() => toggleBookmark(linkId))}
     >
       <Bookmark className={`w-4 h-4 mr-1 ${isBookmarked ? 'fill-current' : ''}`} />
-      {isBookmarked ? 'Bookmarked' : 'Bookmark'}
+      {isBookmarked ? dict.common.bookmarked : dict.common.bookmark}
     </button>
   )
 }

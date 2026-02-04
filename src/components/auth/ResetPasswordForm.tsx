@@ -27,24 +27,24 @@ import { AlertCircle } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-const resetPasswordSchema = z
-  .object({
-    password: z.string().min(4, 'Password must be at least 4 characters'),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ['confirmPassword'],
-  })
-
-type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>
-
-export function ResetPasswordForm() {
+export function ResetPasswordForm({ dict }: { dict: any }) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
+
+  const resetPasswordSchema = z
+    .object({
+      password: z.string().min(4, dict.authForm.passwordRequired),
+      confirmPassword: z.string(),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: dict.authForm.passwordMismatch,
+      path: ['confirmPassword'],
+    })
+
+  type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>
 
   const form = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
@@ -56,7 +56,7 @@ export function ResetPasswordForm() {
 
   async function onSubmit(data: ResetPasswordFormValues) {
     if (!token) {
-      setError('Missing reset token')
+      setError(dict.authForm.missingToken)
       return
     }
 
@@ -81,9 +81,9 @@ export function ResetPasswordForm() {
         throw new Error(json.errors?.[0]?.message || json.message || 'Failed to reset password')
       }
 
-      router.push('/login?success=Password reset successfully. Please login.')
+      router.push(`/login?success=${encodeURIComponent(dict.authForm.resetSuccess)}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setError(err instanceof Error ? err.message : dict.authForm.genericError)
     } finally {
       setIsLoading(false)
     }
@@ -93,12 +93,12 @@ export function ResetPasswordForm() {
     return (
       <Card className="w-full max-w-md mx-auto">
         <CardHeader>
-          <CardTitle>Invalid Token</CardTitle>
-          <CardDescription>The password reset link is invalid or has expired.</CardDescription>
+          <CardTitle>{dict.authForm.invalidTokenTitle}</CardTitle>
+          <CardDescription>{dict.authForm.invalidTokenDesc}</CardDescription>
         </CardHeader>
         <CardFooter className="flex justify-center text-sm text-muted-foreground">
           <Link href="/forgot-password" className="hover:text-primary underline underline-offset-4">
-            Request new reset link
+            {dict.authForm.requestNewLink}
           </Link>
         </CardFooter>
       </Card>
@@ -108,14 +108,14 @@ export function ResetPasswordForm() {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle>Reset Password</CardTitle>
-        <CardDescription>Enter your new password</CardDescription>
+        <CardTitle>{dict.authForm.resetPasswordTitle}</CardTitle>
+        <CardDescription>{dict.authForm.resetPasswordDesc}</CardDescription>
       </CardHeader>
       <CardContent>
         {error && (
           <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
+            <AlertTitle>{dict.authForm.errorTitle}</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
@@ -126,7 +126,7 @@ export function ResetPasswordForm() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>New Password</FormLabel>
+                  <FormLabel>{dict.authForm.newPassword}</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="********" {...field} />
                   </FormControl>
@@ -139,7 +139,7 @@ export function ResetPasswordForm() {
               name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Confirm Password</FormLabel>
+                  <FormLabel>{dict.authForm.confirmPassword}</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="********" {...field} />
                   </FormControl>
@@ -148,7 +148,7 @@ export function ResetPasswordForm() {
               )}
             />
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Resetting...' : 'Reset Password'}
+              {isLoading ? dict.authForm.resetting : dict.authForm.resetPasswordButton}
             </Button>
           </form>
         </Form>

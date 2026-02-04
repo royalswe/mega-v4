@@ -5,11 +5,15 @@ import { LinkCard } from '@/components/links/LinkCard'
 
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import { getAuthenticatedUser } from '@/lib/auth'
+import { getDictionary } from '@/lib/dictionaries'
+import { BookmarksFilter } from '@/components/links/BookmarksFilter'
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: { bookmarks?: string } }) {
   const { user, payload } = await getAuthenticatedUser()
+  const { dict } = await getDictionary()
 
   const showNSFW = user?.settings?.nsfw === true
+  const showBookmarksOnly = (await searchParams)?.bookmarks === 'true'
 
   const where: any = {
     status: {
@@ -20,6 +24,29 @@ export default async function HomePage() {
   if (!showNSFW) {
     where.nsfw = {
       not_equals: true,
+    }
+  }
+
+  // If filtering by bookmarks, we need to first get the user's bookmarks
+  if (showBookmarksOnly && user) {
+    const { docs: userBookmarks } = await payload.find({
+      collection: 'bookmarks',
+      where: {
+        user: { equals: user.id },
+      },
+      limit: 1000,
+      depth: 0,
+    })
+
+    if (userBookmarks.length > 0) {
+      where.id = {
+        in: userBookmarks.map((b) => (typeof b.link === 'number' ? b.link : b.link.id)),
+      }
+    } else {
+      // If user has no bookmarks, match nothing
+      where.id = {
+        in: [0],
+      }
     }
   }
 
@@ -35,18 +62,27 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold mb-4">Approved Links</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">{dict.pages.title}</h2>
+        {user && <BookmarksFilter label={dict.pages.bookmarksOnly} />}
+      </div>
       <div className="grid gap-4">
-        {links.map((link) => (
-          <LinkCard
-            key={link.id}
-            link={link}
-            userId={user?.id}
-            userVote={votes[link.id]}
-            isBookmarked={bookmarks[link.id]}
-            className={link.nsfw ? 'nsfw-text' : ''}
-          />
-        ))}
+        {links.length > 0 ? (
+          links.map((link) => (
+            <LinkCard
+              key={link.id}
+              link={link}
+              userId={user?.id}
+              userVote={votes[link.id]}
+              isBookmarked={bookmarks[link.id]}
+              className={link.nsfw ? 'nsfw-text' : ''}
+            />
+          ))
+        ) : (
+          <p className="text-muted-foreground text-center py-8">
+            {showBookmarksOnly ? 'No bookmarks found.' : 'No links found.'}
+          </p>
+        )}
       </div>
     </div>
   )

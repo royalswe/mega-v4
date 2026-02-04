@@ -65,15 +65,19 @@ export function VoteButtons({
         variant="ghost"
         disabled={isPending || !isEnabled}
         onClick={() => handleVote('up')}
-        className={cn(optimisticState.userVote === 'up' ? '!text-green-600 hover:!text-green-500' : 'hover:text-green-600/70')}
+        className={cn(
+          optimisticState.userVote === 'up'
+            ? 'text-green-600! hover:text-green-500!'
+            : 'hover:text-green-600/70',
+        )}
       >
         <ArrowUp className="w-4 h-4" />
       </Button>
       <span
         className={cn(
           'text-sm font-bold',
-          optimisticState.userVote === 'up' && '!text-green-600',
-          optimisticState.userVote === 'down' && '!text-orange-600',
+          optimisticState.userVote === 'up' && 'text-green-600!',
+          optimisticState.userVote === 'down' && 'text-orange-600!',
         )}
       >
         {optimisticState.votes}
@@ -83,7 +87,11 @@ export function VoteButtons({
         variant="ghost"
         disabled={isPending || !isEnabled}
         onClick={() => handleVote('down')}
-        className={cn(optimisticState.userVote === 'down' ? '!text-orange-600 hover:!text-orange-500' : 'hover:text-orange-600/70')}
+        className={cn(
+          optimisticState.userVote === 'down'
+            ? 'text-orange-600! hover:text-orange-500!'
+            : 'hover:text-orange-600/70',
+        )}
       >
         <ArrowDown className="w-4 h-4" />
       </Button>

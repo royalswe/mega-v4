@@ -6,29 +6,45 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-const registerSchema = z.object({
-  username: z.string().min(2, 'Username must be at least 2 characters'),
-  email: z.email('Invalid email address'),
-  password: z.string().min(4, 'Password must be at least 4 characters'),
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ['confirmPassword'],
-})
-
-type RegisterFormValues = z.infer<typeof registerSchema>
-
-export function RegisterForm() {
+export function RegisterForm({ dict }: { dict: any }) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+
+  const registerSchema = z
+    .object({
+      username: z.string().min(2, dict.authForm.usernameRequired),
+      email: z.string().email(dict.authForm.invalidEmail),
+      password: z.string().min(4, dict.authForm.passwordRequired),
+      confirmPassword: z.string(),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: dict.authForm.passwordMismatch,
+      path: ['confirmPassword'],
+    })
+
+  type RegisterFormValues = z.infer<typeof registerSchema>
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -63,9 +79,9 @@ export function RegisterForm() {
         throw new Error(json.errors?.[0]?.message || json.message || 'Failed to create account')
       }
 
-      router.push('/login?success=Account created successfully. Please login.')
+      router.push(`/login?success=${encodeURIComponent(dict.authForm.accountCreated)}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setError(err instanceof Error ? err.message : dict.authForm.genericError)
     } finally {
       setIsLoading(false)
     }
@@ -74,25 +90,25 @@ export function RegisterForm() {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle>Create Account</CardTitle>
-        <CardDescription>Sign up to get started</CardDescription>
+        <CardTitle>{dict.authForm.createAccountTitle}</CardTitle>
+        <CardDescription>{dict.authForm.createAccountDesc}</CardDescription>
       </CardHeader>
       <CardContent>
         {error && (
           <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
+            <AlertTitle>{dict.authForm.errorTitle}</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-             <FormField
+            <FormField
               control={form.control}
               name="username"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Username</FormLabel>
+                  <FormLabel>{dict.authForm.username}</FormLabel>
                   <FormControl>
                     <Input placeholder="johndoe" {...field} />
                   </FormControl>
@@ -118,7 +134,7 @@ export function RegisterForm() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>{dict.authForm.password}</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="********" {...field} />
                   </FormControl>
@@ -131,7 +147,7 @@ export function RegisterForm() {
               name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Confirm Password</FormLabel>
+                  <FormLabel>{dict.authForm.confirmPassword}</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="********" {...field} />
                   </FormControl>
@@ -140,16 +156,16 @@ export function RegisterForm() {
               )}
             />
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Creating account...' : 'Create Account'}
+              {isLoading ? dict.authForm.creatingAccount : dict.authForm.createAccountButton}
             </Button>
           </form>
         </Form>
       </CardContent>
       <CardFooter className="flex justify-center text-sm text-muted-foreground">
         <div>
-          Already have an account?{' '}
+          {dict.authForm.alreadyHaveAccount}{' '}
           <Link href="/login" className="hover:text-primary underline underline-offset-4">
-            Login
+            {dict.authForm.loginLink}
           </Link>
         </div>
       </CardFooter>

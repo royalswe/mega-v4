@@ -148,8 +148,9 @@ export interface UserAuthOperations {
 export interface User {
   id: number;
   roles?: ('admin' | 'user')[] | null;
-  settings?: {
+  settings: {
     nsfw?: boolean | null;
+    language: 'en' | 'sv';
   };
   updatedAt: string;
   createdAt: string;
@@ -357,6 +358,7 @@ export interface UsersSelect<T extends boolean = true> {
     | T
     | {
         nsfw?: T;
+        language?: T;
       };
   updatedAt?: T;
   createdAt?: T;

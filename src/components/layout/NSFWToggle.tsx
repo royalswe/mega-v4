@@ -7,7 +7,13 @@ import { useTransition, useState } from 'react'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 
-export function NSFWToggle({ initialValue }: { initialValue: boolean }) {
+export function NSFWToggle({
+  initialValue,
+  dict,
+}: {
+  initialValue: boolean
+  dict: Record<string, any>
+}) {
   const [enabled, setEnabled] = useState(initialValue)
   const [isPending, startTransition] = useTransition()
 
@@ -16,19 +22,19 @@ export function NSFWToggle({ initialValue }: { initialValue: boolean }) {
     startTransition(async () => {
       try {
         await toggleNSFW(checked)
-        toast.success(`NSFW content ${checked ? 'enabled' : 'disabled'}`)
+        toast.success(checked ? dict.settings.nsfwEnabled : dict.settings.nsfwDisabled)
       } catch (error) {
         console.error(error)
         setEnabled(!checked) // Revert on error
-        toast.error('Failed to update setting')
+        toast.error(dict.settings.updateError)
       }
     })
   }
 
   return (
     <div className="flex items-center space-x-2 px-2 py-1.5 cursor-default select-none rounded-sm text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 w-full justify-between">
-      <Label htmlFor="nsfw-mode" className="cursor-pointer flex-grow">
-        Show NSFW
+      <Label htmlFor="nsfw-mode" className="cursor-pointer grow">
+        {dict.settings.showNSFW}
       </Label>
       {isPending ? (
         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />

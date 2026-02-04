@@ -48,14 +48,6 @@ export const Users: CollectionConfig = {
         update: checkUserOrAdmin,
       },
     },
-    // {
-    //   name: 'password',
-    //   type: 'password',
-    //   required: true,
-    //   admin: {
-    //     description: 'Leave blank to keep the current password.',
-    //   },
-    // },
     {
       name: 'resetPasswordToken',
       type: 'text',
@@ -96,6 +88,16 @@ export const Users: CollectionConfig = {
           type: 'checkbox',
           defaultValue: false,
           label: 'Show NSFW Content',
+        },
+        {
+          name: 'language',
+          type: 'select',
+          defaultValue: 'en',
+          required: true,
+          options: [
+            { label: 'English', value: 'en' },
+            { label: 'Svenska', value: 'sv' },
+          ],
         },
       ],
     },

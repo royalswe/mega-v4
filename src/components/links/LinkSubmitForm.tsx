@@ -28,19 +28,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { submitLink } from '@/app/actions/links'
 
-const formSchema = z.object({
-  title: z.string().min(2, {
-    message: 'Title must be at least 2 characters.',
-  }),
-  url: z.string().url({ message: 'Please enter a valid URL.' }),
-  description: z.string().optional(),
-  nsfw: z.boolean().optional(),
-  type: z.enum(['article', 'video', 'image', 'audio', 'game']).optional(),
-})
-
-export function LinkSubmitForm() {
+export function LinkSubmitForm({ dict }: { dict: any }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const form = useForm<z.infer<typeof formSchema>>({
+
+  const formSchema = z.object({
+    title: z.string().min(2, {
+      message: dict.linkForm.titleRequired,
+    }),
+    url: z.string().url({ message: dict.linkForm.urlInvalid }),
+    description: z.string().optional(),
+    nsfw: z.boolean().optional(),
+    type: z.enum(['article', 'video', 'image', 'audio', 'game']).optional(),
+  })
+
+  type FormSchema = z.infer<typeof formSchema>
+
+  const form = useForm<FormSchema>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: '',
@@ -51,15 +54,15 @@ export function LinkSubmitForm() {
     },
   })
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: FormSchema) {
     setIsSubmitting(true)
     try {
       await submitLink(values)
-      toast.success('Link submitted successfully!')
+      toast.success(dict.linkForm.submitSuccess)
       form.reset()
     } catch (error) {
       console.error(error)
-      toast.error('Failed to submit link. Please try again.')
+      toast.error(dict.linkForm.submitError)
     } finally {
       setIsSubmitting(false)
     }
@@ -68,7 +71,7 @@ export function LinkSubmitForm() {
   return (
     <Card className="max-w-lg mx-auto">
       <CardHeader>
-        <CardTitle>Submit a new link</CardTitle>
+        <CardTitle>{dict.linkForm.title}</CardTitle>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -78,11 +81,11 @@ export function LinkSubmitForm() {
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Title</FormLabel>
+                  <FormLabel>{dict.linkForm.titleLabel}</FormLabel>
                   <FormControl>
-                    <Input placeholder="shadcn" {...field} />
+                    <Input placeholder={dict.linkForm.titlePlaceholder} {...field} />
                   </FormControl>
-                  <FormDescription>This is the title of the link.</FormDescription>
+                  <FormDescription>{dict.linkForm.titleDesc}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -92,11 +95,11 @@ export function LinkSubmitForm() {
               name="url"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>URL</FormLabel>
+                  <FormLabel>{dict.linkForm.urlLabel}</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://ui.shadcn.com" {...field} />
+                    <Input placeholder={dict.linkForm.urlPlaceholder} {...field} />
                   </FormControl>
-                  <FormDescription>The URL of the link.</FormDescription>
+                  <FormDescription>{dict.linkForm.urlDesc}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -106,13 +109,11 @@ export function LinkSubmitForm() {
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description</FormLabel>
+                  <FormLabel>{dict.linkForm.descLabel}</FormLabel>
                   <FormControl>
-                    <Input placeholder="A brief description of the link" {...field} />
+                    <Input placeholder={dict.linkForm.descPlaceholder} {...field} />
                   </FormControl>
-                  <FormDescription>
-                    Optional: A brief description to give more context about the link.
-                  </FormDescription>
+                  <FormDescription>{dict.linkForm.descDesc}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -122,24 +123,25 @@ export function LinkSubmitForm() {
               name="type"
               render={() => (
                 <FormItem>
-                  <FormLabel>Type</FormLabel>
+                  <FormLabel>{dict.linkForm.typeLabel}</FormLabel>
                   <FormControl></FormControl>
-                  <Select>
+                  <Select
+                    onValueChange={form.setValue.bind(null, 'type')}
+                    defaultValue={form.getValues().type}
+                  >
                     <SelectTrigger className="w-100">
-                      <SelectValue placeholder="Link type" />
+                      <SelectValue placeholder={dict.linkForm.typePlaceholder} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="article">Article</SelectItem>
-                      <SelectItem value="video">Video</SelectItem>
-                      <SelectItem value="podcast">Podcast</SelectItem>
-                      <SelectItem value="image">Image</SelectItem>
-                      <SelectItem value="audio">Audio</SelectItem>
-                      <SelectItem value="game">Game</SelectItem>
+                      <SelectItem value="article">{dict.linkForm.types.article}</SelectItem>
+                      <SelectItem value="video">{dict.linkForm.types.video}</SelectItem>
+                      <SelectItem value="podcast">{dict.linkForm.types.podcast}</SelectItem>
+                      <SelectItem value="image">{dict.linkForm.types.image}</SelectItem>
+                      <SelectItem value="audio">{dict.linkForm.types.audio}</SelectItem>
+                      <SelectItem value="game">{dict.linkForm.types.game}</SelectItem>
                     </SelectContent>
                   </Select>
-                  <FormDescription>
-                    Optional: Specify the type of content (e.g., article, video).
-                  </FormDescription>
+                  <FormDescription>{dict.linkForm.typeDesc}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -153,17 +155,15 @@ export function LinkSubmitForm() {
                     <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                   </FormControl>
                   <div className="space-y-1 leading-none">
-                    <FormLabel>NSFW</FormLabel>
-                    <FormDescription>
-                      Check if the link contains Not Safe For Work content.
-                    </FormDescription>
+                    <FormLabel>{dict.linkForm.nsfwLabel}</FormLabel>
+                    <FormDescription>{dict.linkForm.nsfwDesc}</FormDescription>
                     <FormMessage />
                   </div>
                 </FormItem>
               )}
             />
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Submitting...' : 'Submit'}
+              {isSubmitting ? dict.linkForm.submitting : dict.linkForm.submitButton}
             </Button>
           </form>
         </Form>

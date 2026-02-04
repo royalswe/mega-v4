@@ -30,7 +30,7 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
-    autoLogin,
+    // autoLogin,
   },
   collections: [Users, Media, Links, Comments, Votes, Bookmarks],
   editor: lexicalEditor(),

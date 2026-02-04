@@ -11,7 +11,7 @@ import { BookmarkButton } from '@/components/links/BookmarkButton'
 
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import { getAuthenticatedUser } from '@/lib/auth'
-import { User } from '@/payload-types'
+import { getDictionary } from '@/lib/dictionaries'
 
 async function getAllLinks(showNSFW: boolean) {
   const where: any = {
@@ -39,7 +39,7 @@ async function getAllLinks(showNSFW: boolean) {
 const SubmittedLinksPage = async () => {
   const { user } = await getAuthenticatedUser()
   const showNSFW = user?.settings?.nsfw === true
-
+  const { dict } = await getDictionary()
   const links = await getAllLinks(showNSFW)
 
   // Fetch user interactions
@@ -65,7 +65,7 @@ const SubmittedLinksPage = async () => {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4">All Submitted Links</h2>
+      <h2 className="text-xl font-semibold mb-4">{dict.pages.submittedTitle}</h2>
       <div className="grid gap-4">
         {links.map((link) => (
           <Card key={link.id} className="flex-row p-4 ">
@@ -94,7 +94,8 @@ const SubmittedLinksPage = async () => {
                 </CardTitle>
               </div>
               <p className="text-sm text-muted-foreground mb-2">
-                Submitted by {(typeof link.user === 'object' && link.user?.username) || 'Anonymous'}
+                {dict.common.submittedBy}{' '}
+                {(typeof link.user === 'object' && link.user?.username) || 'Anonymous'}
               </p>
               <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                 <span
@@ -106,16 +107,17 @@ const SubmittedLinksPage = async () => {
                         : 'text-yellow-500'
                   } mr-2`}
                 >
-                  {link.status}
+                  {dict.status[link.status]}
                 </span>
                 <Link href={`/link/${link.id}`} className="flex items-center hover:underline">
                   <MessageCircle className="w-4 h-4 mr-1" />
-                  {link.relatedComments?.docs?.length || 0} Comments
+                  {link.relatedComments?.docs?.length || 0} {dict.common.comments}
                 </Link>
                 <BookmarkButton
                   linkId={link.id}
                   userId={user?.id}
                   isBookmarked={bookmarks[link.id]}
+                  dict={dict}
                 />
               </div>
             </div>

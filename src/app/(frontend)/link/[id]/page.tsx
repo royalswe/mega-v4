@@ -7,9 +7,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { notFound } from 'next/navigation'
 import { CommentForm } from '@/components/comments/CommentForm'
 import { VoteButtons } from '@/components/links/VoteButtons'
-import { headers } from 'next/headers'
 import { LinkIcon } from '@/components/links/LinkIcon'
 import { BookmarkButton } from '@/components/links/BookmarkButton'
+import { getDictionary } from '@/lib/dictionaries'
 
 async function getComments(linkId: number) {
   const payload = await getPayload({
@@ -30,12 +30,11 @@ async function getComments(linkId: number) {
 }
 
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
+import { getAuthenticatedUser } from '@/lib/auth'
 
 export default async function LinkPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const headersList = await headers()
-  const payload = await getPayload({ config: configPromise })
-  const { user } = await payload.auth({ headers: headersList })
+  const { user, payload } = await getAuthenticatedUser()
 
   const { docs: links } = await payload.find({
     collection: 'links',
@@ -53,6 +52,7 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
   const link = links[0]
 
   const comments = await getComments(link.id)
+  const { dict } = await getDictionary()
 
   // Fetch user interactions
   const { votes, bookmarks } = await getUserInteractions(user?.id || 0, [link.id])
@@ -80,13 +80,15 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
             </h1>
           </div>
           <p className="text-muted-foreground mb-4">
-            Submitted by {(typeof link.user === 'object' && link.user?.username) || 'Ghost'}
+            {dict.common.submittedBy}{' '}
+            {(typeof link.user === 'object' && link.user?.username) || 'Ghost'}
           </p>
           <div className="flex gap-4 mb-6">
             <BookmarkButton
               linkId={link.id}
               userId={user?.id}
               isBookmarked={isBookmarked}
+              dict={dict}
             />
           </div>
           <p className="whitespace-pre-wrap">{link.description}</p>
@@ -94,15 +96,15 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
       </div>
 
       <div className="mb-8">
-        <h2 className="text-xl font-bold mb-4">Comments</h2>
-        <CommentForm linkId={link.id} userId={user?.id} />
+        <h2 className="text-xl font-bold mb-4">{dict.common.comments}</h2>
+        <CommentForm linkId={link.id} userId={user?.id} dict={dict} />
         <div className="grid gap-4 mt-4">
           {comments.map((comment) => (
             <Card key={comment.id}>
               <CardContent>
                 <p className="py-4">{comment.comment}</p>
                 <span className="text-sm text-muted-foreground">
-                  Posted by{' '}
+                  {dict.common.postedBy}{' '}
                   {(typeof comment.user === 'object' && comment.user?.username) || 'Ghost'}
                 </span>
               </CardContent>

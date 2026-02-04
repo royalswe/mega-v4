@@ -6,29 +6,43 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-const loginSchema = z.object({
-  email: z.email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
-})
-
-type LoginFormValues = z.infer<typeof loginSchema>
-
-export function LoginForm() {
+export function LoginForm({ dict }: { dict: any }) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
+  const loginSchema = z.object({
+    login: z.string().min(1, dict.authForm.loginRequired),
+    password: z.string().min(1, dict.authForm.passwordRequired),
+  })
+
+  type LoginFormValues = z.infer<typeof loginSchema>
+
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: '',
+      login: '',
       password: '',
     },
   })
@@ -38,24 +52,33 @@ export function LoginForm() {
     setError(null)
 
     try {
+      // Check if input is an email
+      const isEmail = z.string().email().safeParse(data.login).success
+
+      const payload = {
+        email: isEmail ? data.login : undefined,
+        username: !isEmail ? data.login : undefined,
+        password: data.password,
+      }
+
       const res = await fetch('/api/users/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       })
 
       const json = await res.json()
 
       if (!res.ok) {
-        throw new Error(json.errors?.[0]?.message || json.message || 'Failed to login')
+        throw new Error(json.errors?.[0]?.message || json.message || dict.authForm.genericError)
       }
 
       router.push('/')
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setError(err instanceof Error ? err.message : dict.authForm.genericError)
     } finally {
       setIsLoading(false)
     }
@@ -64,14 +87,14 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle>Login</CardTitle>
-        <CardDescription>Enter your credentials to access your account</CardDescription>
+        <CardTitle>{dict.authForm.loginTitle}</CardTitle>
+        <CardDescription>{dict.authForm.loginDesc}</CardDescription>
       </CardHeader>
       <CardContent>
         {error && (
           <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
+            <AlertTitle>{dict.authForm.errorTitle}</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
@@ -79,12 +102,12 @@ export function LoginForm() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="email"
+              name="login"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email or Username</FormLabel>
+                  <FormLabel>{dict.authForm.emailOrUsername}</FormLabel>
                   <FormControl>
-                    <Input placeholder="email@example.com" {...field} />
+                    <Input placeholder={dict.authForm.emailOrUsername} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -95,7 +118,7 @@ export function LoginForm() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>{dict.authForm.password}</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="********" {...field} />
                   </FormControl>
@@ -104,7 +127,7 @@ export function LoginForm() {
               )}
             />
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Logging in...' : 'Login'}
+              {isLoading ? dict.authForm.loggingIn : dict.authForm.loginButton}
             </Button>
           </form>
         </Form>
@@ -112,13 +135,13 @@ export function LoginForm() {
       <CardFooter className="flex flex-col space-y-2 text-center text-sm text-muted-foreground">
         <div>
           <Link href="/forgot-password" className="hover:text-primary underline underline-offset-4">
-            Forgot password?
+            {dict.authForm.forgotPassword}
           </Link>
         </div>
         <div>
-          Don&apos;t have an account?{' '}
+          {dict.authForm.noAccount}{' '}
           <Link href="/create-account" className="hover:text-primary underline underline-offset-4">
-            Sign up
+            {dict.authForm.signupButton}
           </Link>
         </div>
       </CardFooter>

@@ -6,22 +6,36 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
-const forgotPasswordSchema = z.object({
-  email: z.email('Invalid email address'),
-})
-
-type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>
-
-export function ForgotPasswordForm() {
+export function ForgotPasswordForm({ dict }: { dict: any }) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+  const forgotPasswordSchema = z.object({
+    email: z.string().email(dict.authForm.invalidEmail),
+  })
+
+  type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>
 
   const form = useForm<ForgotPasswordFormValues>({
     resolver: zodResolver(forgotPasswordSchema),
@@ -52,7 +66,7 @@ export function ForgotPasswordForm() {
 
       setSuccess(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setError(err instanceof Error ? err.message : dict.authForm.genericError)
     } finally {
       setIsLoading(false)
     }
@@ -61,24 +75,22 @@ export function ForgotPasswordForm() {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle>Forgot Password</CardTitle>
-        <CardDescription>Enter your email to reset your password</CardDescription>
+        <CardTitle>{dict.authForm.forgotPasswordTitle}</CardTitle>
+        <CardDescription>{dict.authForm.forgotPasswordDesc}</CardDescription>
       </CardHeader>
       <CardContent>
         {error && (
           <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
+            <AlertTitle>{dict.authForm.errorTitle}</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
         {success && (
           <Alert className="mb-4 border-green-500 text-green-700 bg-green-50 dark:bg-green-900/20 dark:text-green-400">
             <CheckCircle2 className="h-4 w-4" />
-            <AlertTitle>Success</AlertTitle>
-            <AlertDescription>
-              If an account exists with that email, we sent you a link to reset your password.
-            </AlertDescription>
+            <AlertTitle>{dict.authForm.resetEmailSentTitle}</AlertTitle>
+            <AlertDescription>{dict.authForm.resetEmailSentDesc}</AlertDescription>
           </Alert>
         )}
         <Form {...form}>
@@ -97,14 +109,14 @@ export function ForgotPasswordForm() {
               )}
             />
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Sending...' : 'Send Reset Link'}
+              {isLoading ? dict.authForm.sending : dict.authForm.sendResetLink}
             </Button>
           </form>
         </Form>
       </CardContent>
       <CardFooter className="flex justify-center text-sm text-muted-foreground">
         <Link href="/login" className="hover:text-primary underline underline-offset-4">
-          Back to Login
+          {dict.authForm.backToLogin}
         </Link>
       </CardFooter>
     </Card>

@@ -25,8 +25,15 @@ const formSchema = z.object({
   }),
 })
 
-
-export function CommentForm({ linkId, userId }: { linkId: number; userId?: string | number | null }) {
+export function CommentForm({
+  linkId,
+  userId,
+  dict,
+}: {
+  linkId: number
+  userId?: string | number | null
+  dict: Record<string, any>
+}) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -39,11 +46,11 @@ export function CommentForm({ linkId, userId }: { linkId: number; userId?: strin
     setIsSubmitting(true)
     try {
       await submitComment(linkId, values.comment)
-      toast.success('Comment added!')
+      toast.success(dict.common.commentAdded)
       form.reset()
     } catch (error) {
       console.error(error)
-      toast.error('Failed to add comment')
+      toast.error(dict.common.failedToAddComment)
     } finally {
       setIsSubmitting(false)
     }
@@ -53,11 +60,9 @@ export function CommentForm({ linkId, userId }: { linkId: number; userId?: strin
     return (
       <div className="p-4 border rounded-md bg-muted text-muted-foreground text-center">
         <p>
-          Please{' '}
           <Link href="/login" className="underline hover:text-foreground">
-            log in
+            {dict.common.loginToComment}
           </Link>{' '}
-          to comment.
         </p>
       </div>
     )
