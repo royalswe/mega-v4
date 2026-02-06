@@ -30,7 +30,14 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
-    // autoLogin,
+    autoLogin,
+  },
+  jobs: {
+    autoRun: [
+      {
+        cron: '*/1 * * * *', // Run every minute
+      },
+    ],
   },
   collections: [Users, Media, Links, Comments, Votes, Bookmarks],
   editor: lexicalEditor(),

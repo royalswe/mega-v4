@@ -119,9 +119,9 @@ const dictionaries: Record<UserLanguage, Record<string, any>> = {
       },
     },
     status: {
-      approved: 'Approved',
-      pending: 'Pending',
-      rejected: 'Rejected',
+      published: 'Published',
+      draft: 'Pending',
+      unknown: 'unknown',
     },
   },
   sv: {
@@ -160,9 +160,9 @@ const dictionaries: Record<UserLanguage, Record<string, any>> = {
       updateError: 'Kunde inte uppdatera inställning',
     },
     status: {
-      approved: 'Godkänd',
-      pending: 'Väntande',
-      rejected: 'Avvisad',
+      published: 'Publicerad',
+      draft: 'Väntande',
+      unknown: 'okänd',
     },
     authForm: {
       emailOrUsername: 'E-post eller Användarnamn',

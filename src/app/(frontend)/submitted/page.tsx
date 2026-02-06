@@ -14,9 +14,7 @@ import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 
 async function getAllLinks(showNSFW: boolean) {
-  const where: any = {
-    sort: '-createdAt',
-  }
+  const where: any = {}
 
   if (!showNSFW) {
     where.nsfw = {
@@ -31,6 +29,7 @@ async function getAllLinks(showNSFW: boolean) {
   const links = await payload.find({
     collection: 'links',
     where,
+    sort: '-createdAt',
   })
 
   return links.docs
@@ -100,14 +99,10 @@ const SubmittedLinksPage = async () => {
               <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                 <span
                   className={`capitalize ${
-                    link.status === 'approved'
-                      ? 'text-green-500'
-                      : link.status === 'rejected'
-                        ? 'text-red-500'
-                        : 'text-yellow-500'
+                    link._status === 'published' ? 'text-green-500' : 'text-yellow-500'
                   } mr-2`}
                 >
-                  {dict.status[link.status]}
+                  {link._status ? dict.status[link._status] : dict.status['unknown']}
                 </span>
                 <Link href={`/link/${link.id}`} className="flex items-center hover:underline">
                   <MessageCircle className="w-4 h-4 mr-1" />

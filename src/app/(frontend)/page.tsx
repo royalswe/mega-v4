@@ -20,8 +20,8 @@ export default async function HomePage({
   const showBookmarksOnly = (await searchParams)?.bookmarks === 'true'
 
   const where: any = {
-    status: {
-      equals: 'approved',
+    _status: {
+      equals: 'published',
     },
   }
 

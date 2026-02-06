@@ -136,7 +136,6 @@ export async function submitLink(values: {
     data: {
       ...values,
       user: userId,
-      status: 'pending',
     },
     draft: true,
   })

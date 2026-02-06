@@ -5,7 +5,9 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
    CREATE TYPE "public"."enum_users_roles" AS ENUM('admin', 'user');
   CREATE TYPE "public"."enum_users_settings_language" AS ENUM('en', 'sv');
   CREATE TYPE "public"."enum_links_type" AS ENUM('article', 'video', 'image', 'audio', 'game');
-  CREATE TYPE "public"."enum_links_status" AS ENUM('pending', 'approved', 'rejected');
+  CREATE TYPE "public"."enum_links_status" AS ENUM('draft', 'published');
+  CREATE TYPE "public"."enum__links_v_version_type" AS ENUM('article', 'video', 'image', 'audio', 'game');
+  CREATE TYPE "public"."enum__links_v_version_status" AS ENUM('draft', 'published');
   CREATE TYPE "public"."enum_votes_vote" AS ENUM('up', 'down');
   CREATE TABLE "users_roles" (
   	"order" integer NOT NULL,
@@ -56,16 +58,35 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   
   CREATE TABLE "links" (
   	"id" serial PRIMARY KEY NOT NULL,
-  	"title" varchar NOT NULL,
-  	"url" varchar NOT NULL,
+  	"title" varchar,
+  	"url" varchar,
   	"description" varchar,
   	"nsfw" boolean,
-  	"type" "enum_links_type" DEFAULT 'article' NOT NULL,
-  	"status" "enum_links_status" DEFAULT 'pending' NOT NULL,
-  	"user_id" integer NOT NULL,
+  	"type" "enum_links_type" DEFAULT 'article',
+  	"user_id" integer,
   	"votes" numeric DEFAULT 0,
   	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
-  	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
+  	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+  	"_status" "enum_links_status" DEFAULT 'draft'
+  );
+  
+  CREATE TABLE "_links_v" (
+  	"id" serial PRIMARY KEY NOT NULL,
+  	"parent_id" integer,
+  	"version_title" varchar,
+  	"version_url" varchar,
+  	"version_description" varchar,
+  	"version_nsfw" boolean,
+  	"version_type" "enum__links_v_version_type" DEFAULT 'article',
+  	"version_user_id" integer,
+  	"version_votes" numeric DEFAULT 0,
+  	"version_updated_at" timestamp(3) with time zone,
+  	"version_created_at" timestamp(3) with time zone,
+  	"version__status" "enum__links_v_version_status" DEFAULT 'draft',
+  	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+  	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+  	"latest" boolean,
+  	"autosave" boolean
   );
   
   CREATE TABLE "comments" (
@@ -147,6 +168,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "users_roles" ADD CONSTRAINT "users_roles_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "users_sessions" ADD CONSTRAINT "users_sessions_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "links" ADD CONSTRAINT "links_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "_links_v" ADD CONSTRAINT "_links_v_parent_id_links_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."links"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "_links_v" ADD CONSTRAINT "_links_v_version_user_id_users_id_fk" FOREIGN KEY ("version_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "comments" ADD CONSTRAINT "comments_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "comments" ADD CONSTRAINT "comments_link_id_links_id_fk" FOREIGN KEY ("link_id") REFERENCES "public"."links"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "votes" ADD CONSTRAINT "votes_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
@@ -176,6 +199,16 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "links_user_idx" ON "links" USING btree ("user_id");
   CREATE INDEX "links_updated_at_idx" ON "links" USING btree ("updated_at");
   CREATE INDEX "links_created_at_idx" ON "links" USING btree ("created_at");
+  CREATE INDEX "links__status_idx" ON "links" USING btree ("_status");
+  CREATE INDEX "_links_v_parent_idx" ON "_links_v" USING btree ("parent_id");
+  CREATE INDEX "_links_v_version_version_user_idx" ON "_links_v" USING btree ("version_user_id");
+  CREATE INDEX "_links_v_version_version_updated_at_idx" ON "_links_v" USING btree ("version_updated_at");
+  CREATE INDEX "_links_v_version_version_created_at_idx" ON "_links_v" USING btree ("version_created_at");
+  CREATE INDEX "_links_v_version_version__status_idx" ON "_links_v" USING btree ("version__status");
+  CREATE INDEX "_links_v_created_at_idx" ON "_links_v" USING btree ("created_at");
+  CREATE INDEX "_links_v_updated_at_idx" ON "_links_v" USING btree ("updated_at");
+  CREATE INDEX "_links_v_latest_idx" ON "_links_v" USING btree ("latest");
+  CREATE INDEX "_links_v_autosave_idx" ON "_links_v" USING btree ("autosave");
   CREATE INDEX "comments_user_idx" ON "comments" USING btree ("user_id");
   CREATE INDEX "comments_link_idx" ON "comments" USING btree ("link_id");
   CREATE INDEX "comments_updated_at_idx" ON "comments" USING btree ("updated_at");
@@ -219,6 +252,7 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP TABLE "users" CASCADE;
   DROP TABLE "media" CASCADE;
   DROP TABLE "links" CASCADE;
+  DROP TABLE "_links_v" CASCADE;
   DROP TABLE "comments" CASCADE;
   DROP TABLE "votes" CASCADE;
   DROP TABLE "bookmarks" CASCADE;
@@ -232,5 +266,7 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP TYPE "public"."enum_users_settings_language";
   DROP TYPE "public"."enum_links_type";
   DROP TYPE "public"."enum_links_status";
+  DROP TYPE "public"."enum__links_v_version_type";
+  DROP TYPE "public"."enum__links_v_version_status";
   DROP TYPE "public"."enum_votes_vote";`)
 }

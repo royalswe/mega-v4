@@ -4,7 +4,13 @@ export const Links: CollectionConfig = {
   slug: 'links',
   admin: {
     useAsTitle: 'title',
-    // defaultColumns: ['title', 'url', 'status', 'user', 'votes'],
+    defaultColumns: ['title', 'user', '_status'],
+  },
+  versions: {
+    drafts: {
+      autosave: true,
+      schedulePublish: true, // Enable scheduled publishing
+    },
   },
   fields: [
     {
@@ -51,26 +57,6 @@ export const Links: CollectionConfig = {
         },
       ],
       defaultValue: 'article',
-      required: true,
-    },
-    {
-      name: 'status',
-      type: 'select',
-      options: [
-        {
-          label: 'Pending',
-          value: 'pending',
-        },
-        {
-          label: 'Approved',
-          value: 'approved',
-        },
-        {
-          label: 'Rejected',
-          value: 'rejected',
-        },
-      ],
-      defaultValue: 'pending',
       required: true,
     },
     {
