@@ -32,17 +32,8 @@ export async function seedLinks(payload: Payload) {
     })
   }
 
-  // 10 Pending
+  // 10 drafts
   for (let i = 0; i < 10; i++) {
-    await payload.create({
-      collection: 'links',
-      data: generateLink(),
-      draft: true,
-    })
-  }
-
-  // 5 Rejected
-  for (let i = 0; i < 5; i++) {
     await payload.create({
       collection: 'links',
       data: generateLink(),

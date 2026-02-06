@@ -8,7 +8,7 @@ export async function seedUsers(payload: Payload) {
     users.push({
       email: faker.internet.email(),
       password: 'password123',
-      username: faker.person.firstName(),
+      username: faker.internet.username(),
     })
   }
 

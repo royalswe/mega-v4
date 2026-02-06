@@ -121,7 +121,7 @@ const dictionaries: Record<UserLanguage, Record<string, any>> = {
     status: {
       published: 'Published',
       draft: 'Pending',
-      unknown: 'unknown',
+      unknown: 'Unknown',
     },
   },
   sv: {
@@ -162,7 +162,7 @@ const dictionaries: Record<UserLanguage, Record<string, any>> = {
     status: {
       published: 'Publicerad',
       draft: 'Väntande',
-      unknown: 'okänd',
+      unknown: 'Okänd',
     },
     authForm: {
       emailOrUsername: 'E-post eller Användarnamn',

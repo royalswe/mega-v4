@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic' // This stops the build-time DB check
 
-import React from 'react'
-import { getPayload } from 'payload'
+import { getPayload, type Where } from 'payload'
 import configPromise from '@payload-config'
 import { Card, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
@@ -14,7 +13,7 @@ import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 
 async function getAllLinks(showNSFW: boolean) {
-  const where: any = {}
+  const where: Where = {}
 
   if (!showNSFW) {
     where.nsfw = {
@@ -102,7 +101,7 @@ const SubmittedLinksPage = async () => {
                     link._status === 'published' ? 'text-green-500' : 'text-yellow-500'
                   } mr-2`}
                 >
-                  {link._status ? dict.status[link._status] : dict.status['unknown']}
+                  {dict.status[link._status ?? 'unknown'] ?? dict.status['unknown']}
                 </span>
                 <Link href={`/link/${link.id}`} className="flex items-center hover:underline">
                   <MessageCircle className="w-4 h-4 mr-1" />

@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic' // This stops the build-time DB check
 
-import React from 'react'
-import { LinkCard } from '@/components/links/LinkCard'
+import type { Where } from 'payload'
 
+import { LinkCard } from '@/components/links/LinkCard'
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
@@ -19,7 +19,7 @@ export default async function HomePage({
   const showNSFW = user?.settings?.nsfw === true
   const showBookmarksOnly = (await searchParams)?.bookmarks === 'true'
 
-  const where: any = {
+  const where: Where = {
     _status: {
       equals: 'published',
     },
