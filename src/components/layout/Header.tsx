@@ -12,8 +12,6 @@ import {
 import { User, LogOut } from 'lucide-react'
 import { logout } from '@/app/actions/auth'
 import { getAuthenticatedUser } from '@/lib/auth'
-import { NSFWToggle } from '@/components/layout/NSFWToggle'
-import { LanguageSelector } from './LanguageSelector'
 import { getDictionary } from '@/lib/dictionaries'
 
 export async function Header() {
@@ -46,7 +44,6 @@ export async function Header() {
 
         <div className="flex items-center space-x-2">
           <ThemeToggle />
-          <LanguageSelector currentLang={user?.settings?.language || lang} />
 
           {user ? (
             <DropdownMenu>
@@ -57,12 +54,12 @@ export async function Header() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem className="font-medium">
-                  {user.username || user.email}
+                <DropdownMenuItem className="font-medium" asChild>
+                  <Link href={`/user/${user.username}`}>{user.username || user.email}</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="p-0 focus:bg-transparent">
-                  <NSFWToggle initialValue={user.settings?.nsfw || false} dict={dict} />
+                <DropdownMenuItem asChild>
+                  <Link href={`/user/${user.username}`}>{dict.menu.profile || 'Profile'}</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>

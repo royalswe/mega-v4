@@ -153,6 +153,7 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: number;
+  avatar?: (number | null) | Media;
   roles?: ('admin' | 'user')[] | null;
   settings: {
     nsfw?: boolean | null;
@@ -452,6 +453,7 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+  avatar?: T;
   roles?: T;
   settings?:
     | T

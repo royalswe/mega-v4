@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic' // This stops the build-time DB check
 
-import React from 'react'
+import Link from 'next/link'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { Card, CardContent } from '@/components/ui/card'
@@ -10,6 +10,7 @@ import { VoteButtons } from '@/components/links/VoteButtons'
 import { LinkIcon } from '@/components/links/LinkIcon'
 import { BookmarkButton } from '@/components/links/BookmarkButton'
 import { getDictionary } from '@/lib/dictionaries'
+import { Avatar } from '@/components/users/Avatar'
 
 async function getComments(linkId: number) {
   const payload = await getPayload({
@@ -24,6 +25,7 @@ async function getComments(linkId: number) {
       },
     },
     sort: '-createdAt',
+    depth: 2,
   })
 
   return comments.docs
@@ -101,12 +103,27 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
         <div className="flex flex-col gap-4 mt-4">
           {comments.map((comment) => (
             <Card key={comment.id}>
-              <CardContent>
-                <p className="py-4">{comment.comment}</p>
-                <span className="text-sm text-muted-foreground">
-                  {dict.common.postedBy}{' '}
-                  {(typeof comment.user === 'object' && comment.user?.username) || 'Ghost'}
-                </span>
+              <CardContent className="pt-6">
+                <div className="flex gap-4">
+                  <div className="shrink-0">
+                    <Avatar
+                      user={typeof comment.user === 'object' ? comment.user : null}
+                      className="h-10 w-10"
+                    />
+                  </div>
+                  <div className="grow">
+                    <p className="mb-2">{comment.comment}</p>
+                    <span className="text-sm text-muted-foreground">
+                      {dict.common.postedBy}{' '}
+                      <Link
+                        href={`/user/${(typeof comment.user === 'object' && comment.user?.username) || '#'}`}
+                        className="hover:underline"
+                      >
+                        {(typeof comment.user === 'object' && comment.user?.username) || 'Ghost'}
+                      </Link>
+                    </span>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           ))}

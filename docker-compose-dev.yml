@@ -1,17 +1,17 @@
 services:
-  payload:
-    image: node:20-alpine
-    ports:
-      - '3000:3000'
-    volumes:
-      - .:/home/node/app
-      - node_modules:/home/node/app/node_modules
-    working_dir: /home/node/app/
-    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev"
-    depends_on:
-      - postgres
-    env_file:
-      - .env.docker
+  # payload:
+  #   image: node:20-alpine
+  #   ports:
+  #     - '3000:3000'
+  #   volumes:
+  #     - .:/home/node/app
+  #     - node_modules:/home/node/app/node_modules
+  #   working_dir: /home/node/app/
+  #   command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev"
+  #   depends_on:
+  #     - postgres
+  #   env_file:
+  #     - .env.docker
 
   postgres:
     restart: always
@@ -27,4 +27,4 @@ services:
 
 volumes:
   pgdata:
-  node_modules:
+  # node_modules:
