@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test'
 import { LinkPage } from './pages/LinkPage'
 import { VotingPage } from './pages/VotingPage'
+import { faker } from '@faker-js/faker'
 
 test.describe('Voting Flow', () => {
   test('user can create a link and vote on it', async ({ page }) => {
-    const timestamp = Date.now()
-    const linkTitle = `E2E Link ${timestamp}` // Title as text
-    const linkUrl = 'https://playwright.dev'
+    const linkTitle = faker.lorem.words(4) // Title as text
+    const linkUrl = faker.internet.url()
 
     const linkPage = new LinkPage(page)
     const votingPage = new VotingPage(page)

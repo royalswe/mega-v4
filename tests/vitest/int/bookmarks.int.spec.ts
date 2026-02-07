@@ -1,6 +1,7 @@
 import { getPayload, Payload } from 'payload'
 import config from '@/payload.config'
 import { describe, it, beforeAll, expect } from 'vitest'
+import { faker } from '@faker-js/faker'
 
 let payload: Payload
 
@@ -15,8 +16,8 @@ describe('Bookmarks Integration', () => {
     const user = await payload.create({
       collection: 'users',
       data: {
-        email: `bookmarker-${Date.now()}@example.com`,
-        username: `bookmarker-${Date.now()}`,
+        email: faker.internet.email(),
+        username: faker.internet.username(),
         password: 'password123',
       },
     })
@@ -25,8 +26,8 @@ describe('Bookmarks Integration', () => {
     const link = await payload.create({
       collection: 'links',
       data: {
-        title: 'Link for Bookmarking',
-        url: 'https://example.com',
+        title: faker.lorem.words(4),
+        url: faker.internet.url(),
         type: 'article',
         user: user.id,
         _status: 'published',

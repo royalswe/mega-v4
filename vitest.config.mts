@@ -6,7 +6,19 @@ export default defineConfig({
   plugins: [tsconfigPaths(), react()],
   test: {
     environment: 'node',
-    setupFiles: ['./vitest.setup.ts'],
-    include: ['tests/int/**/*.int.spec.ts'],
+    setupFiles: ['tests/vitest/vitest.setup.ts'],
+    include: ['tests/vitest/int/**/*.int.spec.ts'],
+    reporters: [
+      'default',
+      [
+        'json',
+        {
+          outputFile: 'tests/vitest/report/report.json',
+        },
+      ],
+    ],
+    coverage: {
+      reportsDirectory: 'tests/vitest/coverage',
+    },
   },
 })

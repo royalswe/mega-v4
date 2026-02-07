@@ -1,4 +1,8 @@
-import { type Page, type Locator, expect } from '@playwright/test'
+import { type Page, type Locator, expect, test } from '@playwright/test'
+
+test.use({
+  storageState: 'tests/playwright/.auth/user.json',
+})
 
 export class VotingPage {
   readonly page: Page
