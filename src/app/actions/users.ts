@@ -15,9 +15,6 @@ export async function uploadMedia(formData: FormData) {
     throw new Error('No file provided')
   }
 
-  const arrayBuffer = await file.arrayBuffer()
-  const buffer = Buffer.from(arrayBuffer)
-
   const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
   if (!allowedMimeTypes.includes(file.type)) {
     throw new Error('Invalid file type. Only images are allowed.')
@@ -27,6 +24,9 @@ export async function uploadMedia(formData: FormData) {
   if (file.size > maxSize) {
     throw new Error('File size exceeds the 5MB limit.')
   }
+
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
 
   try {
     const media = await payload.create({
@@ -54,6 +54,16 @@ export async function updateUserAvatar(mediaId: number) {
 
   if (!user) {
     throw new Error('You must be logged in to update profile')
+  }
+
+  // Verify the media exists and belongs to the current user
+  const media = await payload.findByID({
+    collection: 'media',
+    id: mediaId,
+  })
+
+  if (!media) {
+    throw new Error('Media not found')
   }
 
   try {
