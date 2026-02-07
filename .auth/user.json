@@ -1,0 +1,15 @@
+{
+  "cookies": [
+    {
+      "name": "payload-token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjA0LCJjb2xsZWN0aW9uIjoidXNlcnMiLCJlbWFpbCI6ImFkbWluQG1haWwuY29tIiwic2lkIjoiYzRmZmJlZWMtNTUwMi00YWM4LWI1OWMtZGFhN2YxYTE2YjQwIiwicm9sZXMiOltdLCJpYXQiOjE3NzA0OTExODUsImV4cCI6MTc3MDY2Mzk4NX0.347Qd7XTGaTYpiOy-d-dFE5OnC9Ld8vJDQwxOGwigKs",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1770663985.187796,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    }
+  ],
+  "origins": []
+}

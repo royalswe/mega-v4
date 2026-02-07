@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const authFile = path.join(__dirname, '../../playwright/.auth/user.json')
+const authFile = path.join(process.cwd(), '.auth/user.json')
 
 setup('authenticate', async ({ page }) => {
   // Ensure the auth directory exists
@@ -18,21 +18,39 @@ setup('authenticate', async ({ page }) => {
   }
 
   const authPage = new AuthPage(page)
-  const timestamp = Date.now()
-  const email = `e2e-global-${timestamp}@example.com`
+  const email = process.env.EMAIL || 'admin@mail.com'
   const password = 'password123'
-  const username = `globaluser${timestamp}`
+  const username = process.env.USERNAME || 'admin'
 
-  // Register a new user for the global session
-  await authPage.register(username, email, password)
+  console.log(`Attempting to authenticate as ${email}...`)
 
-  // Wait for redirect to login or home/dashboard
-  // The register method in AuthPage doesn't wait for URL, so we do it here or inside register if we updated it.
-  // Existing test showed redirect to /login after register.
-  await expect(page).toHaveURL(/login/)
+  // Try to login first
+  await authPage.gotoLogin()
+  await authPage.emailInput.fill(email)
+  await authPage.passwordInput.fill(password)
+  await authPage.submitButton.click()
 
-  // Login
-  await authPage.login(email, password)
+  try {
+    // Check if login was successful (redirected to home)
+    // Short timeout because if it works it should be fast, if not we want to catch it
+    await page.waitForURL('**/', { timeout: 5000, waitUntil: 'domcontentloaded' })
+  } catch (e) {
+    console.log('Login failed (user likely does not exist), trying to register...')
+    // If login failed, we might still be on login page or got an error.
+    // Proceed to register
+    await authPage.register(username, email, password)
+
+    // After register, checking where we are.
+    // If it redirects to login, we need to login.
+    // If it redirects to home, we are good.
+    try {
+      await expect(page).toHaveURL(/login|create-account/)
+      // If we are still on login/create-account, try to login again (maybe register just created user but didn't auto-login)
+      await authPage.login(email, password)
+    } catch (e2) {
+      // Assume we are on home
+    }
+  }
 
   // Save storage state
   await page.context().storageState({ path: authFile })

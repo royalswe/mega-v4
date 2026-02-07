@@ -2,28 +2,12 @@ import { test, expect } from '@playwright/test'
 import { faker } from '@faker-js/faker'
 
 test.describe('Comments Flow', () => {
-  test('user can login and comment on a link', async ({ page }) => {
-    const email = faker.internet.email()
-    const password = faker.internet.password()
-    const username = faker.internet.username()
+  test('authenticated user can comment on a link', async ({ page }) => {
     const commentText = faker.lorem.sentence()
     const linkTitle = faker.lorem.words(3)
     const linkURL = faker.internet.url()
 
-    // 1. Register
-    await page.goto('/create-account')
-    await page.getByLabel('Username').fill(username)
-    await page.getByLabel('Email').fill(email)
-    await page.getByLabel('Password', { exact: true }).fill(password)
-    await page.getByLabel('Confirm Password').fill(password)
-    await page.getByRole('button', { name: 'Create Account' }).click()
-
-    // 2. Login
-    await expect(page).toHaveURL(/\/login\?.*/, { timeout: 10000 })
-    await page.getByLabel('Email or Username').fill(email)
-    await page.getByLabel('Password').fill(password)
-    await page.getByRole('button', { name: 'Log In' }).click()
-    await expect(page).toHaveURL('/', { timeout: 10000 })
+    // User is already logged in via global setup
 
     // 3. Create a Link to comment on
     await page.goto('/new-link')

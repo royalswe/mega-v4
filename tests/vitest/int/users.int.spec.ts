@@ -1,6 +1,7 @@
 import { getPayload, Payload } from 'payload'
 import config from '@/payload.config'
 import { describe, it, beforeAll, expect } from 'vitest'
+import { faker } from '@faker-js/faker'
 
 let payload: Payload
 
@@ -15,9 +16,9 @@ describe('User Settings Integration', () => {
     const user = await payload.create({
       collection: 'users',
       data: {
-        email: `settings-${Date.now()}@example.com`,
-        username: `settings-${Date.now()}`,
-        password: 'password123',
+        email: faker.internet.email(),
+        username: faker.internet.username(),
+        password: faker.internet.password(),
         settings: {
           language: 'en',
           nsfw: false,

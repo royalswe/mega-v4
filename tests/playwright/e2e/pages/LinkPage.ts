@@ -34,6 +34,8 @@ export class LinkPage {
     await this.page.getByRole('option', { name: type }).click()
 
     await this.submitButton.click()
+    // Wait for the navigation to complete by checking for a specific element on the target page
+    await this.page.waitForSelector('text=Link submitted successfully!', { timeout: 10000 })
   }
 
   async verifyLinkVisible(title: string) {

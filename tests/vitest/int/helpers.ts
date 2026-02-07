@@ -1,10 +1,11 @@
 import { Payload } from 'payload'
 
+import { faker } from '@faker-js/faker'
+
 export const createTestUser = async (payload: Payload) => {
-  const timestamp = Date.now()
-  const email = `test-int-${timestamp}@example.com`
-  const password = 'password123'
-  const username = `testuser-${timestamp}`
+  const email = faker.internet.email()
+  const password = faker.internet.password()
+  const username = faker.internet.username()
 
   const user = await payload.create({
     collection: 'users',

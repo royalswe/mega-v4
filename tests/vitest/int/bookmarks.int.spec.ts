@@ -18,8 +18,13 @@ describe('Bookmarks Integration', () => {
       data: {
         email: faker.internet.email(),
         username: faker.internet.username(),
-        password: 'password123',
+        password: faker.internet.password(),
+        settings: {
+          nsfw: false,
+          language: 'en',
+        },
       },
+      draft: false,
     })
 
     // 2. Create Link
