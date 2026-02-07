@@ -4,20 +4,15 @@ import { describe, it, beforeAll, expect } from 'vitest'
 import { faker } from '@faker-js/faker'
 
 let payload: Payload
+let testUser: any
 
 describe('Comments Integration', () => {
   beforeAll(async () => {
     const payloadConfig = await config
     payload = await getPayload({ config: payloadConfig })
-  })
 
-  it('can create a comment on a link', async () => {
-    const title = faker.lorem.words(4)
-    const url = faker.internet.url()
-    const commentText = faker.lorem.words(4)
-
-    // 1. Create User
-    const user = await payload.create({
+    // Create a single user for all tests
+    testUser = await payload.create({
       collection: 'users',
       data: {
         email: faker.internet.email(),
@@ -30,6 +25,12 @@ describe('Comments Integration', () => {
       },
       draft: false,
     })
+  })
+
+  it('can create a comment on a link', async () => {
+    const title = faker.lorem.words(4)
+    const url = faker.internet.url()
+    const commentText = faker.lorem.words(4)
 
     // 2. Create Link
     const link = await payload.create({
@@ -38,7 +39,7 @@ describe('Comments Integration', () => {
         title: title,
         url: url,
         type: 'article',
-        user: user.id,
+        user: testUser.id,
         _status: 'published',
       },
       draft: false,
@@ -49,7 +50,7 @@ describe('Comments Integration', () => {
       collection: 'comments',
       data: {
         comment: commentText,
-        user: user.id,
+        user: testUser.id,
         link: link.id,
       },
       draft: false,
@@ -57,33 +58,18 @@ describe('Comments Integration', () => {
 
     expect(comment).toBeDefined()
     expect(comment.comment).toBe(commentText)
-    expect(comment.user).toEqual(expect.objectContaining({ id: user.id }))
+    expect(comment.user).toEqual(expect.objectContaining({ id: testUser.id }))
     expect(comment.link).toEqual(expect.objectContaining({ id: link.id }))
   })
 
   it('fails to create comment without required fields', async () => {
-    // 1. Create User
-    const user = await payload.create({
-      collection: 'users',
-      data: {
-        email: `fail-commenter-${Date.now()}@example.com`,
-        username: `fail-commenter-${Date.now()}`,
-        password: 'password123',
-        settings: {
-          nsfw: false,
-          language: 'en',
-        },
-      },
-      draft: false,
-    })
-
     // 2. Try to create comment without link
     await expect(
       payload.create({
         collection: 'comments',
         data: {
           comment: 'Orphan comment',
-          user: user.id,
+          user: testUser.id,
           // @ts-ignore
           link: undefined,
         },
