@@ -47,7 +47,7 @@ export default async function UserProfilePage({
     <div className="container max-w-2xl py-10">
       <Card>
         <CardHeader>
-          <CardTitle>{dict.menu.profile || 'Profile'}</CardTitle>
+          <CardTitle>{dict.menu?.profile || 'Profile'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-8">
           {/* Avatar Section */}

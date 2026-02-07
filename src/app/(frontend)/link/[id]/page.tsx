@@ -115,12 +115,13 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
                     <p className="mb-2">{comment.comment}</p>
                     <span className="text-sm text-muted-foreground">
                       {dict.common.postedBy}{' '}
-                      <Link
-                        href={`/user/${(typeof comment.user === 'object' && comment.user?.username) || '#'}`}
-                        className="hover:underline"
-                      >
-                        {(typeof comment.user === 'object' && comment.user?.username) || 'Ghost'}
-                      </Link>
+                      {typeof comment.user === 'object' && comment.user?.username ? (
+                        <Link href={`/user/${comment.user.username}`} className="hover:underline">
+                          {comment.user.username}
+                        </Link>
+                      ) : (
+                        <span>Ghost</span>
+                      )}
                     </span>
                   </div>
                 </div>

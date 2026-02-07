@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useTransition } from 'react'
+import { useState, useRef, useTransition, useEffect } from 'react'
 import { Upload, X, Loader2 } from 'lucide-react'
 import { Avatar } from './Avatar'
 import { uploadMedia, updateUserAvatar } from '@/app/actions/users'
@@ -23,15 +23,20 @@ export function AvatarUpload({ user, dict }: AvatarUploadProps) {
     const file = e.target.files?.[0]
     if (!file) return
 
+    // Revoke the previous preview URL if it exists
+    if (preview) {
+      URL.revokeObjectURL(preview)
+    }
+
     // Create local preview
     const objectUrl = URL.createObjectURL(file)
     setPreview(objectUrl)
 
     // Automatically start upload
-    handleUpload(file)
+    handleUpload(file, objectUrl)
   }
 
-  const handleUpload = (file: File) => {
+  const handleUpload = (file: File, objectUrl: string) => {
     startTransition(async () => {
       try {
         const formData = new FormData()
@@ -47,9 +52,21 @@ export function AvatarUpload({ user, dict }: AvatarUploadProps) {
         console.error(error)
         toast.error(dict.profile?.avatarUpdateError || 'Failed to update avatar')
         setPreview(null)
+      } finally {
+        // Revoke the object URL after upload is complete
+        URL.revokeObjectURL(objectUrl)
       }
     })
   }
+
+  // Cleanup effect to revoke the preview URL on unmount or when preview changes
+  useEffect(() => {
+    return () => {
+      if (preview) {
+        URL.revokeObjectURL(preview)
+      }
+    }
+  }, [preview])
 
   return (
     <div className="flex items-center gap-4">

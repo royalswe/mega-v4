@@ -43,9 +43,9 @@ export function ProfileSettings({ user, currentUser, dict }: ProfileSettingsProp
 
   const handleLanguageChange = (value: string) => {
     startTransition(async () => {
-      document.cookie = `lang=${value}; path=/; max-age=31536000`
       try {
         await updateLanguage(value as 'en' | 'sv')
+        document.cookie = `lang=${value}; path=/; max-age=31536000`
         toast.success(dict.settings.languageUpdated || 'Language updated')
         router.refresh()
       } catch (error) {

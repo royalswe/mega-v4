@@ -21,5 +21,5 @@ export function LinkIcon({ type, className }: { type: LinkType; className?: stri
     }
   })()
 
-  return <Icon className={cn(className)} />
+  return <Icon size={40} className={cn(className)} />
 }
