@@ -35,7 +35,7 @@ export default buildConfig({
   jobs: {
     autoRun: [
       {
-        cron: '*/1 * * * *', // Run every minute
+        cron: '*/5 * * * *', // Run every minute
       },
     ],
   },

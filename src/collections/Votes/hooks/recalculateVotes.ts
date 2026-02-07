@@ -6,8 +6,9 @@ import type { CollectionAfterChangeHook, CollectionAfterDeleteHook } from 'paylo
  */
 export const recalculateVotes: CollectionAfterChangeHook & CollectionAfterDeleteHook = async ({
   doc, // The document that was changed or deleted
-  req: { payload }, // Payload instance from the request
+  req, // Payload request including transaction
 }) => {
+  const { payload } = req
   // Extract the link ID from the vote document
   const linkId = typeof doc.link === 'object' ? doc.link.id : doc.link
 
@@ -23,6 +24,7 @@ export const recalculateVotes: CollectionAfterChangeHook & CollectionAfterDelete
       },
       pagination: false, // Fetch all votes without pagination
       depth: 0, // Fetch only the necessary fields
+      req, // Pass req to use the same transaction
     })
 
     // Step 2: Calculate the total score based on the votes
@@ -38,6 +40,7 @@ export const recalculateVotes: CollectionAfterChangeHook & CollectionAfterDelete
         votes: totalScore,
       },
       overrideAccess: true, // Bypass access control to ensure the update succeeds
+      req, // Pass req to use the same transaction
     })
   } catch (error: any) {
     // Log any errors that occur during the process
