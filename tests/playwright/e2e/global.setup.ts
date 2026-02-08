@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const authFile = path.join(process.cwd(), '.auth/user.json')
+const authFile = path.join(__dirname, '../.auth/user.json')
 
 setup('authenticate', async ({ page }) => {
   // Ensure the auth directory exists

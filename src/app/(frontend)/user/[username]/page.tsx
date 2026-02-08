@@ -1,4 +1,3 @@
-import React from 'react'
 import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
@@ -20,7 +19,7 @@ export default async function UserProfilePage({
 
   const payload = await getPayload({ config: configPromise })
   const { user: currentUser } = await getAuthenticatedUser()
-  const { dict } = await getDictionary()
+  const { dict, lang } = await getDictionary()
 
   // First try to find by username
   const { docs: users } = await payload.find({
@@ -87,7 +86,7 @@ export default async function UserProfilePage({
           </div>
 
           {/* Settings Section (Owner Only) */}
-          <ProfileSettings user={profileUser} currentUser={currentUser} dict={dict} />
+          <ProfileSettings user={profileUser} currentUser={currentUser} dict={dict} lang={lang} />
         </CardContent>
       </Card>
     </div>

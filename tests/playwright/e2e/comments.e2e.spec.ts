@@ -1,6 +1,10 @@
 import { test, expect } from '@playwright/test'
 import { faker } from '@faker-js/faker'
 
+test.use({
+  storageState: 'tests/playwright/.auth/user.json',
+})
+
 test.describe('Comments Flow', () => {
   test('authenticated user can comment on a link', async ({ page }) => {
     const commentText = faker.lorem.sentence()

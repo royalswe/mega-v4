@@ -2,10 +2,10 @@
   "cookies": [
     {
       "name": "payload-token",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjA0LCJjb2xsZWN0aW9uIjoidXNlcnMiLCJlbWFpbCI6ImFkbWluQG1haWwuY29tIiwic2lkIjoiY2IxYWQ1NjgtNTBhNi00MjMyLTg5YWItZDYwNTM2MjNlYTc4Iiwicm9sZXMiOltdLCJpYXQiOjE3NzA0ODk4MTAsImV4cCI6MTc3MDY2MjYxMH0.8ZvAyw5H9nVWOfq6so08YaR3wAC7yOCbFOsoyttZzNM",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiY29sbGVjdGlvbiI6InVzZXJzIiwiZW1haWwiOiJhZG1pbkBtYWlsLmNvbSIsInNpZCI6ImU5OTQ4ODk0LWE0M2ItNDgyYS05YzEzLWIyNTE5MmFiNDVkNiIsInJvbGVzIjpbImFkbWluIl0sImlhdCI6MTc3MDU3MzcyMSwiZXhwIjoxNzcwNzQ2NTIxfQ.yPMR3moTIYKlay2EROXHGHOT2-j90iP3W61KpsGQfwA",
       "domain": "localhost",
       "path": "/",
-      "expires": 1770662610.633352,
+      "expires": 1770746521.788383,
       "httpOnly": true,
       "secure": true,
       "sameSite": "None"

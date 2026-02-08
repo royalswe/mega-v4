@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
+import { LanguageSelector } from './LanguageSelector'
 import { User, LogOut } from 'lucide-react'
 import { logout } from '@/app/actions/auth'
 import { getAuthenticatedUser } from '@/lib/auth'
@@ -15,7 +16,7 @@ import { getDictionary } from '@/lib/dictionaries'
 
 export async function Header() {
   const { user } = await getAuthenticatedUser()
-  const { dict } = await getDictionary()
+  const { dict, lang } = await getDictionary()
 
   return (
     <header className="py-4 px-6 border-b flex items-center justify-between">
@@ -43,7 +44,7 @@ export async function Header() {
 
         <div className="flex items-center space-x-2">
           <ThemeToggle />
-
+          <LanguageSelector currentLang={user?.settings?.language || lang} />
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

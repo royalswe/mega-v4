@@ -22,6 +22,7 @@ dotenv.config({ path: path.resolve(__dirname, 'tests/test.env') })
  */
 export default defineConfig({
   testDir: './tests/playwright/e2e',
+  testMatch: '**/*.spec.ts', // Only include files ending with .spec.ts as test files
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
@@ -42,7 +43,7 @@ export default defineConfig({
   projects: [
     {
       name: 'setup',
-      testMatch: /global\.setup\.ts/,
+      testMatch: /.*\.setup\.ts/, // Keep the global setup file
     },
     {
       name: 'chromium',
@@ -50,6 +51,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         channel: 'chromium',
+        //storageState: 'tests/playwright/.auth/user.json',
       },
     },
   ],

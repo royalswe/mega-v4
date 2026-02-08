@@ -12,7 +12,7 @@ export class AuthPage {
   constructor(page: Page) {
     this.page = page
     // Selectors based on existing test findings
-    this.emailInput = page.getByLabel('Email', { exact: false }) // Handles "Email" and "Email or Username"
+    this.emailInput = page.getByLabel('Email or Username', { exact: false }) // Handles "Email" and "Email or Username"
     this.passwordInput = page.getByLabel('Password', { exact: true })
     this.confirmPasswordInput = page.getByLabel('Confirm Password')
     this.usernameInput = page.getByLabel('Username')

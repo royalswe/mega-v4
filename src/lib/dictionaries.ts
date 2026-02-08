@@ -2,7 +2,7 @@ import type { User } from '@/payload-types'
 import { cookies } from 'next/headers'
 import { getAuthenticatedUser } from './auth'
 
-type UserLanguage = NonNullable<NonNullable<User['settings']>['language']>
+export type UserLanguage = NonNullable<NonNullable<User['settings']>['language']>
 
 const dictionaries: Record<UserLanguage, Record<string, any>> = {
   en: {
@@ -36,6 +36,7 @@ const dictionaries: Record<UserLanguage, Record<string, any>> = {
     settings: {
       showNSFW: 'Show NSFW',
       language: 'Language',
+      theme: 'Theme',
       nsfwEnabled: 'NSFW content enabled',
       nsfwDisabled: 'NSFW content disabled',
       updateError: 'Failed to update setting',
@@ -155,6 +156,7 @@ const dictionaries: Record<UserLanguage, Record<string, any>> = {
     settings: {
       showNSFW: 'Visa NSFW',
       language: 'Språk',
+      theme: 'Tema',
       nsfwEnabled: 'NSFW-innehåll aktiverat',
       nsfwDisabled: 'NSFW-innehåll inaktiverat',
       updateError: 'Kunde inte uppdatera inställning',
