@@ -1,4 +1,3 @@
-import React from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/app/(frontend)/ThemeToggle'
@@ -16,7 +15,7 @@ import { getDictionary } from '@/lib/dictionaries'
 
 export async function Header() {
   const { user } = await getAuthenticatedUser()
-  const { dict, lang } = await getDictionary()
+  const { dict } = await getDictionary()
 
   return (
     <header className="py-4 px-6 border-b flex items-center justify-between">

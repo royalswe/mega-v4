@@ -1,32 +1,33 @@
-import { getPayload, Payload } from 'payload'
-import config from '@/payload.config'
+import { Payload } from 'payload'
+import { getTestPayload, getTestUser } from '../utils/test-user'
 import { describe, it, beforeAll, expect } from 'vitest'
-import { faker } from '@faker-js/faker'
 
 let payload: Payload
 
 describe('User Settings Integration', () => {
   beforeAll(async () => {
-    const payloadConfig = await config
-    payload = await getPayload({ config: payloadConfig })
+    payload = await getTestPayload()
   })
 
   it('can persist nsfw preference', async () => {
-    // 1. Create User
-    const user = await payload.create({
+    // 1. Get Shared User
+    const user = await getTestUser()
+
+    // Ensure we start with nsfw: false
+    // Only update if not already false to save DB calls, or just update to be safe and simple
+    await payload.update({
       collection: 'users',
+      id: user.id,
       data: {
-        email: faker.internet.email(),
-        username: faker.internet.username(),
-        password: faker.internet.password(),
         settings: {
-          language: 'en',
           nsfw: false,
         },
       },
     })
 
-    expect(user.settings?.nsfw).toBe(false)
+    // Re-fetch to confirm state (optional but good for test hygiene)
+    const freshUser = await payload.findByID({ collection: 'users', id: user.id })
+    expect(freshUser.settings?.nsfw).toBe(false)
 
     // 2. Update NSFW setting
     const updatedUser = await payload.update({

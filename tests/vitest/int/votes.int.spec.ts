@@ -1,19 +1,18 @@
-import { getPayload, Payload } from 'payload'
-import config from '@/payload.config'
+import { Payload } from 'payload'
+import { getTestPayload, getTestUser } from '../utils/test-user'
 import { describe, it, beforeAll, expect } from 'vitest'
-import { createTestUser, createTestLink } from './helpers'
+import { createTestLink } from './helpers'
 
 let payload: Payload
 
 describe('Votes Integration', () => {
   beforeAll(async () => {
-    const payloadConfig = await config
-    payload = await getPayload({ config: payloadConfig })
+    payload = await getTestPayload()
   })
 
   it('updates link vote count on upvote, downvote and remove', async () => {
     // 1. Create User & Link
-    const user = await createTestUser(payload)
+    const user = await getTestUser()
     const link = await createTestLink(payload, user.id)
 
     expect(link.votes).toBe(0)

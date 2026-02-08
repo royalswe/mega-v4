@@ -1,5 +1,5 @@
-import { getPayload, Payload } from 'payload'
-import config from '@/payload.config'
+import { Payload } from 'payload'
+import { getTestPayload, getTestUser } from '../utils/test-user'
 import { describe, it, beforeAll, expect } from 'vitest'
 import { faker } from '@faker-js/faker'
 
@@ -8,23 +8,10 @@ let testUser: any
 
 describe('Comments Integration', () => {
   beforeAll(async () => {
-    const payloadConfig = await config
-    payload = await getPayload({ config: payloadConfig })
+    payload = await getTestPayload()
 
-    // Create a single user for all tests
-    testUser = await payload.create({
-      collection: 'users',
-      data: {
-        email: faker.internet.email(),
-        username: faker.internet.username(),
-        password: faker.internet.password(),
-        settings: {
-          nsfw: false,
-          language: 'en',
-        },
-      },
-      draft: false,
-    })
+    // Get Shared User
+    testUser = await getTestUser()
   })
 
   it('can create a comment on a link', async () => {
@@ -65,12 +52,12 @@ describe('Comments Integration', () => {
   it('fails to create comment without required fields', async () => {
     // 2. Try to create comment without link
     await expect(
+      // @ts-ignore
       payload.create({
         collection: 'comments',
         data: {
           comment: 'Orphan comment',
           user: testUser.id,
-          // @ts-ignore
           link: undefined,
         },
         draft: false,

@@ -1,31 +1,18 @@
-import { getPayload, Payload } from 'payload'
-import config from '@/payload.config'
+import { Payload } from 'payload'
 import { describe, it, beforeAll, expect } from 'vitest'
 import { faker } from '@faker-js/faker'
+import { getTestPayload, getTestUser } from '../utils/test-user'
 
 let payload: Payload
 
 describe('Bookmarks Integration', () => {
   beforeAll(async () => {
-    const payloadConfig = await config
-    payload = await getPayload({ config: payloadConfig })
+    payload = await getTestPayload()
   })
 
   it('can bookmark a link', async () => {
-    // 1. Create User
-    const user = await payload.create({
-      collection: 'users',
-      data: {
-        email: faker.internet.email(),
-        username: faker.internet.username(),
-        password: faker.internet.password(),
-        settings: {
-          nsfw: false,
-          language: 'en',
-        },
-      },
-      draft: false,
-    })
+    // 1. Get Shared User
+    const user = await getTestUser()
 
     // 2. Create Link
     const link = await payload.create({
