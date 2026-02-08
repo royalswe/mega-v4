@@ -43,8 +43,6 @@ export async function Header() {
         </ul>
 
         <div className="flex items-center space-x-2">
-          <ThemeToggle />
-          <LanguageSelector currentLang={user?.settings?.language || lang} />
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -80,6 +78,8 @@ export async function Header() {
               <Button asChild>
                 <Link href="/create-account">{dict.menu.signup}</Link>
               </Button>
+              <ThemeToggle />
+              <LanguageSelector currentLang={lang} />
             </div>
           )}
         </div>

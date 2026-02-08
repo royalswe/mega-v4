@@ -1,6 +1,5 @@
 import { LinkSubmitForm } from '@/components/links/LinkSubmitForm'
 import { redirect } from 'next/navigation'
-import React from 'react'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 

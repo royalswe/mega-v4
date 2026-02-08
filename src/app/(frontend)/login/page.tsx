@@ -1,5 +1,4 @@
 import { LoginForm } from '@/components/auth/LoginForm'
-import React from 'react'
 import { getDictionary } from '@/lib/dictionaries'
 
 export default async function LoginPage() {

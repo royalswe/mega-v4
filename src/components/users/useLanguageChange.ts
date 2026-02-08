@@ -13,8 +13,8 @@ export function useLanguageChange() {
   ) => {
     startTransition(async () => {
       try {
-        document.cookie = `lang=${lang}; path=/; max-age=31536000`
         await updateLanguage(lang)
+        document.cookie = `lang=${lang}; path=/; max-age=31536000; SameSite=Lax`
         router.refresh()
         onSuccess?.()
       } catch (error) {

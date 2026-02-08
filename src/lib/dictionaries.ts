@@ -4,7 +4,7 @@ import { getAuthenticatedUser } from './auth'
 
 export type UserLanguage = NonNullable<NonNullable<User['settings']>['language']>
 
-const dictionaries: Record<UserLanguage, Record<string, any>> = {
+const dictionaries = {
   en: {
     common: {
       submittedBy: 'Submitted by',
@@ -251,10 +251,14 @@ export const getDictionary = async () => {
   const { user } = await getAuthenticatedUser()
   const cookieStore = await cookies()
 
-  const lang = user?.settings?.language || (cookieStore.get('lang')?.value as UserLanguage) || 'en'
+  const cookieLang = cookieStore.get('lang')?.value
+  const isValidLang = (lang: string | undefined): lang is UserLanguage =>
+    lang === 'en' || lang === 'sv'
+
+  const lang = user?.settings?.language || (isValidLang(cookieLang) ? cookieLang : null) || 'en'
 
   return {
     dict: dictionaries[lang] || dictionaries.en,
-    lang,
+    lang: lang as UserLanguage,
   }
 }

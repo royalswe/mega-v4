@@ -30,6 +30,7 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
+    autoLogin,
   },
   jobs: {
     autoRun: [

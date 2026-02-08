@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import React from 'react'
 import { ThemeProvider } from './ThemeProvider'
 
 import { Header } from '@/components/layout/Header'
