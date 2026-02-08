@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -27,23 +27,7 @@ import { AlertCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-interface AuthFormDict {
-  loginTitle: string
-  loginDesc: string
-  errorTitle: string
-  emailOrUsername: string
-  password: string
-  loggingIn: string
-  loginButton: string
-  forgotPassword: string
-  noAccount: string
-  signupButton: string
-  loginRequired: string
-  passwordRequired: string
-  genericError: string
-}
-
-export function LoginForm({ dict }: any) {
+export function LoginForm({ dict }: { dict: Record<string, any> }) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()

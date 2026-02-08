@@ -57,7 +57,7 @@ export async function Header() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href={`/user/${user.username}`}>{dict.menu.profile || 'Profile'}</Link>
+                  <Link href={`/user/${user.username}`}>{dict.settings.profile || 'Profile'}</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useTransition, useEffect } from 'react'
-import { Upload, X, Loader2 } from 'lucide-react'
+import { Upload, Loader2 } from 'lucide-react'
 import { Avatar } from './Avatar'
 import { uploadMedia, updateUserAvatar } from '@/app/actions/users'
 import { toast } from 'sonner'

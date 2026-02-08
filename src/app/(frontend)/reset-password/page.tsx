@@ -1,5 +1,5 @@
 import { ResetPasswordForm } from '@/components/auth/ResetPasswordForm'
-import React, { Suspense } from 'react'
+import { Suspense } from 'react'
 import { getDictionary } from '@/lib/dictionaries'
 
 export default async function ResetPasswordPage() {
