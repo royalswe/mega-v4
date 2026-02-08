@@ -34,9 +34,11 @@ const dictionaries = {
       submittedTitle: 'All Submitted Links',
     },
     settings: {
+      profile: 'Profile',
       showNSFW: 'Show NSFW',
       language: 'Language',
       theme: 'Theme',
+      joinDate: 'Member since',
       nsfwEnabled: 'NSFW content enabled',
       nsfwDisabled: 'NSFW content disabled',
       updateError: 'Failed to update setting',
@@ -154,9 +156,11 @@ const dictionaries = {
       submittedTitle: 'Alla inskickade länkar',
     },
     settings: {
+      profile: 'Profil',
       showNSFW: 'Visa NSFW',
       language: 'Språk',
       theme: 'Tema',
+      joinDate: 'Medlem sedan',
       nsfwEnabled: 'NSFW-innehåll aktiverat',
       nsfwDisabled: 'NSFW-innehåll inaktiverat',
       updateError: 'Kunde inte uppdatera inställning',

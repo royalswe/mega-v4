@@ -46,7 +46,7 @@ export default async function UserProfilePage({
     <div className="container max-w-2xl py-10">
       <Card>
         <CardHeader>
-          <CardTitle>{dict.menu?.profile || 'Profile'}</CardTitle>
+          <CardTitle>{dict?.settings?.profile || 'Profile'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-8">
           {/* Avatar Section */}
@@ -61,7 +61,7 @@ export default async function UserProfilePage({
                 <Avatar user={profileUser} className="h-24 w-24 text-4xl" />
                 <div>
                   <h2 className="text-2xl font-bold">{profileUser.username}</h2>
-                  <p className="text-muted-foreground">{dict.profile?.member || 'Member'}</p>
+                  <p className="text-muted-foreground">{'Member'}</p>
                 </div>
               </div>
             )}
@@ -72,7 +72,7 @@ export default async function UserProfilePage({
             <div className="flex items-center gap-2 text-muted-foreground">
               <CalendarDays className="h-4 w-4" />
               <span>
-                {dict.profile?.joined || 'Joined'}{' '}
+                {dict.settings?.joinDate || 'Member since'}{' '}
                 {new Date(profileUser.createdAt).toLocaleDateString()}
               </span>
             </div>
