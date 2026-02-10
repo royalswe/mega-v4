@@ -29,6 +29,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   
   CREATE TABLE "users" (
   	"id" serial PRIMARY KEY NOT NULL,
+  	"avatar_id" integer,
   	"settings_nsfw" boolean DEFAULT false,
   	"settings_language" "enum_users_settings_language" DEFAULT 'en' NOT NULL,
   	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
@@ -68,6 +69,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"type" "enum_links_type" DEFAULT 'article',
   	"user_id" integer,
   	"votes" numeric DEFAULT 0,
+  	"click_count" numeric DEFAULT 0,
   	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
   	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
   	"_status" "enum_links_status" DEFAULT 'draft'
@@ -83,6 +85,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"version_type" "enum__links_v_version_type" DEFAULT 'article',
   	"version_user_id" integer,
   	"version_votes" numeric DEFAULT 0,
+  	"version_click_count" numeric DEFAULT 0,
   	"version_updated_at" timestamp(3) with time zone,
   	"version_created_at" timestamp(3) with time zone,
   	"version__status" "enum__links_v_version_status" DEFAULT 'draft',
@@ -92,11 +95,23 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"autosave" boolean
   );
   
+  CREATE TABLE "posts" (
+  	"id" serial PRIMARY KEY NOT NULL,
+  	"title" varchar NOT NULL,
+  	"content" jsonb NOT NULL,
+  	"nsfw" boolean,
+  	"user_id" integer NOT NULL,
+  	"votes" numeric DEFAULT 0,
+  	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+  	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
+  );
+  
   CREATE TABLE "comments" (
   	"id" serial PRIMARY KEY NOT NULL,
-  	"comment" varchar NOT NULL,
+  	"comment" jsonb NOT NULL,
   	"user_id" integer NOT NULL,
-  	"link_id" integer NOT NULL,
+  	"link_id" integer,
+  	"post_id" integer,
   	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
   	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
   );
@@ -104,7 +119,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE TABLE "votes" (
   	"id" serial PRIMARY KEY NOT NULL,
   	"user_id" integer NOT NULL,
-  	"link_id" integer NOT NULL,
+  	"link_id" integer,
+  	"post_id" integer,
   	"vote" "enum_votes_vote" NOT NULL,
   	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
   	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
@@ -113,7 +129,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE TABLE "bookmarks" (
   	"id" serial PRIMARY KEY NOT NULL,
   	"user_id" integer NOT NULL,
-  	"link_id" integer NOT NULL,
+  	"link_id" integer,
+  	"post_id" integer,
   	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
   	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
   );
@@ -168,6 +185,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"users_id" integer,
   	"media_id" integer,
   	"links_id" integer,
+  	"posts_id" integer,
   	"comments_id" integer,
   	"votes_id" integer,
   	"bookmarks_id" integer
@@ -199,20 +217,26 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   
   ALTER TABLE "users_roles" ADD CONSTRAINT "users_roles_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "users_sessions" ADD CONSTRAINT "users_sessions_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "users" ADD CONSTRAINT "users_avatar_id_media_id_fk" FOREIGN KEY ("avatar_id") REFERENCES "public"."media"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "links" ADD CONSTRAINT "links_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_links_v" ADD CONSTRAINT "_links_v_parent_id_links_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."links"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_links_v" ADD CONSTRAINT "_links_v_version_user_id_users_id_fk" FOREIGN KEY ("version_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "posts" ADD CONSTRAINT "posts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "comments" ADD CONSTRAINT "comments_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "comments" ADD CONSTRAINT "comments_link_id_links_id_fk" FOREIGN KEY ("link_id") REFERENCES "public"."links"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "comments" ADD CONSTRAINT "comments_post_id_posts_id_fk" FOREIGN KEY ("post_id") REFERENCES "public"."posts"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "votes" ADD CONSTRAINT "votes_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "votes" ADD CONSTRAINT "votes_link_id_links_id_fk" FOREIGN KEY ("link_id") REFERENCES "public"."links"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "votes" ADD CONSTRAINT "votes_post_id_posts_id_fk" FOREIGN KEY ("post_id") REFERENCES "public"."posts"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "bookmarks" ADD CONSTRAINT "bookmarks_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "bookmarks" ADD CONSTRAINT "bookmarks_link_id_links_id_fk" FOREIGN KEY ("link_id") REFERENCES "public"."links"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "bookmarks" ADD CONSTRAINT "bookmarks_post_id_posts_id_fk" FOREIGN KEY ("post_id") REFERENCES "public"."posts"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "payload_jobs_log" ADD CONSTRAINT "payload_jobs_log_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."payload_jobs"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."payload_locked_documents"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_media_fk" FOREIGN KEY ("media_id") REFERENCES "public"."media"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_links_fk" FOREIGN KEY ("links_id") REFERENCES "public"."links"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_posts_fk" FOREIGN KEY ("posts_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_comments_fk" FOREIGN KEY ("comments_id") REFERENCES "public"."comments"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_votes_fk" FOREIGN KEY ("votes_id") REFERENCES "public"."votes"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_bookmarks_fk" FOREIGN KEY ("bookmarks_id") REFERENCES "public"."bookmarks"("id") ON DELETE cascade ON UPDATE no action;
@@ -222,6 +246,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "users_roles_parent_idx" ON "users_roles" USING btree ("parent_id");
   CREATE INDEX "users_sessions_order_idx" ON "users_sessions" USING btree ("_order");
   CREATE INDEX "users_sessions_parent_id_idx" ON "users_sessions" USING btree ("_parent_id");
+  CREATE INDEX "users_avatar_idx" ON "users" USING btree ("avatar_id");
   CREATE INDEX "users_updated_at_idx" ON "users" USING btree ("updated_at");
   CREATE INDEX "users_created_at_idx" ON "users" USING btree ("created_at");
   CREATE UNIQUE INDEX "users_email_idx" ON "users" USING btree ("email");
@@ -242,16 +267,22 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_links_v_updated_at_idx" ON "_links_v" USING btree ("updated_at");
   CREATE INDEX "_links_v_latest_idx" ON "_links_v" USING btree ("latest");
   CREATE INDEX "_links_v_autosave_idx" ON "_links_v" USING btree ("autosave");
+  CREATE INDEX "posts_user_idx" ON "posts" USING btree ("user_id");
+  CREATE INDEX "posts_updated_at_idx" ON "posts" USING btree ("updated_at");
+  CREATE INDEX "posts_created_at_idx" ON "posts" USING btree ("created_at");
   CREATE INDEX "comments_user_idx" ON "comments" USING btree ("user_id");
   CREATE INDEX "comments_link_idx" ON "comments" USING btree ("link_id");
+  CREATE INDEX "comments_post_idx" ON "comments" USING btree ("post_id");
   CREATE INDEX "comments_updated_at_idx" ON "comments" USING btree ("updated_at");
   CREATE INDEX "comments_created_at_idx" ON "comments" USING btree ("created_at");
   CREATE INDEX "votes_user_idx" ON "votes" USING btree ("user_id");
   CREATE INDEX "votes_link_idx" ON "votes" USING btree ("link_id");
+  CREATE INDEX "votes_post_idx" ON "votes" USING btree ("post_id");
   CREATE INDEX "votes_updated_at_idx" ON "votes" USING btree ("updated_at");
   CREATE INDEX "votes_created_at_idx" ON "votes" USING btree ("created_at");
   CREATE INDEX "bookmarks_user_idx" ON "bookmarks" USING btree ("user_id");
   CREATE INDEX "bookmarks_link_idx" ON "bookmarks" USING btree ("link_id");
+  CREATE INDEX "bookmarks_post_idx" ON "bookmarks" USING btree ("post_id");
   CREATE INDEX "bookmarks_updated_at_idx" ON "bookmarks" USING btree ("updated_at");
   CREATE INDEX "bookmarks_created_at_idx" ON "bookmarks" USING btree ("created_at");
   CREATE UNIQUE INDEX "payload_kv_key_idx" ON "payload_kv" USING btree ("key");
@@ -275,6 +306,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "payload_locked_documents_rels_users_id_idx" ON "payload_locked_documents_rels" USING btree ("users_id");
   CREATE INDEX "payload_locked_documents_rels_media_id_idx" ON "payload_locked_documents_rels" USING btree ("media_id");
   CREATE INDEX "payload_locked_documents_rels_links_id_idx" ON "payload_locked_documents_rels" USING btree ("links_id");
+  CREATE INDEX "payload_locked_documents_rels_posts_id_idx" ON "payload_locked_documents_rels" USING btree ("posts_id");
   CREATE INDEX "payload_locked_documents_rels_comments_id_idx" ON "payload_locked_documents_rels" USING btree ("comments_id");
   CREATE INDEX "payload_locked_documents_rels_votes_id_idx" ON "payload_locked_documents_rels" USING btree ("votes_id");
   CREATE INDEX "payload_locked_documents_rels_bookmarks_id_idx" ON "payload_locked_documents_rels" USING btree ("bookmarks_id");
@@ -297,6 +329,7 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP TABLE "media" CASCADE;
   DROP TABLE "links" CASCADE;
   DROP TABLE "_links_v" CASCADE;
+  DROP TABLE "posts" CASCADE;
   DROP TABLE "comments" CASCADE;
   DROP TABLE "votes" CASCADE;
   DROP TABLE "bookmarks" CASCADE;
