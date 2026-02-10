@@ -61,6 +61,7 @@ export default async function WallPage({
     collection: 'posts',
     where,
     sort: '-createdAt',
+    limit: 100, // Add reasonable limit and implement pagination
   })
 
   // Fetch user interactions (votes/bookmarks)

@@ -6,7 +6,7 @@ import { Header } from '@/components/layout/Header'
 import { Toaster } from '@/components/ui/sonner'
 
 export const metadata: Metadata = {
-  title: 'Link Hub',
+  title: 'Existenz V4',
   description: 'A place to share and discover links.',
 }
 
@@ -24,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Header />
             <main className="grow w-full max-w-245 mx-auto py-8 px-2 sm:px-6">{children}</main>
             <footer className="py-4 px-6 border-t text-center text-sm text-muted-foreground">
-              <p>&copy; Link Hub. All rights reserved.</p>
+              <p>&copy; Existenz V4. All rights reserved.</p>
             </footer>
           </div>
           <Toaster />

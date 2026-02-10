@@ -126,6 +126,7 @@ function ToolbarPlugin({
           size="sm"
           type="button"
           onClick={() => setIsPreview(!isPreview)}
+          aria-label={isPreview ? 'Switch to Edit mode' : 'Switch to Preview mode'}
         >
           {isPreview ? 'Edit' : 'Preview'}
         </Button>
@@ -155,8 +156,8 @@ export function RichTextEditor({
   placeholder = 'Enter some text...',
   className,
 }: RichTextEditorProps) {
-  // Safely parse initialValue JSON, fallback to undefined (empty state)
-  let parsedInitialValue: string | undefined = undefined
+  // Use initialValue directly if provided (Lexical accepts JSON string for editorState)
+  const parsedInitialValue = initialValue || undefined
 
   const [isPreview, setIsPreview] = useState(false)
   const [jsonState, setJsonState] = useState<string | null>(initialValue || null)

@@ -21,7 +21,9 @@ export async function Header() {
   return (
     <header className="py-4 px-6 border-b flex items-center justify-between">
       <h1 className="text-2xl font-bold">
-        <Link href="/">Link Hub</Link>
+        <Link href="/">
+          Existenz <i>V4🔥</i>
+        </Link>
       </h1>
       <nav className="flex items-center space-x-4">
         <ul className="flex items-center space-x-4">
@@ -32,12 +34,12 @@ export async function Header() {
           </li>
           <li>
             <Button variant="ghost" asChild>
-              <Link href="/wall">Wall</Link>
+              <Link href="/submitted">{dict.menu.submitted}</Link>
             </Button>
           </li>
           <li>
             <Button variant="ghost" asChild>
-              <Link href="/submitted">{dict.menu.submitted}</Link>
+              <Link href="/wall">Wall</Link>
             </Button>
           </li>
           <li>
