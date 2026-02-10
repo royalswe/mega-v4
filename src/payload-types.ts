@@ -70,6 +70,7 @@ export interface Config {
     users: User;
     media: Media;
     links: Link;
+    posts: Post;
     comments: Comment;
     votes: Vote;
     bookmarks: Bookmark;
@@ -84,11 +85,16 @@ export interface Config {
       relatedComments: 'comments';
       saves: 'bookmarks';
     };
+    posts: {
+      relatedComments: 'comments';
+      saves: 'bookmarks';
+    };
   };
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     links: LinksSelect<false> | LinksSelect<true>;
+    posts: PostsSelect<false> | PostsSelect<true>;
     comments: CommentsSelect<false> | CommentsSelect<true>;
     votes: VotesSelect<false> | VotesSelect<true>;
     bookmarks: BookmarksSelect<false> | BookmarksSelect<true>;
@@ -211,6 +217,7 @@ export interface Link {
   type: 'article' | 'video' | 'image' | 'audio' | 'game';
   user: number | User;
   votes?: number | null;
+  clickCount?: number | null;
   /**
    * Comments related to this link
    */
@@ -237,9 +244,68 @@ export interface Link {
  */
 export interface Comment {
   id: number;
-  comment: string;
+  comment: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
   user: number | User;
-  link: number | Link;
+  link?: (number | null) | Link;
+  post?: (number | null) | Post;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts".
+ */
+export interface Post {
+  id: number;
+  title: string;
+  content: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  nsfw?: boolean | null;
+  user: number | User;
+  votes?: number | null;
+  /**
+   * Comments related to this post
+   */
+  relatedComments?: {
+    docs?: (number | Comment)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  /**
+   * Users who bookmarked this post
+   */
+  saves?: {
+    docs?: (number | Bookmark)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -250,7 +316,8 @@ export interface Comment {
 export interface Bookmark {
   id: number;
   user: number | User;
-  link: number | Link;
+  link?: (number | null) | Link;
+  post?: (number | null) | Post;
   updatedAt: string;
   createdAt: string;
 }
@@ -261,7 +328,8 @@ export interface Bookmark {
 export interface Vote {
   id: number;
   user: number | User;
-  link: number | Link;
+  link?: (number | null) | Link;
+  post?: (number | null) | Post;
   vote: 'up' | 'down';
   updatedAt: string;
   createdAt: string;
@@ -395,6 +463,10 @@ export interface PayloadLockedDocument {
         value: number | Link;
       } | null)
     | ({
+        relationTo: 'posts';
+        value: number | Post;
+      } | null)
+    | ({
         relationTo: 'comments';
         value: number | Comment;
       } | null)
@@ -509,11 +581,27 @@ export interface LinksSelect<T extends boolean = true> {
   type?: T;
   user?: T;
   votes?: T;
+  clickCount?: T;
   relatedComments?: T;
   saves?: T;
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts_select".
+ */
+export interface PostsSelect<T extends boolean = true> {
+  title?: T;
+  content?: T;
+  nsfw?: T;
+  user?: T;
+  votes?: T;
+  relatedComments?: T;
+  saves?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -523,6 +611,7 @@ export interface CommentsSelect<T extends boolean = true> {
   comment?: T;
   user?: T;
   link?: T;
+  post?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -533,6 +622,7 @@ export interface CommentsSelect<T extends boolean = true> {
 export interface VotesSelect<T extends boolean = true> {
   user?: T;
   link?: T;
+  post?: T;
   vote?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -544,6 +634,7 @@ export interface VotesSelect<T extends boolean = true> {
 export interface BookmarksSelect<T extends boolean = true> {
   user?: T;
   link?: T;
+  post?: T;
   updatedAt?: T;
   createdAt?: T;
 }

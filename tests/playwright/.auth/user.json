@@ -2,10 +2,10 @@
   "cookies": [
     {
       "name": "payload-token",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiY29sbGVjdGlvbiI6InVzZXJzIiwiZW1haWwiOiJhZG1pbkBtYWlsLmNvbSIsInNpZCI6ImExYjRlNjIxLWJmYTQtNDkwNy05YjM4LWUyMjI3MjZiMTlmOSIsInJvbGVzIjpbImFkbWluIl0sImlhdCI6MTc3MDU3NjMwNiwiZXhwIjoxNzcwNzQ5MTA2fQ.g5fOVftvM-0M8ZfciGyJmAVv5pLgmrQy2sttBwx6hPs",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiY29sbGVjdGlvbiI6InVzZXJzIiwiZW1haWwiOiJhZG1pbkBtYWlsLmNvbSIsInNpZCI6IjdiMTg3YzQxLTM0N2EtNGFjNS1iZmQxLTQwZDI1NjM2YjYyNiIsInJvbGVzIjpbImFkbWluIl0sImlhdCI6MTc3MDY3ODM5MywiZXhwIjoxNzcwODUxMTkzfQ.d9glnvUShAw5NzPjMxJC_7Cknqw7AZbwCirPlNz72lc",
       "domain": "localhost",
       "path": "/",
-      "expires": 1770749106.81033,
+      "expires": 1770851193.999402,
       "httpOnly": true,
       "secure": true,
       "sameSite": "None"

@@ -18,6 +18,35 @@ describe('Comments Integration', () => {
     const title = faker.lorem.words(4)
     const url = faker.internet.url()
     const commentText = faker.lorem.words(4)
+    const commentJson = {
+      root: {
+        children: [
+          {
+            children: [
+              {
+                detail: 0,
+                format: 0,
+                mode: 'normal',
+                style: '',
+                text: commentText,
+                type: 'text',
+                version: 1,
+              },
+            ],
+            direction: 'ltr' as const,
+            format: '' as const,
+            indent: 0,
+            type: 'paragraph',
+            version: 1,
+          },
+        ],
+        direction: 'ltr' as const,
+        format: '' as const,
+        indent: 0,
+        type: 'root',
+        version: 1,
+      },
+    }
 
     // 2. Create Link
     const link = await payload.create({
@@ -36,7 +65,7 @@ describe('Comments Integration', () => {
     const comment = await payload.create({
       collection: 'comments',
       data: {
-        comment: commentText,
+        comment: commentJson,
         user: testUser.id,
         link: link.id,
       },
@@ -44,7 +73,7 @@ describe('Comments Integration', () => {
     })
 
     expect(comment).toBeDefined()
-    expect(comment.comment).toBe(commentText)
+    expect(comment.comment).toEqual(commentJson)
     expect(comment.user).toEqual(expect.objectContaining({ id: testUser.id }))
     expect(comment.link).toEqual(expect.objectContaining({ id: link.id }))
   })
@@ -56,7 +85,16 @@ describe('Comments Integration', () => {
       payload.create({
         collection: 'comments',
         data: {
-          comment: 'Orphan comment',
+          comment: {
+            root: {
+              children: [],
+              direction: null,
+              format: '' as const,
+              indent: 0,
+              type: 'root',
+              version: 1,
+            },
+          },
           user: testUser.id,
           link: undefined,
         },

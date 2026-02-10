@@ -32,6 +32,11 @@ export async function Header() {
           </li>
           <li>
             <Button variant="ghost" asChild>
+              <Link href="/wall">Wall</Link>
+            </Button>
+          </li>
+          <li>
+            <Button variant="ghost" asChild>
               <Link href="/submitted">{dict.menu.submitted}</Link>
             </Button>
           </li>

@@ -9,6 +9,7 @@ import { migrations } from './migrations'
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
 import { Links } from './collections/Links'
+import { Posts } from './collections/Posts'
 import { Comments } from './collections/Comments'
 import { Votes } from './collections/Votes'
 import { Bookmarks } from './collections/Bookmarks'
@@ -39,7 +40,7 @@ export default buildConfig({
       },
     ],
   },
-  collections: [Users, Media, Links, Comments, Votes, Bookmarks],
+  collections: [Users, Media, Links, Posts, Comments, Votes, Bookmarks],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

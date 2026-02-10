@@ -1,14 +1,17 @@
-export const dynamic = 'force-dynamic' // This stops the build-time DB check
+export const dynamic = 'force-dynamic'
 
 import type { Where } from 'payload'
+import Link from 'next/link'
 
-import { LinkCard } from '@/components/links/LinkCard'
-import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
+import { PostCard } from '@/components/posts/PostCard'
+import { getPostInteractions } from '@/app/(frontend)/data/getPostInteractions'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
+import { Button } from '@/components/ui/button'
+
 import { BookmarksFilter } from '@/components/links/BookmarksFilter'
 
-export default async function HomePage({
+export default async function WallPage({
   searchParams,
 }: {
   searchParams: Promise<{ bookmarks?: string }>
@@ -16,14 +19,11 @@ export default async function HomePage({
   const { user, payload } = await getAuthenticatedUser()
   const { dict } = await getDictionary()
 
+  // Use optional chaining for safe access
   const showNSFW = user?.settings?.nsfw === true
   const showBookmarksOnly = (await searchParams)?.bookmarks === 'true'
 
-  const where: Where = {
-    _status: {
-      equals: 'published',
-    },
-  }
+  const where: Where = {}
 
   if (!showNSFW) {
     where.nsfw = {
@@ -37,6 +37,7 @@ export default async function HomePage({
       collection: 'bookmarks',
       where: {
         user: { equals: user.id },
+        post: { exists: true },
       },
       limit: 1000,
       depth: 0,
@@ -45,7 +46,7 @@ export default async function HomePage({
     if (userBookmarks.length > 0) {
       where.id = {
         in: userBookmarks
-          .map((b) => (typeof b.link === 'number' ? b.link : b.link?.id))
+          .map((b) => (typeof b.post === 'number' ? b.post : b.post?.id))
           .filter((id): id is number => typeof id === 'number'),
       }
     } else {
@@ -56,37 +57,46 @@ export default async function HomePage({
     }
   }
 
-  const { docs: links } = await payload.find({
-    collection: 'links',
+  const { docs: posts } = await payload.find({
+    collection: 'posts',
     where,
     sort: '-createdAt',
   })
 
   // Fetch user interactions (votes/bookmarks)
-  const linkIds = links.map((link) => link.id)
-  const { votes, bookmarks } = await getUserInteractions(user?.id || 0, linkIds)
+  const postIds = posts.map((post) => post.id)
+  const { votes, bookmarks } = await getPostInteractions(user?.id || 0, postIds)
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">{dict.pages.title}</h2>
-        {user && <BookmarksFilter label={dict.pages.bookmarksOnly} />}
+        <h2 className="text-xl font-semibold">Community Wall</h2>
+        <div className="flex items-center gap-4">
+          {user && <BookmarksFilter label="Show Bookmarks Only" />}
+          {user && (
+            <Button asChild>
+              <Link href="/new-post">Create Post</Link>
+            </Button>
+          )}
+        </div>
       </div>
       <div className="flex flex-col gap-4">
-        {links.length > 0 ? (
-          links.map((link) => (
-            <LinkCard
-              key={link.id}
-              link={link}
+        {posts.length > 0 ? (
+          posts.map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
               userId={user?.id}
-              userVote={votes[link.id]}
-              isBookmarked={bookmarks[link.id]}
-              className={link.nsfw ? 'nsfw-text' : ''}
+              userVote={votes[post.id]}
+              isBookmarked={bookmarks[post.id]}
+              className={post.nsfw ? 'nsfw-text' : ''}
             />
           ))
         ) : (
           <p className="text-muted-foreground text-center py-8">
-            {showBookmarksOnly ? dict.pages.noBookmarks : dict.pages.noLinks}{' '}
+            {showBookmarksOnly
+              ? 'No bookmarked posts found.'
+              : 'No posts yet. Be the first to share something!'}
           </p>
         )}
       </div>

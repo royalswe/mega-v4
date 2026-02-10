@@ -46,7 +46,7 @@ test.describe('Comments Flow', () => {
 
     // Check for comment form
     // Placeholder from CommentForm.tsx: "What are your thoughts?"
-    await page.getByPlaceholder('What are your thoughts?').fill(commentText)
+    await page.getByRole('textbox').fill(commentText)
 
     // Button is "Submit"
     await page.getByRole('button', { name: 'Submit' }).click()

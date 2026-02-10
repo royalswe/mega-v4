@@ -71,6 +71,12 @@ export const Links: CollectionConfig = {
       defaultValue: 0,
       admin: { readOnly: true }, // Admin can't manually cheat the votes
     },
+    {
+      name: 'clickCount',
+      type: 'number',
+      defaultValue: 0,
+      admin: { readOnly: true },
+    },
     // VIRTUAL: This shows comments in the UI without storing an array of IDs
     {
       name: 'relatedComments',

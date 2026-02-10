@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic' // This stops the build-time DB check
+export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { getPayload } from 'payload'
@@ -6,15 +6,16 @@ import configPromise from '@payload-config'
 import { Card, CardContent } from '@/components/ui/card'
 import { notFound } from 'next/navigation'
 import { CommentForm } from '@/components/comments/CommentForm'
-import { VoteButtons } from '@/components/links/VoteButtons'
-import { LinkIcon } from '@/components/links/LinkIcon'
-import { BookmarkButton } from '@/components/links/BookmarkButton'
+import { VoteButtons } from '@/components/posts/VoteButtons'
+import { BookmarkButton } from '@/components/posts/BookmarkButton'
 import { getDictionary } from '@/lib/dictionaries'
 import { Avatar } from '@/components/users/Avatar'
+import { getPostInteractions } from '@/app/(frontend)/data/getPostInteractions'
+import { getAuthenticatedUser } from '@/lib/auth'
 import { RichTextDisplay } from '@/components/ui/RichTextDisplay'
 import { Timestamp } from '@/components/ui/Timestamp'
 
-async function getComments(linkId: number) {
+async function getComments(postId: number) {
   const payload = await getPayload({
     config: configPromise,
   })
@@ -22,8 +23,8 @@ async function getComments(linkId: number) {
   const comments = await payload.find({
     collection: 'comments',
     where: {
-      link: {
-        equals: linkId,
+      post: {
+        equals: postId,
       },
     },
     sort: '-createdAt',
@@ -33,15 +34,12 @@ async function getComments(linkId: number) {
   return comments.docs
 }
 
-import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
-import { getAuthenticatedUser } from '@/lib/auth'
-
-export default async function LinkPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PostPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { user, payload } = await getAuthenticatedUser()
 
-  const { docs: links } = await payload.find({
-    collection: 'links',
+  const { docs: posts } = await payload.find({
+    collection: 'posts',
     where: {
       id: {
         equals: parseInt(id),
@@ -49,59 +47,57 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
     },
   })
 
-  if (!links.length) {
+  if (!posts.length) {
     return notFound()
   }
 
-  const link = links[0]
+  const post = posts[0]
 
-  const comments = await getComments(link.id)
+  const comments = await getComments(post.id)
   const { dict } = await getDictionary()
 
   // Fetch user interactions
-  const { votes, bookmarks } = await getUserInteractions(user?.id || 0, [link.id])
-  const userVote = votes[link.id]
-  const isBookmarked = bookmarks[link.id]
+  const { votes, bookmarks } = await getPostInteractions(user?.id || 0, [post.id])
+  const userVote = votes[post.id]
+  const isBookmarked = bookmarks[post.id]
 
   return (
     <div className="max-w-4xl mx-auto p-4">
       <div className="flex gap-4 mb-8">
         <div className="shrink-0">
           <VoteButtons
-            linkId={link.id}
-            votes={link.votes || 0}
+            postId={post.id}
+            votes={post.votes || 0}
             userId={user?.id}
             userVote={userVote}
           />
         </div>
         <div className="grow">
-          <div className="flex items-center gap-2 mb-2">
-            <LinkIcon type={link.type} />
-            <h1 className="text-2xl font-bold hover:underline">
-              <a href={link.url} target="_blank" rel="noopener noreferrer">
-                {link.title}
-              </a>
-            </h1>
+          <h1 className="text-2xl font-bold mb-2">{post.title}</h1>
+          <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+            <span>
+              {dict.common.submittedBy}{' '}
+              {(typeof post.user === 'object' && post.user?.username) || 'Ghost'}
+            </span>
+            <Timestamp date={post.updatedAt} prefix="updated" />
           </div>
-          <p className="text-muted-foreground mb-4">
-            {dict.common.submittedBy}{' '}
-            {(typeof link.user === 'object' && link.user?.username) || 'Ghost'}
-          </p>
           <div className="flex gap-4 mb-6">
             <BookmarkButton
-              linkId={link.id}
+              postId={post.id}
               userId={user?.id}
               isBookmarked={isBookmarked}
               dict={dict}
             />
           </div>
-          <p className="whitespace-pre-wrap">{link.description}</p>
+          <div className="text-lg mb-6">
+            <RichTextDisplay content={post.content} />
+          </div>
         </div>
       </div>
 
       <div className="mb-8">
         <h2 className="text-xl font-bold mb-4">{dict.common.comments}</h2>
-        <CommentForm linkId={link.id} userId={user?.id} dict={dict} />
+        <CommentForm postId={post.id} userId={user?.id} dict={dict} />
         <div className="flex flex-col gap-4 mt-4">
           {comments.map((comment) => (
             <Card key={comment.id}>
@@ -117,19 +113,19 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
                     <div className="mb-2">
                       <RichTextDisplay content={comment.comment} />
                     </div>
-                    <span className="text-sm text-muted-foreground">
-                      {dict.common.postedBy}{' '}
-                      {typeof comment.user === 'object' && comment.user?.username ? (
-                        <Link href={`/user/${comment.user.username}`} className="hover:underline">
-                          {comment.user.username}
-                        </Link>
-                      ) : (
-                        <span>Ghost</span>
-                      )}
-                    </span>{' '}
-                    <span className="ms-4">
-                      {comment.createdAt && <Timestamp date={comment.createdAt} />}
-                    </span>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <span>
+                        {dict.common.postedBy}{' '}
+                        {typeof comment.user === 'object' && comment.user?.username ? (
+                          <Link href={`/user/${comment.user.username}`} className="hover:underline">
+                            {comment.user.username}
+                          </Link>
+                        ) : (
+                          <span>Ghost</span>
+                        )}
+                      </span>
+                      <Timestamp date={comment.createdAt} />
+                    </div>
                   </div>
                 </div>
               </CardContent>

@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import { Card, CardTitle } from '@/components/ui/card'
-import { MessageCircle } from 'lucide-react'
+import { MessageCircle, Eye } from 'lucide-react'
 import { VoteButtons } from '@/components/links/VoteButtons'
 import { BookmarkButton } from '@/components/links/BookmarkButton'
 import { LinkIcon } from '@/components/links/LinkIcon'
+import { TrackedLink } from '@/components/links/TrackedLink'
 import { getDictionary } from '@/lib/dictionaries'
 
 import type { Link as LinkType } from '@/payload-types'
@@ -35,14 +36,12 @@ export async function LinkCard({
           <LinkIcon type={link.type} className="w-10 h-10 shrink-0" />
           <div className="flex flex-col gap-1">
             <CardTitle className={`text-lg font-semibold leading-tight ${className}`}>
-              <a
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
+              <TrackedLink
+                url={link.url}
+                title={link.title}
+                linkId={link.id}
                 className="hover:underline"
-              >
-                {link.title}
-              </a>
+              />
             </CardTitle>
           </div>
         </div>
@@ -51,6 +50,10 @@ export async function LinkCard({
             <MessageCircle className="w-4 h-4 mr-1" />
             {link.relatedComments?.docs?.length || 0} {dict.common.comments}
           </Link>
+          <div className="flex items-center gap-1">
+            <Eye className="w-4 h-4" />
+            <span>{link.clickCount || 0}</span>
+          </div>
           <BookmarkButton
             linkId={link.id}
             userId={userId}

@@ -51,7 +51,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         channel: 'chromium',
-        //storageState: 'tests/playwright/.auth/user.json',
+        storageState: 'tests/playwright/.auth/user.json',
       },
     },
   ],

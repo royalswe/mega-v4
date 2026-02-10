@@ -22,6 +22,15 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
+    "@lexical/code": "0.35.0",
+    "@lexical/history": "0.35.0",
+    "@lexical/link": "0.35.0",
+    "@lexical/list": "0.35.0",
+    "@lexical/markdown": "0.35.0",
+    "@lexical/react": "0.35.0",
+    "@lexical/rich-text": "0.35.0",
+    "@lexical/table": "0.35.0",
+    "@lexical/utils": "0.35.0",
     "@payloadcms/db-postgres": "3.75.0",
     "@payloadcms/next": "3.75.0",
     "@payloadcms/richtext-lexical": "3.75.0",
@@ -36,8 +45,10 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cross-env": "^10.1.0",
+    "date-fns": "^4.1.0",
     "dotenv": "17.2.4",
     "graphql": "^16.8.1",
+    "lexical": "0.35.0",
     "lucide-react": "^0.563.0",
     "next": "16.1.6",
     "next-themes": "^0.4.6",
@@ -86,6 +97,23 @@
       "sharp",
       "esbuild",
       "unrs-resolver"
-    ]
+    ],
+    "overrides": {
+      "lexical": "0.35.0",
+      "@lexical/react": "0.35.0",
+      "@lexical/code": "0.35.0",
+      "@lexical/history": "0.35.0",
+      "@lexical/link": "0.35.0",
+      "@lexical/list": "0.35.0",
+      "@lexical/markdown": "0.35.0",
+      "@lexical/rich-text": "0.35.0",
+      "@lexical/table": "0.35.0",
+      "@lexical/utils": "0.35.0",
+      "@lexical/selection": "0.35.0",
+      "@lexical/clipboard": "0.35.0",
+      "@lexical/headless": "0.35.0",
+      "@lexical/html": "0.35.0",
+      "@lexical/mark": "0.35.0"
+    }
   }
 }

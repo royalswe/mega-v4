@@ -14,7 +14,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Textarea } from '@/components/ui/textarea'
+import { RichTextEditor } from '@/components/ui/RichTextEditor'
 import { submitComment } from '@/app/actions/comments'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -27,10 +27,12 @@ const formSchema = z.object({
 
 export function CommentForm({
   linkId,
+  postId,
   userId,
   dict,
 }: {
-  linkId: number
+  linkId?: number
+  postId?: number
   userId?: string | number | null
   dict: Record<string, any>
 }) {
@@ -45,7 +47,13 @@ export function CommentForm({
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true)
     try {
-      await submitComment(linkId, values.comment)
+      if (linkId) {
+        await submitComment(linkId, values.comment)
+      } else if (postId) {
+        // We'll need to create a submitPostComment action
+        const { submitPostComment } = await import('@/app/actions/comments')
+        await submitPostComment(postId, values.comment)
+      }
       toast.success(dict.common.commentAdded)
       form.reset()
     } catch (error) {
@@ -78,10 +86,11 @@ export function CommentForm({
             <FormItem>
               <FormLabel>Add a comment</FormLabel>
               <FormControl>
-                <Textarea
+                <RichTextEditor
                   placeholder="What are your thoughts?"
-                  className="resize-none"
-                  {...field}
+                  onChange={field.onChange}
+                  initialValue={field.value}
+                  className="min-h-25"
                 />
               </FormControl>
               <FormMessage />

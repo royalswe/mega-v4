@@ -18,7 +18,11 @@ export const Votes: CollectionConfig = {
       name: 'link',
       type: 'relationship',
       relationTo: 'links',
-      required: true,
+    },
+    {
+      name: 'post',
+      type: 'relationship',
+      relationTo: 'posts',
     },
     {
       name: 'vote',
@@ -42,6 +46,23 @@ export const Votes: CollectionConfig = {
     delete: ({ req: { user } }) => !!user,
   },
   hooks: {
+    beforeValidate: [
+      ({ data }) => {
+        // Ensure either link or post is provided, but not both
+        const hasLink = !!data?.link
+        const hasPost = !!data?.post
+
+        if (!hasLink && !hasPost) {
+          throw new Error('Either link or post must be provided')
+        }
+
+        if (hasLink && hasPost) {
+          throw new Error('Cannot vote on both link and post simultaneously')
+        }
+
+        return data
+      },
+    ],
     afterChange: [recalculateVotes], // Recalculate votes after a vote is created or updated
     afterDelete: [recalculateVotes], // Recalculate votes after a vote is deleted
   },

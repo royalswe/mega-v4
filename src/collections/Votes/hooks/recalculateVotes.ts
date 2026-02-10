@@ -9,18 +9,23 @@ export const recalculateVotes: CollectionAfterChangeHook & CollectionAfterDelete
   req, // Payload request including transaction
 }) => {
   const { payload } = req
-  // Extract the link ID from the vote document
-  const linkId = typeof doc.link === 'object' ? doc.link.id : doc.link
+  // Extract the link ID and post ID from the vote document
+  const linkId = typeof doc.link === 'object' ? doc.link?.id : doc.link
+  const postId = typeof doc.post === 'object' ? doc.post?.id : doc.post
 
-  // If no link ID is found, exit early
-  if (!linkId) return
+  // Determine which collection to update
+  const targetId = linkId || postId
+  const targetCollection = linkId ? 'links' : 'posts'
+
+  // If no target ID is found, exit early
+  if (!targetId || !targetCollection) return
 
   try {
-    // Step 1: Fetch all votes associated with the link
+    // Step 1: Fetch all votes associated with the link or post
     const { docs: allVotes } = await payload.find({
       collection: 'votes',
       where: {
-        link: { equals: linkId },
+        [targetCollection === 'links' ? 'link' : 'post']: { equals: targetId },
       },
       pagination: false, // Fetch all votes without pagination
       depth: 0, // Fetch only the necessary fields
@@ -32,10 +37,10 @@ export const recalculateVotes: CollectionAfterChangeHook & CollectionAfterDelete
       return curr.vote === 'up' ? acc + 1 : acc - 1
     }, 0)
 
-    // Step 3: Update the `votes` field on the associated link
+    // Step 3: Update the `votes` field on the associated link or post
     await payload.update({
-      collection: 'links',
-      id: linkId,
+      collection: targetCollection,
+      id: targetId,
       data: {
         votes: totalScore,
       },
@@ -44,6 +49,8 @@ export const recalculateVotes: CollectionAfterChangeHook & CollectionAfterDelete
     })
   } catch (error: any) {
     // Log any errors that occur during the process
-    payload.logger.error(`Failed to recalculate votes for link ${linkId}: ${error.message}`)
+    payload.logger.error(
+      `Failed to recalculate votes for ${targetCollection} ${targetId}: ${error.message}`,
+    )
   }
 }

@@ -11,7 +11,7 @@ export const Comments: CollectionConfig = {
   fields: [
     {
       name: 'comment',
-      type: 'textarea',
+      type: 'richText',
       required: true,
     },
     {
@@ -27,8 +27,32 @@ export const Comments: CollectionConfig = {
       name: 'link',
       type: 'relationship',
       relationTo: 'links',
-      required: true,
-      index: true, // Crucial for performance in the long list
+      index: true,
+    },
+    {
+      name: 'post',
+      type: 'relationship',
+      relationTo: 'posts',
+      index: true,
     },
   ],
+  hooks: {
+    beforeValidate: [
+      ({ data }) => {
+        // Ensure either link or post is provided, but not both
+        const hasLink = !!data?.link
+        const hasPost = !!data?.post
+
+        if (!hasLink && !hasPost) {
+          throw new Error('Either link or post must be provided')
+        }
+
+        if (hasLink && hasPost) {
+          throw new Error('Cannot comment on both link and post simultaneously')
+        }
+
+        return data
+      },
+    ],
+  },
 }
