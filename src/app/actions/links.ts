@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedUser } from '@/lib/auth'
+import { canModerateCommunity, isSubfeedMemberOrModerator } from '@/lib/community/subfeeds'
 
 export async function vote(linkId: number, type: 'up' | 'down') {
   const { user, payload } = await getAuthenticatedUser()
@@ -11,6 +12,10 @@ export async function vote(linkId: number, type: 'up' | 'down') {
   }
 
   const userId = user.id
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
 
   // Find existing vote
   const { docs: existingVotes } = await payload.find({
@@ -19,58 +24,31 @@ export async function vote(linkId: number, type: 'up' | 'down') {
       user: { equals: userId },
       link: { equals: linkId },
     },
+    ...withAccess,
   })
 
-  // Just perform the operation.
-  // The HOOK in your collection will automatically update the Link's vote count.
-  // BUT: We also manually update here to ensure atomic consistency before revalidation
-  // to avoid UI flicker (where the hook hasn't finished yet).
   if (existingVotes.length > 0) {
     if (existingVotes[0].vote === type) {
-      await payload.delete({ collection: 'votes', id: existingVotes[0].id })
+      await payload.delete({ collection: 'votes', id: existingVotes[0].id, ...withAccess })
     } else {
       await payload.update({
         collection: 'votes',
         id: existingVotes[0].id,
         data: { vote: type },
+        ...withAccess,
       })
     }
   } else {
     await payload.create({
       collection: 'votes',
       data: { user: userId, link: linkId, vote: type },
+      ...withAccess,
     })
   }
 
-  // ATOMIC UPDATE: Recalculate immediately
-  // Fetch all votes for this specific link (using the same payload instance which is request-scoped but should be fine here)
-  // Actually, let's use the same robust logic as the hook: find ALL votes.
-  const { docs: allVotes } = await payload.find({
-    collection: 'votes',
-    where: {
-      link: { equals: linkId },
-    },
-    limit: 5000,
-    depth: 0,
-    overrideAccess: true,
-  })
-
-  // Calculate the total score
-  const totalScore = allVotes.reduce((acc, curr) => {
-    return curr.vote === 'up' ? acc + 1 : curr.vote === 'down' ? acc - 1 : acc
-  }, 0)
-
-  // Update the Link document with the new count
-  await payload.update({
-    collection: 'links',
-    id: linkId,
-    data: {
-      votes: totalScore,
-    },
-    overrideAccess: true,
-  })
-
   revalidatePath('/')
+  revalidatePath('/submitted')
+  revalidatePath(`/link/${linkId}`)
 }
 
 export async function toggleBookmark(linkId: number) {
@@ -81,6 +59,10 @@ export async function toggleBookmark(linkId: number) {
   }
 
   const userId = user.id
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
 
   const { docs: existingBookmarks } = await payload.find({
     collection: 'bookmarks',
@@ -92,6 +74,7 @@ export async function toggleBookmark(linkId: number) {
         equals: linkId,
       },
     },
+    ...withAccess,
   })
 
   if (existingBookmarks.length > 0) {
@@ -99,6 +82,7 @@ export async function toggleBookmark(linkId: number) {
     await payload.delete({
       collection: 'bookmarks',
       id: existingBookmarks[0].id,
+      ...withAccess,
     })
   } else {
     // Bookmark does not exist, so create it
@@ -108,6 +92,7 @@ export async function toggleBookmark(linkId: number) {
         user: userId,
         link: linkId,
       },
+      ...withAccess,
     })
   }
 
@@ -122,6 +107,8 @@ export async function submitLink(values: {
   description?: string
   nsfw?: boolean
   type?: 'article' | 'video' | 'image' | 'audio' | 'game'
+  feed: 'main' | 'subfeed'
+  subfeedId?: number
 }) {
   const { user, payload } = await getAuthenticatedUser()
 
@@ -130,16 +117,59 @@ export async function submitLink(values: {
   }
 
   const userId = user.id
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
+
+  let subfeedId: number | undefined
+  let subfeedSlug: string | null = null
+
+  if (values.feed === 'subfeed') {
+    if (
+      typeof values.subfeedId !== 'number' ||
+      !Number.isInteger(values.subfeedId) ||
+      values.subfeedId <= 0
+    ) {
+      throw new Error('Please select a subfeed destination')
+    }
+
+    const subfeed = await payload.findByID({
+      collection: 'subfeeds',
+      id: values.subfeedId,
+      depth: 0,
+      ...withAccess,
+    })
+
+    if (!canModerateCommunity(user) && !isSubfeedMemberOrModerator(subfeed, userId)) {
+      throw new Error('You must join this subfeed before posting')
+    }
+
+    subfeedId = subfeed.id
+    subfeedSlug = subfeed.slug
+  }
 
   await payload.create({
     collection: 'links',
     data: {
-      ...values,
+      title: values.title,
+      url: values.url,
+      description: values.description,
+      nsfw: values.nsfw,
+      type: values.type,
       user: userId,
+      feed: values.feed,
+      subfeed: subfeedId,
     },
     draft: true,
+    ...withAccess,
   })
 
   revalidatePath('/')
   revalidatePath('/submitted')
+  revalidatePath('/subfeeds')
+
+  if (subfeedSlug) {
+    revalidatePath(`/subfeeds/${subfeedSlug}`)
+  }
 }

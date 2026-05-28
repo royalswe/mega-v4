@@ -1,6 +1,4 @@
 import { notFound } from 'next/navigation'
-import { getPayload } from 'payload'
-import configPromise from '@payload-config'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 import { Avatar } from '@/components/users/Avatar'
@@ -17,9 +15,17 @@ export default async function UserProfilePage({
   const { username } = await params
   const decodedUsername = decodeURIComponent(username)
 
-  const payload = await getPayload({ config: configPromise })
-  const { user: currentUser } = await getAuthenticatedUser()
+  const { user: currentUser, payload } = await getAuthenticatedUser()
   const { dict, lang } = await getDictionary()
+
+  const withAccess = currentUser
+    ? {
+        user: currentUser,
+        overrideAccess: false as const,
+      }
+    : {
+        overrideAccess: false as const,
+      }
 
   // First try to find by username
   const { docs: users } = await payload.find({
@@ -30,6 +36,7 @@ export default async function UserProfilePage({
       },
     },
     depth: 2, // Ensure we get avatar details
+    ...withAccess,
   })
 
   // If not found by username, try by ID if it looks like an ID (fallback/compatibility)
@@ -41,6 +48,9 @@ export default async function UserProfilePage({
 
   const profileUser = users[0]
   const isOwner = currentUser?.id === profileUser.id
+  const publicTitles = Array.isArray(profileUser.titles)
+    ? profileUser.titles.filter((title): title is string => typeof title === 'string').slice(0, 3)
+    : []
 
   return (
     <div className="container max-w-2xl py-10">
@@ -61,11 +71,26 @@ export default async function UserProfilePage({
                 <Avatar user={profileUser} className="h-24 w-24 text-4xl" />
                 <div>
                   <h2 className="text-2xl font-bold">{profileUser.username}</h2>
-                  <p className="text-muted-foreground">{'Member'}</p>
+                  <p className="text-muted-foreground">
+                    {profileUser.reputationPublicLabel || profileUser.trustLevel || 'Member'}
+                  </p>
                 </div>
               </div>
             )}
           </div>
+
+          {publicTitles.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {publicTitles.map((title) => (
+                <span
+                  key={title}
+                  className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium"
+                >
+                  {title}
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* User Details */}
           <div className="grid gap-4">

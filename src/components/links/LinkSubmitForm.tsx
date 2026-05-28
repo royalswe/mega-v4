@@ -28,18 +28,41 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { submitLink } from '@/app/actions/links'
 
-export function LinkSubmitForm({ dict }: { dict: Record<string, any> }) {
+interface SubfeedOption {
+  id: number
+  name: string
+}
+
+export function LinkSubmitForm({
+  dict,
+  subfeeds,
+}: {
+  dict: Record<string, any>
+  subfeeds: SubfeedOption[]
+}) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const formSchema = z.object({
-    title: z.string().min(2, {
-      message: dict.linkForm.titleRequired,
-    }),
-    url: z.url({ message: dict.linkForm.urlInvalid }),
-    description: z.string().optional(),
-    nsfw: z.boolean().optional(),
-    type: z.enum(['article', 'video', 'image', 'audio', 'game']).optional(),
-  })
+  const formSchema = z
+    .object({
+      title: z.string().min(2, {
+        message: dict.linkForm.titleRequired,
+      }),
+      url: z.url({ message: dict.linkForm.urlInvalid }),
+      description: z.string().optional(),
+      nsfw: z.boolean().optional(),
+      type: z.enum(['article', 'video', 'image', 'audio', 'game']).optional(),
+      feed: z.enum(['main', 'subfeed']),
+      subfeedId: z.string().optional(),
+    })
+    .superRefine((data, ctx) => {
+      if (data.feed === 'subfeed' && !data.subfeedId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['subfeedId'],
+          message: dict.linkForm.subfeedRequired,
+        })
+      }
+    })
 
   type FormSchema = z.infer<typeof formSchema>
 
@@ -51,13 +74,25 @@ export function LinkSubmitForm({ dict }: { dict: Record<string, any> }) {
       description: '',
       nsfw: false,
       type: 'article',
+      feed: 'main',
+      subfeedId: '',
     },
   })
+
+  const selectedFeed = form.watch('feed')
 
   async function onSubmit(values: FormSchema) {
     setIsSubmitting(true)
     try {
-      await submitLink(values)
+      await submitLink({
+        title: values.title,
+        url: values.url,
+        description: values.description,
+        nsfw: values.nsfw,
+        type: values.type,
+        feed: values.feed,
+        subfeedId: values.subfeedId ? Number(values.subfeedId) : undefined,
+      })
       toast.success(dict.linkForm.submitSuccess)
       form.reset()
     } catch (error) {
@@ -145,6 +180,73 @@ export function LinkSubmitForm({ dict }: { dict: Record<string, any> }) {
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="feed"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{dict.linkForm.destinationLabel}</FormLabel>
+                  <FormControl>
+                    <Select
+                      onValueChange={(value) => {
+                        field.onChange(value)
+                        if (value !== 'subfeed') {
+                          form.setValue('subfeedId', '')
+                        }
+                      }}
+                      defaultValue={field.value}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={dict.linkForm.destinationPlaceholder} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="main">
+                          {dict.linkForm.destinationOptions.main}
+                        </SelectItem>
+                        <SelectItem value="subfeed">
+                          {dict.linkForm.destinationOptions.subfeed}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormDescription>{dict.linkForm.destinationDesc}</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {selectedFeed === 'subfeed' ? (
+              <FormField
+                control={form.control}
+                name="subfeedId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{dict.linkForm.subfeedLabel}</FormLabel>
+                    <FormControl>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={dict.linkForm.subfeedPlaceholder} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {subfeeds.length > 0 ? (
+                            subfeeds.map((subfeed) => (
+                              <SelectItem key={subfeed.id} value={String(subfeed.id)}>
+                                {subfeed.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="__none" disabled>
+                              {dict.linkForm.noSubfeeds}
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormDescription>{dict.linkForm.subfeedDesc}</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : null}
             <FormField
               control={form.control}
               name="nsfw"

@@ -11,6 +11,11 @@ export async function toggleNSFW(enabled: boolean) {
     throw new Error('You must be logged in to update settings')
   }
 
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
+
   await payload.update({
     collection: 'users',
     id: user.id,
@@ -19,6 +24,7 @@ export async function toggleNSFW(enabled: boolean) {
         nsfw: enabled,
       },
     },
+    ...withAccess,
   })
 
   revalidatePath('/', 'layout')
@@ -33,6 +39,11 @@ export async function updateLanguage(lang: User['settings']['language']) {
     return
   }
 
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
+
   await payload.update({
     collection: 'users',
     id: user.id,
@@ -41,6 +52,7 @@ export async function updateLanguage(lang: User['settings']['language']) {
         language: lang,
       },
     },
+    ...withAccess,
   })
 
   revalidatePath('/', 'layout')

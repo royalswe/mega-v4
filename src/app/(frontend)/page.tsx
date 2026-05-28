@@ -19,16 +19,25 @@ export default async function HomePage({
   const showNSFW = user?.settings?.nsfw === true
   const showBookmarksOnly = (await searchParams)?.bookmarks === 'true'
 
-  const where: Where = {
-    _status: {
-      equals: 'published',
+  const andFilters: Where[] = [
+    {
+      _status: {
+        equals: 'published',
+      },
     },
-  }
+    {
+      moderationStatus: {
+        not_equals: 'removed',
+      },
+    },
+  ]
 
   if (!showNSFW) {
-    where.nsfw = {
-      not_equals: true,
-    }
+    andFilters.push({
+      nsfw: {
+        not_equals: true,
+      },
+    })
   }
 
   // If filtering by bookmarks, we need to first get the user's bookmarks
@@ -40,31 +49,44 @@ export default async function HomePage({
       },
       limit: 1000,
       depth: 0,
+      user,
+      overrideAccess: false,
     })
 
     if (userBookmarks.length > 0) {
-      where.id = {
-        in: userBookmarks
-          .map((b) => (typeof b.link === 'number' ? b.link : b.link?.id))
-          .filter((id): id is number => typeof id === 'number'),
-      }
+      andFilters.push({
+        id: {
+          in: userBookmarks
+            .map((b) => (typeof b.link === 'number' ? b.link : b.link?.id))
+            .filter((id): id is number => typeof id === 'number'),
+        },
+      })
     } else {
       // If user has no bookmarks, match nothing
-      where.id = {
-        in: [0],
-      }
+      andFilters.push({
+        id: {
+          in: [0],
+        },
+      })
     }
+  }
+
+  const where: Where = {
+    and: andFilters,
   }
 
   const { docs: links } = await payload.find({
     collection: 'links',
     where,
-    sort: '-createdAt',
+    sort: '-rankingScore',
+    limit: 100,
+    user: user || undefined,
+    overrideAccess: false,
   })
 
   // Fetch user interactions (votes/bookmarks)
   const linkIds = links.map((link) => link.id)
-  const { votes, bookmarks } = await getUserInteractions(user?.id || 0, linkIds)
+  const { votes, bookmarks } = await getUserInteractions(user, linkIds)
 
   return (
     <div className="space-y-4">

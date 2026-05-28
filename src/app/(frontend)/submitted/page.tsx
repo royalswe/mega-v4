@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic' // This stops the build-time DB check
 
-import { getPayload, type Where } from 'payload'
-import configPromise from '@payload-config'
+import type { Where } from 'payload'
 import { Card, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { VoteButtons } from '@/components/links/VoteButtons'
@@ -12,37 +11,58 @@ import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 
-async function getAllLinks(showNSFW: boolean) {
-  const where: Where = {}
+import type { Payload } from 'payload'
+import type { User } from '@/payload-types'
+
+async function getAllLinks(payload: Payload, user: User | null, showNSFW: boolean) {
+  const andFilters: Where[] = [
+    {
+      moderationStatus: {
+        not_equals: 'removed',
+      },
+    },
+  ]
 
   if (!showNSFW) {
-    where.nsfw = {
-      not_equals: true,
-    }
+    andFilters.push({
+      nsfw: {
+        not_equals: true,
+      },
+    })
   }
 
-  const payload = await getPayload({
-    config: configPromise,
-  })
+  const where: Where = {
+    and: andFilters,
+  }
+
+  const withAccess = user
+    ? {
+        user,
+        overrideAccess: false as const,
+      }
+    : {
+        overrideAccess: false as const,
+      }
 
   const links = await payload.find({
     collection: 'links',
     where,
-    sort: '-createdAt',
+    sort: '-rankingScore',
+    ...withAccess,
   })
 
   return links.docs
 }
 
 const SubmittedLinksPage = async () => {
-  const { user } = await getAuthenticatedUser()
+  const { user, payload } = await getAuthenticatedUser()
   const showNSFW = user?.settings?.nsfw === true
   const { dict } = await getDictionary()
-  const links = await getAllLinks(showNSFW)
+  const links = await getAllLinks(payload, user, showNSFW)
 
   // Fetch user interactions
   const linkIds = links.map((link) => link.id)
-  const { votes, bookmarks } = await getUserInteractions(user?.id || '', linkIds)
+  const { votes, bookmarks } = await getUserInteractions(user, linkIds)
 
   const getLinkIcon = (type: string) => {
     switch (type) {

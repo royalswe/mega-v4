@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedUser } from '@/lib/auth'
+import { canModerateCommunity, isSubfeedMemberOrModerator } from '@/lib/community/subfeeds'
 
 export async function vote(postId: number, type: 'up' | 'down') {
   const { user, payload } = await getAuthenticatedUser()
@@ -11,6 +12,10 @@ export async function vote(postId: number, type: 'up' | 'down') {
   }
 
   const userId = user.id
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
 
   // Find existing vote
   const { docs: existingVotes } = await payload.find({
@@ -19,51 +24,28 @@ export async function vote(postId: number, type: 'up' | 'down') {
       user: { equals: userId },
       post: { equals: postId },
     },
+    ...withAccess,
   })
 
   // Perform the vote operation
   if (existingVotes.length > 0) {
     if (existingVotes[0].vote === type) {
-      await payload.delete({ collection: 'votes', id: existingVotes[0].id })
+      await payload.delete({ collection: 'votes', id: existingVotes[0].id, ...withAccess })
     } else {
       await payload.update({
         collection: 'votes',
         id: existingVotes[0].id,
         data: { vote: type },
+        ...withAccess,
       })
     }
   } else {
     await payload.create({
       collection: 'votes',
       data: { user: userId, post: postId, vote: type },
+      ...withAccess,
     })
   }
-
-  // ATOMIC UPDATE: Recalculate immediately
-  const { docs: allVotes } = await payload.find({
-    collection: 'votes',
-    where: {
-      post: { equals: postId },
-    },
-    limit: 5000,
-    depth: 0,
-    overrideAccess: true,
-  })
-
-  // Calculate the total score
-  const totalScore = allVotes.reduce((acc, curr) => {
-    return curr.vote === 'up' ? acc + 1 : curr.vote === 'down' ? acc - 1 : acc
-  }, 0)
-
-  // Update the Post document with the new count
-  await payload.update({
-    collection: 'posts',
-    id: postId,
-    data: {
-      votes: totalScore,
-    },
-    overrideAccess: true,
-  })
 
   revalidatePath('/wall')
   revalidatePath(`/post/${postId}`)
@@ -77,6 +59,10 @@ export async function toggleBookmark(postId: number) {
   }
 
   const userId = user.id
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
 
   const { docs: existingBookmarks } = await payload.find({
     collection: 'bookmarks',
@@ -88,6 +74,7 @@ export async function toggleBookmark(postId: number) {
         equals: postId,
       },
     },
+    ...withAccess,
   })
 
   if (existingBookmarks.length > 0) {
@@ -95,6 +82,7 @@ export async function toggleBookmark(postId: number) {
     await payload.delete({
       collection: 'bookmarks',
       id: existingBookmarks[0].id,
+      ...withAccess,
     })
   } else {
     // Bookmark does not exist, so create it
@@ -104,6 +92,7 @@ export async function toggleBookmark(postId: number) {
         user: userId,
         post: postId,
       },
+      ...withAccess,
     })
   }
 
@@ -111,7 +100,13 @@ export async function toggleBookmark(postId: number) {
   revalidatePath(`/post/${postId}`)
 }
 
-export async function submitPost(values: { title: string; content: string; nsfw?: boolean }) {
+export async function submitPost(values: {
+  title: string
+  content: string
+  nsfw?: boolean
+  feed: 'user' | 'subfeed'
+  subfeedId?: number
+}) {
   const { user, payload } = await getAuthenticatedUser()
 
   if (!user) {
@@ -119,15 +114,56 @@ export async function submitPost(values: { title: string; content: string; nsfw?
   }
 
   const userId = user.id
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
+
+  let subfeedId: number | undefined
+  let subfeedSlug: string | null = null
+
+  if (values.feed === 'subfeed') {
+    if (
+      typeof values.subfeedId !== 'number' ||
+      !Number.isInteger(values.subfeedId) ||
+      values.subfeedId <= 0
+    ) {
+      throw new Error('Please select a subfeed destination')
+    }
+
+    const subfeed = await payload.findByID({
+      collection: 'subfeeds',
+      id: values.subfeedId,
+      depth: 0,
+      ...withAccess,
+    })
+
+    if (!canModerateCommunity(user) && !isSubfeedMemberOrModerator(subfeed, userId)) {
+      throw new Error('You must join this subfeed before posting')
+    }
+
+    subfeedId = subfeed.id
+    subfeedSlug = subfeed.slug
+  }
 
   await payload.create({
     collection: 'posts',
     data: {
-      ...values,
+      title: values.title,
       content: JSON.parse(values.content),
+      nsfw: values.nsfw,
       user: userId,
+      feed: values.feed,
+      subfeed: subfeedId,
+      type: 'discussion',
     },
+    ...withAccess,
   })
 
   revalidatePath('/wall')
+  revalidatePath('/subfeeds')
+
+  if (subfeedSlug) {
+    revalidatePath(`/subfeeds/${subfeedSlug}`)
+  }
 }

@@ -74,6 +74,9 @@ export interface Config {
     comments: Comment;
     votes: Vote;
     bookmarks: Bookmark;
+    subfeeds: Subfeed;
+    discoveries: Discovery;
+    reports: Report;
     'payload-kv': PayloadKv;
     'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
@@ -98,6 +101,9 @@ export interface Config {
     comments: CommentsSelect<false> | CommentsSelect<true>;
     votes: VotesSelect<false> | VotesSelect<true>;
     bookmarks: BookmarksSelect<false> | BookmarksSelect<true>;
+    subfeeds: SubfeedsSelect<false> | SubfeedsSelect<true>;
+    discoveries: DiscoveriesSelect<false> | DiscoveriesSelect<true>;
+    reports: ReportsSelect<false> | ReportsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -111,6 +117,9 @@ export interface Config {
   globals: {};
   globalsSelect: {};
   locale: null;
+  widgets: {
+    collections: CollectionsWidget;
+  };
   user: User;
   jobs: {
     tasks: {
@@ -159,8 +168,26 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: number;
+  bio?: string | null;
   avatar?: (number | null) | Media;
-  roles?: ('admin' | 'user')[] | null;
+  trustLevel?: ('newcomer' | 'regular' | 'recognized' | 'trusted' | 'veteran' | 'curator' | 'pillar' | 'legend') | null;
+  titles?: string[] | null;
+  badges?: string[] | null;
+  reputationHidden?: number | null;
+  reputationPublicLabel?: string | null;
+  securityScore?: number | null;
+  isUploader?: boolean | null;
+  isEditor?: boolean | null;
+  isModerator?: boolean | null;
+  isAdmin?: boolean | null;
+  streakDays?: number | null;
+  lastActiveAt?: string | null;
+  discoveryScore?: number | null;
+  contributionScore?: number | null;
+  interactionScore?: number | null;
+  moderationScore?: number | null;
+  legacyContributionScore?: number | null;
+  roles?: ('admin' | 'editor' | 'moderator' | 'uploader' | 'user')[] | null;
   settings: {
     nsfw?: boolean | null;
     language: 'en' | 'sv';
@@ -211,12 +238,33 @@ export interface Media {
 export interface Link {
   id: number;
   title: string;
+  slug?: string | null;
   url: string;
   description?: string | null;
   nsfw?: boolean | null;
   type: 'article' | 'video' | 'image' | 'audio' | 'game';
+  feed?: ('main' | 'user' | 'subfeed') | null;
+  subfeed?: (number | null) | Subfeed;
+  tags?: string[] | null;
   user: number | User;
   votes?: number | null;
+  score?: number | null;
+  rankingScore?: number | null;
+  controversyScore?: number | null;
+  discoveryMomentum?: number | null;
+  engagementVelocity?: number | null;
+  upvotes?: number | null;
+  downvotes?: number | null;
+  commentsCount?: number | null;
+  sharesCount?: number | null;
+  uniqueCommenters?: number | null;
+  trustedInteractions?: number | null;
+  spamProbability?: number | null;
+  ragebaitProbability?: number | null;
+  featured?: boolean | null;
+  breaking?: boolean | null;
+  controversial?: boolean | null;
+  moderationStatus?: ('pending' | 'approved' | 'removed') | null;
   clickCount?: number | null;
   /**
    * Comments related to this link
@@ -237,6 +285,26 @@ export interface Link {
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "subfeeds".
+ */
+export interface Subfeed {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  avatar?: (number | null) | Media;
+  banner?: (number | null) | Media;
+  rules?: string | null;
+  theme?: string | null;
+  moderators: (number | User)[];
+  members?: (number | User)[] | null;
+  reputation?: number | null;
+  featured?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -262,6 +330,12 @@ export interface Comment {
   user: number | User;
   link?: (number | null) | Link;
   post?: (number | null) | Post;
+  parentComment?: (number | null) | Comment;
+  upvotes?: number | null;
+  downvotes?: number | null;
+  score?: number | null;
+  controversyScore?: number | null;
+  moderationStatus?: ('visible' | 'pending' | 'removed') | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -272,6 +346,7 @@ export interface Comment {
 export interface Post {
   id: number;
   title: string;
+  slug?: string | null;
   content: {
     root: {
       type: string;
@@ -287,9 +362,30 @@ export interface Post {
     };
     [k: string]: unknown;
   };
+  type: 'link' | 'article' | 'image' | 'video' | 'discussion';
   nsfw?: boolean | null;
   user: number | User;
+  feed: 'main' | 'user' | 'subfeed';
+  subfeed?: (number | null) | Subfeed;
+  tags?: string[] | null;
   votes?: number | null;
+  score?: number | null;
+  rankingScore?: number | null;
+  controversyScore?: number | null;
+  discoveryMomentum?: number | null;
+  engagementVelocity?: number | null;
+  upvotes?: number | null;
+  downvotes?: number | null;
+  commentsCount?: number | null;
+  sharesCount?: number | null;
+  uniqueCommenters?: number | null;
+  trustedInteractions?: number | null;
+  spamProbability?: number | null;
+  ragebaitProbability?: number | null;
+  featured?: boolean | null;
+  breaking?: boolean | null;
+  controversial?: boolean | null;
+  status?: ('published' | 'pending' | 'removed') | null;
   /**
    * Comments related to this post
    */
@@ -331,6 +427,40 @@ export interface Vote {
   link?: (number | null) | Link;
   post?: (number | null) | Post;
   vote: 'up' | 'down';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "discoveries".
+ */
+export interface Discovery {
+  id: number;
+  user: number | User;
+  post: number | Post;
+  discoveredAt: string;
+  engagementGenerated?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "reports".
+ */
+export interface Report {
+  id: number;
+  reporter: number | User;
+  targetType: 'post' | 'comment' | 'link' | 'user';
+  targetId: string;
+  targetPost?: (number | null) | Post;
+  targetComment?: (number | null) | Comment;
+  targetLink?: (number | null) | Link;
+  targetUser?: (number | null) | User;
+  reason: 'spam' | 'abuse' | 'broken_link' | 'harassment' | 'nsfw' | 'other';
+  details?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewedBy?: (number | null) | User;
+  fastTracked?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -477,6 +607,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'bookmarks';
         value: number | Bookmark;
+      } | null)
+    | ({
+        relationTo: 'subfeeds';
+        value: number | Subfeed;
+      } | null)
+    | ({
+        relationTo: 'discoveries';
+        value: number | Discovery;
+      } | null)
+    | ({
+        relationTo: 'reports';
+        value: number | Report;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -525,7 +667,25 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+  bio?: T;
   avatar?: T;
+  trustLevel?: T;
+  titles?: T;
+  badges?: T;
+  reputationHidden?: T;
+  reputationPublicLabel?: T;
+  securityScore?: T;
+  isUploader?: T;
+  isEditor?: T;
+  isModerator?: T;
+  isAdmin?: T;
+  streakDays?: T;
+  lastActiveAt?: T;
+  discoveryScore?: T;
+  contributionScore?: T;
+  interactionScore?: T;
+  moderationScore?: T;
+  legacyContributionScore?: T;
   roles?: T;
   settings?:
     | T
@@ -575,12 +735,33 @@ export interface MediaSelect<T extends boolean = true> {
  */
 export interface LinksSelect<T extends boolean = true> {
   title?: T;
+  slug?: T;
   url?: T;
   description?: T;
   nsfw?: T;
   type?: T;
+  feed?: T;
+  subfeed?: T;
+  tags?: T;
   user?: T;
   votes?: T;
+  score?: T;
+  rankingScore?: T;
+  controversyScore?: T;
+  discoveryMomentum?: T;
+  engagementVelocity?: T;
+  upvotes?: T;
+  downvotes?: T;
+  commentsCount?: T;
+  sharesCount?: T;
+  uniqueCommenters?: T;
+  trustedInteractions?: T;
+  spamProbability?: T;
+  ragebaitProbability?: T;
+  featured?: T;
+  breaking?: T;
+  controversial?: T;
+  moderationStatus?: T;
   clickCount?: T;
   relatedComments?: T;
   saves?: T;
@@ -594,10 +775,32 @@ export interface LinksSelect<T extends boolean = true> {
  */
 export interface PostsSelect<T extends boolean = true> {
   title?: T;
+  slug?: T;
   content?: T;
+  type?: T;
   nsfw?: T;
   user?: T;
+  feed?: T;
+  subfeed?: T;
+  tags?: T;
   votes?: T;
+  score?: T;
+  rankingScore?: T;
+  controversyScore?: T;
+  discoveryMomentum?: T;
+  engagementVelocity?: T;
+  upvotes?: T;
+  downvotes?: T;
+  commentsCount?: T;
+  sharesCount?: T;
+  uniqueCommenters?: T;
+  trustedInteractions?: T;
+  spamProbability?: T;
+  ragebaitProbability?: T;
+  featured?: T;
+  breaking?: T;
+  controversial?: T;
+  status?: T;
   relatedComments?: T;
   saves?: T;
   updatedAt?: T;
@@ -612,6 +815,12 @@ export interface CommentsSelect<T extends boolean = true> {
   user?: T;
   link?: T;
   post?: T;
+  parentComment?: T;
+  upvotes?: T;
+  downvotes?: T;
+  score?: T;
+  controversyScore?: T;
+  moderationStatus?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -635,6 +844,57 @@ export interface BookmarksSelect<T extends boolean = true> {
   user?: T;
   link?: T;
   post?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "subfeeds_select".
+ */
+export interface SubfeedsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  description?: T;
+  avatar?: T;
+  banner?: T;
+  rules?: T;
+  theme?: T;
+  moderators?: T;
+  members?: T;
+  reputation?: T;
+  featured?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "discoveries_select".
+ */
+export interface DiscoveriesSelect<T extends boolean = true> {
+  user?: T;
+  post?: T;
+  discoveredAt?: T;
+  engagementGenerated?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "reports_select".
+ */
+export interface ReportsSelect<T extends boolean = true> {
+  reporter?: T;
+  targetType?: T;
+  targetId?: T;
+  targetPost?: T;
+  targetComment?: T;
+  targetLink?: T;
+  targetUser?: T;
+  reason?: T;
+  details?: T;
+  status?: T;
+  reviewedBy?: T;
+  fastTracked?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -708,6 +968,16 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "collections_widget".
+ */
+export interface CollectionsWidget {
+  data?: {
+    [k: string]: unknown;
+  };
+  width: 'full';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

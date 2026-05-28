@@ -1,9 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
-import { getPayload } from 'payload'
-import configPromise from '@payload-config'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { notFound } from 'next/navigation'
 import { CommentForm } from '@/components/comments/CommentForm'
 import { VoteButtons } from '@/components/posts/VoteButtons'
@@ -15,10 +14,18 @@ import { getAuthenticatedUser } from '@/lib/auth'
 import { RichTextDisplay } from '@/components/ui/RichTextDisplay'
 import { Timestamp } from '@/components/ui/Timestamp'
 
-async function getComments(postId: number) {
-  const payload = await getPayload({
-    config: configPromise,
-  })
+import type { Payload } from 'payload'
+import type { User } from '@/payload-types'
+
+async function getComments(payload: Payload, user: User | null, postId: number) {
+  const withAccess = user
+    ? {
+        user,
+        overrideAccess: false as const,
+      }
+    : {
+        overrideAccess: false as const,
+      }
 
   const comments = await payload.find({
     collection: 'comments',
@@ -29,6 +36,7 @@ async function getComments(postId: number) {
     },
     sort: '-createdAt',
     depth: 2,
+    ...withAccess,
   })
 
   return comments.docs
@@ -38,13 +46,28 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
   const { id } = await params
   const { user, payload } = await getAuthenticatedUser()
 
+  const postId = Number(id)
+  if (!Number.isFinite(postId)) {
+    return notFound()
+  }
+
+  const withAccess = user
+    ? {
+        user,
+        overrideAccess: false as const,
+      }
+    : {
+        overrideAccess: false as const,
+      }
+
   const { docs: posts } = await payload.find({
     collection: 'posts',
     where: {
       id: {
-        equals: parseInt(id),
+        equals: postId,
       },
     },
+    ...withAccess,
   })
 
   if (!posts.length) {
@@ -53,11 +76,11 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
 
   const post = posts[0]
 
-  const comments = await getComments(post.id)
+  const comments = await getComments(payload, user, post.id)
   const { dict } = await getDictionary()
 
   // Fetch user interactions
-  const { votes, bookmarks } = await getPostInteractions(user?.id || 0, [post.id])
+  const { votes, bookmarks } = await getPostInteractions(user, [post.id])
   const userVote = votes[post.id]
   const isBookmarked = bookmarks[post.id]
 
@@ -88,6 +111,11 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
               isBookmarked={isBookmarked}
               dict={dict}
             />
+            {user ? (
+              <Button asChild variant="outline">
+                <Link href={`/report?type=post&id=${post.id}`}>Report</Link>
+              </Button>
+            ) : null}
           </div>
           <div className="text-lg mb-6">
             <RichTextDisplay content={post.content} />
@@ -125,6 +153,14 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
                         )}
                       </span>
                       <Timestamp date={comment.createdAt} />
+                      {user ? (
+                        <Link
+                          href={`/report?type=comment&id=${comment.id}`}
+                          className="hover:underline"
+                        >
+                          Report
+                        </Link>
+                      ) : null}
                     </div>
                   </div>
                 </div>

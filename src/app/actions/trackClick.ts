@@ -10,8 +10,8 @@ export async function trackClick(linkId: number) {
     const link = await payload.findByID({
       collection: 'links',
       id: linkId,
+      overrideAccess: false,
     })
-    console.log(linkId, link)
 
     if (!link) return
 
@@ -21,6 +21,7 @@ export async function trackClick(linkId: number) {
       data: {
         clickCount: (link.clickCount || 0) + 1,
       },
+      overrideAccess: true,
     })
 
     // access revalidatePath inside the function to avoid static analysis issues if any

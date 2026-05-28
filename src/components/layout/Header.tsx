@@ -13,10 +13,12 @@ import { User, LogOut } from 'lucide-react'
 import { logout } from '@/app/actions/auth'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
+import { checkRole } from '@/access/checkRole'
 
 export async function Header() {
   const { user } = await getAuthenticatedUser()
   const { dict, lang } = await getDictionary()
+  const canModerate = user ? checkRole(['admin', 'moderator', 'editor'], user) : false
 
   return (
     <header className="py-4 px-6 border-b flex items-center justify-between">
@@ -39,9 +41,21 @@ export async function Header() {
           </li>
           <li>
             <Button variant="ghost" asChild>
+              <Link href="/subfeeds">{dict.menu.subfeeds || 'SubFeeds'}</Link>
+            </Button>
+          </li>
+          <li>
+            <Button variant="ghost" asChild>
               <Link href="/wall">Wall</Link>
             </Button>
           </li>
+          {canModerate ? (
+            <li>
+              <Button variant="ghost" asChild>
+                <Link href="/moderation">{dict.menu.moderation || 'Moderation'}</Link>
+              </Button>
+            </li>
+          ) : null}
           <li>
             <Button variant="ghost" asChild>
               <Link href="/new-link">{dict.menu.newLink}</Link>

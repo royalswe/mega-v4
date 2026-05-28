@@ -1,9 +1,8 @@
 export const dynamic = 'force-dynamic' // This stops the build-time DB check
 
 import Link from 'next/link'
-import { getPayload } from 'payload'
-import configPromise from '@payload-config'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { notFound } from 'next/navigation'
 import { CommentForm } from '@/components/comments/CommentForm'
 import { VoteButtons } from '@/components/links/VoteButtons'
@@ -14,10 +13,18 @@ import { Avatar } from '@/components/users/Avatar'
 import { RichTextDisplay } from '@/components/ui/RichTextDisplay'
 import { Timestamp } from '@/components/ui/Timestamp'
 
-async function getComments(linkId: number) {
-  const payload = await getPayload({
-    config: configPromise,
-  })
+import type { Payload } from 'payload'
+import type { User } from '@/payload-types'
+
+async function getComments(payload: Payload, user: User | null, linkId: number) {
+  const withAccess = user
+    ? {
+        user,
+        overrideAccess: false as const,
+      }
+    : {
+        overrideAccess: false as const,
+      }
 
   const comments = await payload.find({
     collection: 'comments',
@@ -28,6 +35,7 @@ async function getComments(linkId: number) {
     },
     sort: '-createdAt',
     depth: 2,
+    ...withAccess,
   })
 
   return comments.docs
@@ -40,13 +48,28 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
   const { id } = await params
   const { user, payload } = await getAuthenticatedUser()
 
+  const linkId = Number(id)
+  if (!Number.isFinite(linkId)) {
+    return notFound()
+  }
+
+  const withAccess = user
+    ? {
+        user,
+        overrideAccess: false as const,
+      }
+    : {
+        overrideAccess: false as const,
+      }
+
   const { docs: links } = await payload.find({
     collection: 'links',
     where: {
       id: {
-        equals: parseInt(id),
+        equals: linkId,
       },
     },
+    ...withAccess,
   })
 
   if (!links.length) {
@@ -55,11 +78,11 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
 
   const link = links[0]
 
-  const comments = await getComments(link.id)
+  const comments = await getComments(payload, user, link.id)
   const { dict } = await getDictionary()
 
   // Fetch user interactions
-  const { votes, bookmarks } = await getUserInteractions(user?.id || 0, [link.id])
+  const { votes, bookmarks } = await getUserInteractions(user, [link.id])
   const userVote = votes[link.id]
   const isBookmarked = bookmarks[link.id]
 
@@ -94,6 +117,11 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
               isBookmarked={isBookmarked}
               dict={dict}
             />
+            {user ? (
+              <Button asChild variant="outline">
+                <Link href={`/report?type=link&id=${link.id}`}>Report</Link>
+              </Button>
+            ) : null}
           </div>
           <p className="whitespace-pre-wrap">{link.description}</p>
         </div>
@@ -130,6 +158,14 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
                     <span className="ms-4">
                       {comment.createdAt && <Timestamp date={comment.createdAt} />}
                     </span>
+                    {user ? (
+                      <Link
+                        href={`/report?type=comment&id=${comment.id}`}
+                        className="ms-4 text-xs text-muted-foreground hover:underline"
+                      >
+                        Report
+                      </Link>
+                    ) : null}
                   </div>
                 </div>
               </CardContent>

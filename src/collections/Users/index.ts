@@ -1,14 +1,90 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionBeforeChangeHook, CollectionConfig } from 'payload'
+
 import { admins } from '@/access/admins'
 import { adminsAndUser } from '@/access/adminsAndUser'
 import { anyone } from '@/access/anyone'
 import { checkRole } from '@/access/checkRole'
 import { checkUserOrAdmin } from '@/access/checkUserOrAdmin'
+import { buildTrustProfile, deriveBehavioralTitles } from '@/lib/community/reputation'
+
+const readNumber = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  return 0
+}
+
+const mergeScore = (incoming: unknown, existing: unknown): number => {
+  if (typeof incoming === 'number' && Number.isFinite(incoming)) return incoming
+  return readNumber(existing)
+}
+
+const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc }) => {
+  const roles =
+    Array.isArray(data?.roles) && data.roles.length > 0
+      ? data.roles
+      : Array.isArray(originalDoc?.roles) && originalDoc.roles.length > 0
+        ? originalDoc.roles
+        : ['user']
+
+  const discoveryScore = mergeScore(data?.discoveryScore, originalDoc?.discoveryScore)
+  const contributionScore = mergeScore(data?.contributionScore, originalDoc?.contributionScore)
+  const interactionScore = mergeScore(data?.interactionScore, originalDoc?.interactionScore)
+  const moderationScore = mergeScore(data?.moderationScore, originalDoc?.moderationScore)
+  const legacyContributionScore = mergeScore(
+    data?.legacyContributionScore,
+    originalDoc?.legacyContributionScore,
+  )
+  const securityScore = mergeScore(data?.securityScore, originalDoc?.securityScore)
+
+  const trust = buildTrustProfile({
+    discoveryScore,
+    contributionScore,
+    interactionScore,
+    moderationScore,
+    legacyContributionScore,
+    securityScore,
+  })
+
+  const titles = deriveBehavioralTitles({
+    discoveryScore,
+    contributionScore,
+    interactionScore,
+    moderationScore,
+    streakDays: mergeScore(data?.streakDays, originalDoc?.streakDays),
+    lastActiveAt:
+      typeof data?.lastActiveAt === 'string' || data?.lastActiveAt instanceof Date
+        ? data.lastActiveAt
+        : originalDoc?.lastActiveAt,
+  })
+
+  return {
+    ...data,
+    roles,
+    isAdmin: roles.includes('admin'),
+    isEditor: roles.includes('editor'),
+    isModerator: roles.includes('moderator'),
+    isUploader: roles.includes('uploader'),
+    trustLevel: trust.trustLevel,
+    reputationHidden: trust.reputationHidden,
+    reputationPublicLabel: trust.reputationPublicLabel,
+    titles,
+    badges:
+      Array.isArray(data?.badges) && data.badges.length > 0
+        ? data.badges
+        : Array.isArray(originalDoc?.badges)
+          ? originalDoc.badges
+          : [],
+    streakDays: Math.max(0, mergeScore(data?.streakDays, originalDoc?.streakDays)),
+    lastActiveAt:
+      data?.lastActiveAt ||
+      originalDoc?.lastActiveAt ||
+      (data && !originalDoc ? new Date().toISOString() : undefined),
+  }
+}
 
 export const Users: CollectionConfig = {
   slug: 'users',
   admin: {
-    useAsTitle: 'email',
+    useAsTitle: 'username',
   },
   auth: {
     tokenExpiration: 172800, // 48 hours
@@ -24,12 +100,15 @@ export const Users: CollectionConfig = {
     },
   },
   access: {
-    read: adminsAndUser,
+    read: anyone,
     create: anyone,
     update: adminsAndUser,
     delete: admins,
     unlock: admins,
     admin: ({ req: { user } }) => checkRole(['admin'], user),
+  },
+  hooks: {
+    beforeChange: [syncCommunityProfile],
   },
   fields: [
     {
@@ -37,6 +116,11 @@ export const Users: CollectionConfig = {
       type: 'text',
       required: true,
       unique: true,
+    },
+    {
+      name: 'bio',
+      type: 'textarea',
+      maxLength: 400,
     },
     {
       name: 'avatar',
@@ -54,6 +138,191 @@ export const Users: CollectionConfig = {
       },
     },
     {
+      name: 'trustLevel',
+      type: 'select',
+      defaultValue: 'newcomer',
+      admin: {
+        readOnly: true,
+      },
+      options: [
+        {
+          label: 'Newcomer',
+          value: 'newcomer',
+        },
+        {
+          label: 'Regular',
+          value: 'regular',
+        },
+        {
+          label: 'Recognized',
+          value: 'recognized',
+        },
+        {
+          label: 'Trusted',
+          value: 'trusted',
+        },
+        {
+          label: 'Veteran',
+          value: 'veteran',
+        },
+        {
+          label: 'Curator',
+          value: 'curator',
+        },
+        {
+          label: 'Pillar',
+          value: 'pillar',
+        },
+        {
+          label: 'Legend',
+          value: 'legend',
+        },
+      ],
+    },
+    {
+      name: 'titles',
+      type: 'text',
+      hasMany: true,
+    },
+    {
+      name: 'badges',
+      type: 'text',
+      hasMany: true,
+    },
+    {
+      name: 'reputationHidden',
+      type: 'number',
+      defaultValue: 0,
+      admin: {
+        readOnly: true,
+      },
+      access: {
+        read: admins,
+        create: admins,
+        update: admins,
+      },
+    },
+    {
+      name: 'reputationPublicLabel',
+      type: 'text',
+      defaultValue: 'Newcomer',
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'securityScore',
+      type: 'number',
+      defaultValue: 0,
+      access: {
+        read: admins,
+        create: admins,
+        update: admins,
+      },
+    },
+    {
+      name: 'isUploader',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'isEditor',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'isModerator',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'isAdmin',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        readOnly: true,
+      },
+      access: {
+        read: admins,
+        create: admins,
+        update: admins,
+      },
+    },
+    {
+      name: 'streakDays',
+      type: 'number',
+      defaultValue: 0,
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'lastActiveAt',
+      type: 'date',
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'discoveryScore',
+      type: 'number',
+      defaultValue: 0,
+      access: {
+        read: admins,
+        create: admins,
+        update: admins,
+      },
+    },
+    {
+      name: 'contributionScore',
+      type: 'number',
+      defaultValue: 0,
+      access: {
+        read: admins,
+        create: admins,
+        update: admins,
+      },
+    },
+    {
+      name: 'interactionScore',
+      type: 'number',
+      defaultValue: 0,
+      access: {
+        read: admins,
+        create: admins,
+        update: admins,
+      },
+    },
+    {
+      name: 'moderationScore',
+      type: 'number',
+      defaultValue: 0,
+      access: {
+        read: admins,
+        create: admins,
+        update: admins,
+      },
+    },
+    {
+      name: 'legacyContributionScore',
+      type: 'number',
+      defaultValue: 0,
+      access: {
+        read: admins,
+        create: admins,
+        update: admins,
+      },
+    },
+    {
       name: 'resetPasswordToken',
       type: 'text',
       hidden: true,
@@ -67,6 +336,7 @@ export const Users: CollectionConfig = {
       name: 'roles',
       type: 'select',
       hasMany: true,
+      defaultValue: ['user'],
       saveToJWT: true,
       access: {
         read: admins,
@@ -77,6 +347,18 @@ export const Users: CollectionConfig = {
         {
           label: 'Admin',
           value: 'admin',
+        },
+        {
+          label: 'Editor',
+          value: 'editor',
+        },
+        {
+          label: 'Moderator',
+          value: 'moderator',
+        },
+        {
+          label: 'Uploader',
+          value: 'uploader',
         },
         {
           label: 'User',

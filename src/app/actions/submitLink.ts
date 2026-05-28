@@ -15,13 +15,20 @@ export async function submitLink(values: {
     throw new Error('You must be logged in to submit a link')
   }
 
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
+
   await payload.create({
     collection: 'links',
     data: {
       ...values,
       user: user.id,
+      feed: 'main',
     },
     draft: true,
+    ...withAccess,
   })
 
   revalidatePath('/')
