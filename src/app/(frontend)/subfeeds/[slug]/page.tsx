@@ -8,11 +8,12 @@ import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import { LinkCard } from '@/components/links/LinkCard'
 import { PostCard } from '@/components/posts/PostCard'
 import { JoinSubfeedButton } from '@/components/subfeeds/JoinSubfeedButton'
+import { SubfeedCreatePanel } from '@/components/subfeeds/SubfeedCreatePanel'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
-import { readRelationshipIds } from '@/lib/community/subfeeds'
+import { canModerateCommunity, readRelationshipIds } from '@/lib/community/subfeeds'
 
 export default async function SubfeedDetailsPage({
   params,
@@ -52,6 +53,7 @@ export default async function SubfeedDetailsPage({
 
   const memberIds = readRelationshipIds(subfeed.members)
   const isMember = user ? memberIds.includes(user.id) : false
+  const canCreate = user ? isMember || canModerateCommunity(user) : false
 
   const [{ docs: links }, { docs: posts }] = await Promise.all([
     payload.find({
@@ -155,7 +157,17 @@ export default async function SubfeedDetailsPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">{dict.subfeeds?.topLinksTitle || 'Top Links'}</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">{dict.subfeeds?.topLinksTitle || 'Top Links'}</h2>
+          {canCreate ? (
+            <SubfeedCreatePanel
+              subfeedId={subfeed.id}
+              subfeedName={subfeed.name}
+              mode="link"
+              dict={dict}
+            />
+          ) : null}
+        </div>
         {links.length > 0 ? (
           <div className="flex flex-col gap-4">
             {links.map((link) => (
@@ -179,7 +191,17 @@ export default async function SubfeedDetailsPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">{dict.subfeeds?.topPostsTitle || 'Top Posts'}</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">{dict.subfeeds?.topPostsTitle || 'Top Posts'}</h2>
+          {canCreate ? (
+            <SubfeedCreatePanel
+              subfeedId={subfeed.id}
+              subfeedName={subfeed.name}
+              mode="post"
+              dict={dict}
+            />
+          ) : null}
+        </div>
         {posts.length > 0 ? (
           <div className="flex flex-col gap-4">
             {posts.map((post) => (

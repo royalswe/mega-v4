@@ -183,6 +183,9 @@ const dictionaries = {
       topPostsTitle: 'Top Posts',
       noLinksYet: 'No links have been submitted to this subfeed yet.',
       noPostsYet: 'No posts in this subfeed yet. Be the first to start a discussion.',
+      submitLink: 'Submit Link',
+      createPost: 'Create Post',
+      joinToPost: 'Join this subfeed to submit links and posts.',
       loginRequiredToCreate: 'You must be logged in to create a subfeed',
       joinButton: {
         join: 'Join SubFeed',
@@ -398,6 +401,9 @@ const dictionaries = {
       topPostsTitle: 'Toppinlägg',
       noLinksYet: 'Inga länkar har skickats in till detta delflöde än.',
       noPostsYet: 'Inga inlägg i detta delflöde än. Bli först med att starta en diskussion.',
+      submitLink: 'Skicka länk',
+      createPost: 'Skapa inlägg',
+      joinToPost: 'Gå med i delflödet för att skicka in länkar och inlägg.',
       loginRequiredToCreate: 'Du måste vara inloggad för att skapa ett delflöde',
       joinButton: {
         join: 'Gå med i delflöde',

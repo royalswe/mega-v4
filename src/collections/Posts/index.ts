@@ -117,7 +117,8 @@ const preparePost: CollectionBeforeValidateHook = async ({ data, operation, req 
   }
 
   if (operation === 'create' && !nextData?.status) {
-    nextData.status = canModerateCommunity(req.user) ? 'published' : 'pending'
+    const isSubfeedPost = nextData?.feed === 'subfeed'
+    nextData.status = isSubfeedPost || canModerateCommunity(req.user) ? 'published' : 'pending'
   }
 
   return nextData

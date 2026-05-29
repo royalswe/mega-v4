@@ -30,11 +30,11 @@ services:
     container_name: payload-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: royal
+      POSTGRES_USER: royal-prod
       POSTGRES_PASSWORD: passw0rd
-      POSTGRES_DB: v4
+      POSTGRES_DB: v4-prod
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data-prod
     ports:
       - '5432:5432'
 
