@@ -9,20 +9,147 @@ import { LinkCard } from '@/components/links/LinkCard'
 import { PostCard } from '@/components/posts/PostCard'
 import { JoinSubfeedButton } from '@/components/subfeeds/JoinSubfeedButton'
 import { SubfeedCreatePanel } from '@/components/subfeeds/SubfeedCreatePanel'
+import { SubfeedPulseHeader } from '@/components/subfeeds/SubfeedPulseHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 import { canModerateCommunity, readRelationshipIds } from '@/lib/community/subfeeds'
+import type { Link as LinkDoc, Post as PostDoc } from '@/payload-types'
+
+const extractTrendingTopics = (items: Array<Pick<LinkDoc, 'tags'> | Pick<PostDoc, 'tags'>>) => {
+  const seen = new Map<string, { label: string; count: number }>()
+
+  for (const item of items) {
+    for (const rawTag of item.tags ?? []) {
+      const trimmed = rawTag.trim()
+      if (!trimmed) continue
+
+      const normalized = trimmed.toLowerCase()
+      const existing = seen.get(normalized)
+
+      if (existing) {
+        existing.count += 1
+      } else {
+        seen.set(normalized, { label: trimmed, count: 1 })
+      }
+    }
+  }
+
+  return Array.from(seen.values())
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count
+      return a.label.localeCompare(b.label)
+    })
+    .slice(0, 5)
+    .map((topic) => topic.label)
+}
+
+const parsePulseWindow = (value: string | string[] | undefined): '24h' | '7d' => {
+  const normalized = Array.isArray(value) ? value[0] : value
+  if (normalized === '7d') return '7d'
+  return '24h'
+}
+
+const toSearchParams = (params: Record<string, string | string[] | undefined>) => {
+  const query = new URLSearchParams()
+
+  for (const [key, value] of Object.entries(params)) {
+    if (Array.isArray(value)) {
+      for (const part of value) {
+        if (typeof part === 'string' && part.length > 0) {
+          query.append(key, part)
+        }
+      }
+      continue
+    }
+
+    if (typeof value === 'string' && value.length > 0) {
+      query.set(key, value)
+    }
+  }
+
+  return query
+}
+
+const buildWindowHref = (
+  slug: string,
+  params: Record<string, string | string[] | undefined>,
+  window: '24h' | '7d',
+) => {
+  const query = toSearchParams(params)
+  query.set('window', window)
+  return `/subfeeds/${slug}?${query.toString()}`
+}
+
+const toIntlLocale = (lang: 'en' | 'sv') => {
+  return lang === 'sv' ? 'sv-SE' : 'en-US'
+}
+
+const buildTrendBucketLabels = (now: number, window: '24h' | '7d', lang: 'en' | 'sv'): string[] => {
+  const bucketCount = window === '24h' ? 8 : 7
+  const windowMs = window === '24h' ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000
+  const bucketMs = windowMs / bucketCount
+  const windowStart = now - windowMs
+  const locale = toIntlLocale(lang)
+
+  const timeFormatter = new Intl.DateTimeFormat(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  const dayFormatter = new Intl.DateTimeFormat(locale, {
+    month: 'short',
+    day: 'numeric',
+  })
+
+  return Array.from({ length: bucketCount }, (_, index) => {
+    const start = new Date(windowStart + bucketMs * index)
+    const end = new Date(windowStart + bucketMs * (index + 1))
+
+    if (window === '24h') {
+      return `${timeFormatter.format(start)}-${timeFormatter.format(end)}`
+    }
+
+    return dayFormatter.format(start)
+  })
+}
+
+const buildTrendPoints = (
+  createdAtValues: string[],
+  now: number,
+  window: '24h' | '7d',
+): number[] => {
+  const bucketCount = window === '24h' ? 8 : 7
+  const windowMs = window === '24h' ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000
+  const bucketMs = windowMs / bucketCount
+
+  const points = Array.from({ length: bucketCount }, () => 0)
+  const windowStart = now - windowMs
+
+  for (const timestamp of createdAtValues) {
+    const createdAtMs = Date.parse(timestamp)
+    if (Number.isNaN(createdAtMs)) continue
+    if (createdAtMs < windowStart || createdAtMs > now) continue
+
+    const elapsed = createdAtMs - windowStart
+    const index = Math.min(bucketCount - 1, Math.floor(elapsed / bucketMs))
+    points[index] += 1
+  }
+
+  return points
+}
 
 export default async function SubfeedDetailsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const { slug } = await params
+  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
   const { user, payload } = await getAuthenticatedUser()
-  const { dict } = await getDictionary()
+  const { dict, lang } = await getDictionary()
+  const selectedWindow = parsePulseWindow(resolvedSearchParams.window)
 
   const withAccess = user
     ? {
@@ -55,7 +182,21 @@ export default async function SubfeedDetailsPage({
   const isMember = user ? memberIds.includes(user.id) : false
   const canCreate = user ? isMember || canModerateCommunity(user) : false
 
-  const [{ docs: links }, { docs: posts }] = await Promise.all([
+  const now = Date.now()
+  const windowMs = (selectedWindow === '24h' ? 24 : 7 * 24) * 60 * 60 * 1000
+  const currentWindowStart = new Date(now - windowMs).toISOString()
+  const previousWindowStart = new Date(now - windowMs * 2).toISOString()
+
+  const [
+    { docs: links },
+    { docs: posts },
+    currentLinks,
+    currentPosts,
+    previousLinks,
+    previousPosts,
+    recentLinks,
+    recentPosts,
+  ] = await Promise.all([
     payload.find({
       collection: 'links',
       where: {
@@ -111,7 +252,237 @@ export default async function SubfeedDetailsPage({
       limit: 25,
       ...withAccess,
     }),
+    payload.find({
+      collection: 'links',
+      where: {
+        and: [
+          {
+            feed: {
+              equals: 'subfeed',
+            },
+          },
+          {
+            subfeed: {
+              equals: subfeed.id,
+            },
+          },
+          {
+            _status: {
+              equals: 'published',
+            },
+          },
+          {
+            softDeleted: {
+              not_equals: true,
+            },
+          },
+          {
+            createdAt: {
+              greater_than_equal: currentWindowStart,
+            },
+          },
+        ],
+      },
+      limit: 0,
+      depth: 0,
+      ...withAccess,
+    }),
+    payload.find({
+      collection: 'posts',
+      where: {
+        and: [
+          {
+            feed: {
+              equals: 'subfeed',
+            },
+          },
+          {
+            subfeed: {
+              equals: subfeed.id,
+            },
+          },
+          {
+            status: {
+              equals: 'published',
+            },
+          },
+          {
+            createdAt: {
+              greater_than_equal: currentWindowStart,
+            },
+          },
+        ],
+      },
+      limit: 0,
+      depth: 0,
+      ...withAccess,
+    }),
+    payload.find({
+      collection: 'links',
+      where: {
+        and: [
+          {
+            feed: {
+              equals: 'subfeed',
+            },
+          },
+          {
+            subfeed: {
+              equals: subfeed.id,
+            },
+          },
+          {
+            _status: {
+              equals: 'published',
+            },
+          },
+          {
+            softDeleted: {
+              not_equals: true,
+            },
+          },
+          {
+            createdAt: {
+              greater_than_equal: previousWindowStart,
+            },
+          },
+          {
+            createdAt: {
+              less_than: currentWindowStart,
+            },
+          },
+        ],
+      },
+      limit: 0,
+      depth: 0,
+      ...withAccess,
+    }),
+    payload.find({
+      collection: 'posts',
+      where: {
+        and: [
+          {
+            feed: {
+              equals: 'subfeed',
+            },
+          },
+          {
+            subfeed: {
+              equals: subfeed.id,
+            },
+          },
+          {
+            status: {
+              equals: 'published',
+            },
+          },
+          {
+            createdAt: {
+              greater_than_equal: previousWindowStart,
+            },
+          },
+          {
+            createdAt: {
+              less_than: currentWindowStart,
+            },
+          },
+        ],
+      },
+      limit: 0,
+      depth: 0,
+      ...withAccess,
+    }),
+    payload.find({
+      collection: 'links',
+      where: {
+        and: [
+          {
+            feed: {
+              equals: 'subfeed',
+            },
+          },
+          {
+            subfeed: {
+              equals: subfeed.id,
+            },
+          },
+          {
+            _status: {
+              equals: 'published',
+            },
+          },
+          {
+            softDeleted: {
+              not_equals: true,
+            },
+          },
+          {
+            createdAt: {
+              greater_than_equal: currentWindowStart,
+            },
+          },
+        ],
+      },
+      limit: 300,
+      depth: 0,
+      sort: '-createdAt',
+      ...withAccess,
+    }),
+    payload.find({
+      collection: 'posts',
+      where: {
+        and: [
+          {
+            feed: {
+              equals: 'subfeed',
+            },
+          },
+          {
+            subfeed: {
+              equals: subfeed.id,
+            },
+          },
+          {
+            status: {
+              equals: 'published',
+            },
+          },
+          {
+            createdAt: {
+              greater_than_equal: currentWindowStart,
+            },
+          },
+        ],
+      },
+      limit: 300,
+      depth: 0,
+      sort: '-createdAt',
+      ...withAccess,
+    }),
   ])
+
+  const newLinks = currentLinks.totalDocs
+  const newPosts = currentPosts.totalDocs
+  const activity = newLinks + newPosts
+
+  const previousActivity = previousLinks.totalDocs + previousPosts.totalDocs
+  const activityDelta = activity - previousActivity
+
+  const trendPoints = buildTrendPoints(
+    [...recentLinks.docs, ...recentPosts.docs].map((item) => item.createdAt),
+    now,
+    selectedWindow,
+  )
+  const trendBucketLabels = buildTrendBucketLabels(now, selectedWindow, lang)
+
+  const trendingTopics = extractTrendingTopics([...recentLinks.docs, ...recentPosts.docs])
+
+  const pulseLabels = {
+    ...dict.subfeeds.pulse,
+    activity24h:
+      selectedWindow === '24h' ? dict.subfeeds.pulse.activity24h : dict.subfeeds.pulse.activity7d,
+    delta24h: selectedWindow === '24h' ? dict.subfeeds.pulse.delta24h : dict.subfeeds.pulse.delta7d,
+  }
 
   const linkIds = links.map((link) => link.id)
   const postIds = posts.map((post) => post.id)
@@ -155,6 +526,22 @@ export default async function SubfeedDetailsPage({
           </div>
         ) : null}
       </section>
+
+      <SubfeedPulseHeader
+        labels={pulseLabels}
+        activity24h={activity}
+        delta24h={activityDelta}
+        newLinks24h={newLinks}
+        newPosts24h={newPosts}
+        topics={trendingTopics}
+        trendPoints={trendPoints}
+        trendBucketLabels={trendBucketLabels}
+        selectedWindow={selectedWindow}
+        windowHrefs={{
+          day: buildWindowHref(slug, resolvedSearchParams, '24h'),
+          week: buildWindowHref(slug, resolvedSearchParams, '7d'),
+        }}
+      />
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
