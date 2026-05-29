@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic' // This stops the build-time DB check
 
+import Link from 'next/link'
 import { cookies } from 'next/headers'
 import type { Where } from 'payload'
 
@@ -9,6 +10,7 @@ import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 import { BookmarksFilter } from '@/components/links/BookmarksFilter'
 import { FeedMixFilter } from '@/components/links/FeedMixFilter'
+import { MainFeedHighlights } from '@/components/links/MainFeedHighlights'
 import { readRelationshipIds } from '@/lib/community/subfeeds'
 
 const SUBFEED_PROMOTION_THRESHOLD = {
@@ -17,10 +19,48 @@ const SUBFEED_PROMOTION_THRESHOLD = {
   rankingScore: 100,
 } as const
 
+type FeedSignal = 'trending' | 'subfeeds' | 'discussions'
+type FeedMode = 'best' | 'new' | 'rising'
+
+const parseSignal = (value: string | undefined): FeedSignal | null => {
+  if (value === 'trending' || value === 'subfeeds' || value === 'discussions') return value
+  return null
+}
+
+const parseMode = (value: string | undefined): FeedMode => {
+  if (value === 'new' || value === 'rising') return value
+  return 'best'
+}
+
+const toQuery = (params: {
+  bookmarks?: string
+  mixSubfeeds?: string
+  signal?: string
+  mode?: string
+}) => {
+  const query = new URLSearchParams()
+  if (params.bookmarks) query.set('bookmarks', params.bookmarks)
+  if (params.mixSubfeeds) query.set('mixSubfeeds', params.mixSubfeeds)
+  if (params.signal) query.set('signal', params.signal)
+  if (params.mode && params.mode !== 'best') query.set('mode', params.mode)
+  return query
+}
+
+const toTrendDirection = (current: number, previous: number): -1 | 0 | 1 => {
+  if (current > previous) return 1
+  if (current < previous) return -1
+  return 0
+}
+
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ bookmarks?: string; mixSubfeeds?: string }>
+  searchParams: Promise<{
+    bookmarks?: string
+    mixSubfeeds?: string
+    signal?: string
+    mode?: string
+  }>
 }) {
   const { user, payload } = await getAuthenticatedUser()
   const { dict } = await getDictionary()
@@ -39,6 +79,53 @@ export default async function HomePage({
         ? false
         : persistedMixSubfeeds),
   )
+  const signal = parseSignal(resolvedSearchParams.signal)
+  const mode = parseMode(resolvedSearchParams.mode)
+  const now = Date.now()
+  const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString()
+  const twoDaysAgo = new Date(now - 48 * 60 * 60 * 1000).toISOString()
+
+  const buildSignalHref = (nextSignal: FeedSignal | null) => {
+    const query = toQuery({
+      bookmarks: resolvedSearchParams.bookmarks,
+      mixSubfeeds: resolvedSearchParams.mixSubfeeds,
+      signal: nextSignal ?? undefined,
+      mode,
+    })
+
+    const queryString = query.toString()
+    return queryString.length > 0 ? `/?${queryString}` : '/'
+  }
+
+  const buildModeHref = (nextMode: FeedMode) => {
+    const query = toQuery({
+      bookmarks: resolvedSearchParams.bookmarks,
+      mixSubfeeds: resolvedSearchParams.mixSubfeeds,
+      signal: resolvedSearchParams.signal,
+      mode: nextMode,
+    })
+
+    const queryString = query.toString()
+    return queryString.length > 0 ? `/?${queryString}` : '/'
+  }
+
+  const modeSortBy: Record<FeedMode, string> = {
+    best: '-rankingScore',
+    new: '-createdAt',
+    rising: '-engagementVelocity',
+  }
+
+  const signalLabelByKey: Record<FeedSignal, string> = {
+    trending: dict.pages.highlights.trendingNow,
+    subfeeds: dict.pages.highlights.newInYourSubfeeds,
+    discussions: dict.pages.highlights.freshDiscussions,
+  }
+
+  const modeDescriptionByKey: Record<FeedMode, string> = {
+    best: dict.pages.modeDescriptions.best,
+    new: dict.pages.modeDescriptions.newest,
+    rising: dict.pages.modeDescriptions.rising,
+  }
 
   const andFilters: Where[] = [
     {
@@ -135,6 +222,31 @@ export default async function HomePage({
     ],
   }
 
+  const trendingSignalFilter: Where = {
+    or: [
+      {
+        featured: {
+          equals: true,
+        },
+      },
+      {
+        score: {
+          greater_than_equal: SUBFEED_PROMOTION_THRESHOLD.score,
+        },
+      },
+      {
+        upvotes: {
+          greater_than_equal: SUBFEED_PROMOTION_THRESHOLD.upvotes,
+        },
+      },
+      {
+        rankingScore: {
+          greater_than_equal: SUBFEED_PROMOTION_THRESHOLD.rankingScore,
+        },
+      },
+    ],
+  }
+
   const mainFeedFilter: Where = {
     or: [
       {
@@ -146,7 +258,9 @@ export default async function HomePage({
     ],
   }
 
-  if (includeSubfeeds && user) {
+  let joinedSubfeedIds: number[] = []
+
+  if (user) {
     const { docs: subfeeds } = await payload.find({
       collection: 'subfeeds',
       sort: 'name',
@@ -156,11 +270,11 @@ export default async function HomePage({
       overrideAccess: false,
     })
 
-    const joinedSubfeedIds = subfeeds
+    joinedSubfeedIds = subfeeds
       .filter((subfeed) => readRelationshipIds(subfeed.members).includes(user.id))
       .map((subfeed) => subfeed.id)
 
-    if (joinedSubfeedIds.length > 0) {
+    if (includeSubfeeds && joinedSubfeedIds.length > 0) {
       andFilters.push({
         or: [
           mainFeedFilter,
@@ -187,6 +301,46 @@ export default async function HomePage({
     andFilters.push(mainFeedFilter)
   }
 
+  const baseAndFilters = [...andFilters]
+
+  if (signal === 'trending') {
+    andFilters.push(trendingSignalFilter)
+  }
+
+  if (signal === 'discussions') {
+    andFilters.push({
+      commentsCount: {
+        greater_than: 0,
+      },
+    })
+    andFilters.push({
+      createdAt: {
+        greater_than_equal: dayAgo,
+      },
+    })
+  }
+
+  if (signal === 'subfeeds') {
+    if (user && joinedSubfeedIds.length > 0) {
+      andFilters.push({
+        feed: {
+          equals: 'subfeed',
+        },
+      })
+      andFilters.push({
+        subfeed: {
+          in: joinedSubfeedIds,
+        },
+      })
+    } else {
+      andFilters.push({
+        id: {
+          in: [0],
+        },
+      })
+    }
+  }
+
   const where: Where = {
     and: andFilters,
   }
@@ -194,11 +348,204 @@ export default async function HomePage({
   const { docs: links } = await payload.find({
     collection: 'links',
     where,
-    sort: '-rankingScore',
+    sort: modeSortBy[mode],
     limit: 100,
     user: user || undefined,
     overrideAccess: false,
   })
+
+  const trendingCurrentPromise = payload.find({
+    collection: 'links',
+    where: {
+      and: [
+        ...baseAndFilters,
+        trendingSignalFilter,
+        {
+          createdAt: {
+            greater_than_equal: dayAgo,
+          },
+        },
+      ],
+    },
+    limit: 0,
+    depth: 0,
+    user: user || undefined,
+    overrideAccess: false,
+  })
+
+  const trendingPreviousPromise = payload.find({
+    collection: 'links',
+    where: {
+      and: [
+        ...baseAndFilters,
+        trendingSignalFilter,
+        {
+          createdAt: {
+            greater_than_equal: twoDaysAgo,
+          },
+        },
+        {
+          createdAt: {
+            less_than: dayAgo,
+          },
+        },
+      ],
+    },
+    limit: 0,
+    depth: 0,
+    user: user || undefined,
+    overrideAccess: false,
+  })
+
+  const discussionsCurrentPromise = payload.find({
+    collection: 'links',
+    where: {
+      and: [
+        ...baseAndFilters,
+        {
+          commentsCount: {
+            greater_than: 0,
+          },
+        },
+        {
+          createdAt: {
+            greater_than_equal: dayAgo,
+          },
+        },
+      ],
+    },
+    limit: 0,
+    depth: 0,
+    user: user || undefined,
+    overrideAccess: false,
+  })
+
+  const discussionsPreviousPromise = payload.find({
+    collection: 'links',
+    where: {
+      and: [
+        ...baseAndFilters,
+        {
+          commentsCount: {
+            greater_than: 0,
+          },
+        },
+        {
+          createdAt: {
+            greater_than_equal: twoDaysAgo,
+          },
+        },
+        {
+          createdAt: {
+            less_than: dayAgo,
+          },
+        },
+      ],
+    },
+    limit: 0,
+    depth: 0,
+    user: user || undefined,
+    overrideAccess: false,
+  })
+
+  const [trendingCurrent, trendingPrevious, discussionsCurrent, discussionsPrevious] =
+    await Promise.all([
+      trendingCurrentPromise,
+      trendingPreviousPromise,
+      discussionsCurrentPromise,
+      discussionsPreviousPromise,
+    ])
+
+  const trendingNowCount = trendingCurrent.totalDocs
+  const freshDiscussionsCount = discussionsCurrent.totalDocs
+  const trendingNowTrend = toTrendDirection(trendingCurrent.totalDocs, trendingPrevious.totalDocs)
+  const freshDiscussionsTrend = toTrendDirection(
+    discussionsCurrent.totalDocs,
+    discussionsPrevious.totalDocs,
+  )
+
+  let newInYourSubfeedsCount: number | null = null
+  let newInYourSubfeedsTrend: -1 | 0 | 1 | null = null
+
+  if (user && joinedSubfeedIds.length > 0) {
+    const subfeedSignalFilters: Where[] = [
+      {
+        feed: {
+          equals: 'subfeed',
+        },
+      },
+      {
+        subfeed: {
+          in: joinedSubfeedIds,
+        },
+      },
+      {
+        _status: {
+          equals: 'published',
+        },
+      },
+      {
+        softDeleted: {
+          not_equals: true,
+        },
+      },
+      {
+        createdAt: {
+          greater_than_equal: dayAgo,
+        },
+      },
+    ]
+
+    if (!showNSFW) {
+      subfeedSignalFilters.push({
+        nsfw: {
+          not_equals: true,
+        },
+      })
+    }
+
+    const signalResult = await payload.find({
+      collection: 'links',
+      where: {
+        and: subfeedSignalFilters,
+      },
+      limit: 0,
+      depth: 0,
+      user,
+      overrideAccess: false,
+    })
+
+    const previousSignalResult = await payload.find({
+      collection: 'links',
+      where: {
+        and: [
+          ...subfeedSignalFilters.filter(
+            (filter) => !('createdAt' in filter && typeof filter.createdAt === 'object'),
+          ),
+          {
+            createdAt: {
+              greater_than_equal: twoDaysAgo,
+            },
+          },
+          {
+            createdAt: {
+              less_than: dayAgo,
+            },
+          },
+        ],
+      },
+      limit: 0,
+      depth: 0,
+      user,
+      overrideAccess: false,
+    })
+
+    newInYourSubfeedsCount = signalResult.totalDocs
+    newInYourSubfeedsTrend = toTrendDirection(
+      signalResult.totalDocs,
+      previousSignalResult.totalDocs,
+    )
+  }
 
   // Fetch user interactions (votes/bookmarks)
   const linkIds = links.map((link) => link.id)
@@ -206,8 +553,59 @@ export default async function HomePage({
 
   return (
     <div className="space-y-4">
+      <MainFeedHighlights
+        labels={dict.pages.highlights}
+        trendingNowCount={trendingNowCount}
+        newInYourSubfeedsCount={newInYourSubfeedsCount}
+        freshDiscussionsCount={freshDiscussionsCount}
+        trendingNowHref={buildSignalHref(signal === 'trending' ? null : 'trending')}
+        newInYourSubfeedsHref={buildSignalHref(signal === 'subfeeds' ? null : 'subfeeds')}
+        freshDiscussionsHref={buildSignalHref(signal === 'discussions' ? null : 'discussions')}
+        trendingNowTrend={trendingNowTrend}
+        newInYourSubfeedsTrend={newInYourSubfeedsTrend}
+        freshDiscussionsTrend={freshDiscussionsTrend}
+        activeSignal={signal}
+      />
+
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">{dict.pages.title}</h2>
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold">{dict.pages.title}</h2>
+          <div className="inline-flex items-center gap-1 rounded-md border bg-muted/40 p-1 text-xs">
+            <span className="px-2 text-muted-foreground">{dict.pages.modeLabel}</span>
+            <Link
+              href={buildModeHref('best')}
+              className={`rounded px-2 py-1 ${mode === 'best' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              {dict.pages.modes.best}
+            </Link>
+            <Link
+              href={buildModeHref('new')}
+              className={`rounded px-2 py-1 ${mode === 'new' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              {dict.pages.modes.newest}
+            </Link>
+            <Link
+              href={buildModeHref('rising')}
+              className={`rounded px-2 py-1 ${mode === 'rising' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              {dict.pages.modes.rising}
+            </Link>
+          </div>
+          <p className="text-xs text-muted-foreground">{modeDescriptionByKey[mode]}</p>
+          {signal ? (
+            <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/70 bg-sky-50 px-3 py-1 text-xs text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-100">
+              <span>
+                {dict.pages.highlights.activeFilterPrefix}: {signalLabelByKey[signal]}
+              </span>
+              <Link
+                href={buildSignalHref(null)}
+                className="font-medium underline decoration-sky-400/70 underline-offset-2 hover:text-sky-700 dark:hover:text-sky-200"
+              >
+                {dict.pages.highlights.clearFilter}
+              </Link>
+            </div>
+          ) : null}
+        </div>
         {user ? (
           <div className="flex items-center gap-3">
             <FeedMixFilter
