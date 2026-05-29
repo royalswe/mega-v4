@@ -185,6 +185,10 @@ const dictionaries = {
       noPostsYet: 'No posts in this subfeed yet. Be the first to start a discussion.',
       submitLink: 'Submit Link',
       createPost: 'Create Post',
+      submitLinkModalTitle: 'Submit Link',
+      createPostModalTitle: 'Create Post',
+      closeModalLabel: 'Close form modal',
+      closeModalButton: 'Close',
       joinToPost: 'Join this subfeed to submit links and posts.',
       loginRequiredToCreate: 'You must be logged in to create a subfeed',
       joinButton: {
@@ -210,6 +214,30 @@ const dictionaries = {
         creatingButton: 'Creating...',
         createdToast: 'Subfeed created',
         createError: 'Failed to create subfeed',
+      },
+    },
+    moderationPage: {
+      title: 'Moderation Queue',
+      subtitle: 'Pending community reports waiting for review.',
+      emptyState: 'No pending reports. You are all caught up.',
+      reportedBy: 'Reported by',
+      fastTracked: 'Fast-tracked',
+      openTargetContent: 'Open target content',
+      targetUnavailable: 'Target content is unavailable.',
+      reporterFallbackPrefix: 'User #',
+      targetTypes: {
+        post: 'Post',
+        comment: 'Comment',
+        link: 'Link',
+        user: 'User',
+      },
+      reasons: {
+        spam: 'Spam',
+        abuse: 'Abuse',
+        broken_link: 'Broken Link',
+        harassment: 'Harassment',
+        nsfw: 'NSFW',
+        other: 'Other',
       },
     },
     status: {
@@ -403,6 +431,10 @@ const dictionaries = {
       noPostsYet: 'Inga inlägg i detta delflöde än. Bli först med att starta en diskussion.',
       submitLink: 'Skicka länk',
       createPost: 'Skapa inlägg',
+      submitLinkModalTitle: 'Skicka länk',
+      createPostModalTitle: 'Skapa inlägg',
+      closeModalLabel: 'Stäng formulärmodal',
+      closeModalButton: 'Stäng',
       joinToPost: 'Gå med i delflödet för att skicka in länkar och inlägg.',
       loginRequiredToCreate: 'Du måste vara inloggad för att skapa ett delflöde',
       joinButton: {
@@ -430,8 +462,34 @@ const dictionaries = {
         createError: 'Kunde inte skapa delflöde',
       },
     },
+    moderationPage: {
+      title: 'Modereringskö',
+      subtitle: 'Väntande community-rapporter som behöver granskas.',
+      emptyState: 'Inga väntande rapporter. Du är ikapp.',
+      reportedBy: 'Rapporterad av',
+      fastTracked: 'Snabbspårad',
+      openTargetContent: 'Öppna målinnehåll',
+      targetUnavailable: 'Målinnehållet är inte tillgängligt.',
+      reporterFallbackPrefix: 'Användare #',
+      targetTypes: {
+        post: 'Inlägg',
+        comment: 'Kommentar',
+        link: 'Länk',
+        user: 'Användare',
+      },
+      reasons: {
+        spam: 'Spam',
+        abuse: 'Missbruk',
+        broken_link: 'Trasig länk',
+        harassment: 'Trakasserier',
+        nsfw: 'NSFW',
+        other: 'Annat',
+      },
+    },
   },
 }
+
+export type AppDictionary = (typeof dictionaries)['en']
 
 export const getDictionary = async () => {
   const { user } = await getAuthenticatedUser()

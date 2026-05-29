@@ -6,7 +6,6 @@ import * as z from 'zod'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -20,14 +19,10 @@ import { Input } from '@/components/ui/input'
 import { RichTextEditor } from '@/components/ui/RichTextEditor'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { submitPost } from '@/app/actions/posts'
+import type { AppDictionary } from '@/lib/dictionaries'
+import { SubmissionActionRow } from '@/components/subfeeds/SubmissionActionRow'
+import { SubmissionDestinationFields } from '@/components/subfeeds/SubmissionDestinationFields'
 
 interface SubfeedOption {
   id: number
@@ -43,7 +38,7 @@ export function PostSubmitForm({
   onSuccess,
   onCancel,
 }: {
-  dict: Record<string, any>
+  dict: AppDictionary
   subfeeds: SubfeedOption[]
   defaultSubfeedId?: number
   defaultFeed?: 'user' | 'subfeed'
@@ -158,76 +153,28 @@ export function PostSubmitForm({
                 </FormItem>
               )}
             />
-            {!lockDestination ? (
-              <FormField
-                control={form.control}
-                name="feed"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{dict.postForm.destinationLabel}</FormLabel>
-                    <FormControl>
-                      <Select
-                        onValueChange={(value) => {
-                          field.onChange(value)
-                          if (value !== 'subfeed') {
-                            form.setValue('subfeedId', '')
-                          }
-                        }}
-                        defaultValue={field.value}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={dict.postForm.destinationPlaceholder} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="user">
-                            {dict.postForm.destinationOptions.user}
-                          </SelectItem>
-                          <SelectItem value="subfeed">
-                            {dict.postForm.destinationOptions.subfeed}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormDescription>{dict.postForm.destinationDesc}</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            ) : null}
-            {(!lockDestination && selectedFeed === 'subfeed') ||
-            (lockDestination && defaultFeed === 'subfeed') ? (
-              <FormField
-                control={form.control}
-                name="subfeedId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{dict.postForm.subfeedLabel}</FormLabel>
-                    <FormControl>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={dict.postForm.subfeedPlaceholder} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {subfeeds.length > 0 ? (
-                            subfeeds.map((subfeed) => (
-                              <SelectItem key={subfeed.id} value={String(subfeed.id)}>
-                                {subfeed.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="__none" disabled>
-                              {dict.postForm.noSubfeeds}
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormDescription>{dict.postForm.subfeedDesc}</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            ) : null}
+            <SubmissionDestinationFields
+              form={form}
+              feedName="feed"
+              subfeedIdName="subfeedId"
+              selectedFeed={selectedFeed}
+              lockDestination={lockDestination}
+              defaultFeed={defaultFeed}
+              subfeeds={subfeeds}
+              labels={{
+                destinationLabel: dict.postForm.destinationLabel,
+                destinationPlaceholder: dict.postForm.destinationPlaceholder,
+                destinationDesc: dict.postForm.destinationDesc,
+                subfeedLabel: dict.postForm.subfeedLabel,
+                subfeedPlaceholder: dict.postForm.subfeedPlaceholder,
+                subfeedDesc: dict.postForm.subfeedDesc,
+                noSubfeeds: dict.postForm.noSubfeeds,
+              }}
+              feedOptions={[
+                { value: 'user', label: dict.postForm.destinationOptions.user },
+                { value: 'subfeed', label: dict.postForm.destinationOptions.subfeed },
+              ]}
+            />
             <FormField
               control={form.control}
               name="nsfw"
@@ -244,16 +191,13 @@ export function PostSubmitForm({
                 </FormItem>
               )}
             />
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? dict.postForm.submitting : dict.postForm.submitButton}
-              </Button>
-              {onCancel ? (
-                <Button type="button" variant="outline" disabled={isSubmitting} onClick={onCancel}>
-                  {dict.subfeeds?.closeModalButton || 'Close'}
-                </Button>
-              ) : null}
-            </div>
+            <SubmissionActionRow
+              isSubmitting={isSubmitting}
+              submitLabel={dict.postForm.submitButton}
+              submittingLabel={dict.postForm.submitting}
+              onCancel={onCancel}
+              cancelLabel={dict.subfeeds.closeModalButton}
+            />
           </form>
         </Form>
       </CardContent>

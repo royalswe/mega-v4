@@ -7,6 +7,8 @@ import { ModerationActionButtons } from '@/components/reports/ModerationActionBu
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { checkRole } from '@/access/checkRole'
 import { getAuthenticatedUser } from '@/lib/auth'
+import { getDictionary } from '@/lib/dictionaries'
+import type { Report, User } from '@/payload-types'
 
 const readRelationshipId = (value: unknown): number | null => {
   if (typeof value === 'number') return value
@@ -16,7 +18,11 @@ const readRelationshipId = (value: unknown): number | null => {
   return null
 }
 
-const getTargetHref = (report: any): string | null => {
+const isUserRelationship = (value: number | User | null | undefined): value is User => {
+  return Boolean(value && typeof value === 'object')
+}
+
+const getTargetHref = (report: Report): string | null => {
   if (report.targetType === 'post') {
     const postId = readRelationshipId(report.targetPost)
     return postId ? `/post/${postId}` : null
@@ -41,7 +47,7 @@ const getTargetHref = (report: any): string | null => {
   }
 
   if (report.targetType === 'user') {
-    if (report.targetUser && typeof report.targetUser === 'object' && report.targetUser.username) {
+    if (isUserRelationship(report.targetUser) && report.targetUser.username) {
       return `/user/${report.targetUser.username}`
     }
   }
@@ -51,6 +57,7 @@ const getTargetHref = (report: any): string | null => {
 
 export default async function ModerationPage() {
   const { user, payload } = await getAuthenticatedUser()
+  const { dict } = await getDictionary()
 
   if (!user) {
     redirect('/login')
@@ -74,26 +81,29 @@ export default async function ModerationPage() {
     overrideAccess: false,
   })
 
+  const moderationDict = dict.moderationPage
+
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Moderation Queue</h1>
-        <p className="text-muted-foreground">Pending community reports waiting for review.</p>
+        <h1 className="text-2xl font-bold">{moderationDict.title}</h1>
+        <p className="text-muted-foreground">{moderationDict.subtitle}</p>
       </div>
 
       {reports.length === 0 ? (
         <Card>
           <CardContent className="pt-6 text-sm text-muted-foreground">
-            No pending reports. You are all caught up.
+            {moderationDict.emptyState}
           </CardContent>
         </Card>
       ) : (
         reports.map((report) => {
           const href = getTargetHref(report)
-          const reporter =
-            report.reporter && typeof report.reporter === 'object'
-              ? report.reporter.username || report.reporter.email
-              : `User #${report.reporter}`
+          const reasonLabel = moderationDict.reasons[report.reason] || report.reason
+          const targetTypeLabel = moderationDict.targetTypes[report.targetType] || report.targetType
+          const reporter = isUserRelationship(report.reporter)
+            ? report.reporter.username || report.reporter.email
+            : `${moderationDict.reporterFallbackPrefix}${report.reporter}`
 
           return (
             <Card key={report.id}>
@@ -101,11 +111,11 @@ export default async function ModerationPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <CardTitle>
-                      {report.reason.replace('_', ' ')} • {report.targetType} #{report.targetId}
+                      {reasonLabel} • {targetTypeLabel} #{report.targetId}
                     </CardTitle>
                     <CardDescription>
-                      Reported by {reporter}
-                      {report.fastTracked ? ' • Fast-tracked' : ''}
+                      {moderationDict.reportedBy} {reporter}
+                      {report.fastTracked ? ` • ${moderationDict.fastTracked}` : ''}
                     </CardDescription>
                   </div>
                   <ModerationActionButtons reportId={report.id} />
@@ -116,10 +126,10 @@ export default async function ModerationPage() {
 
                 {href ? (
                   <Link href={href} className="text-primary hover:underline">
-                    Open target content
+                    {moderationDict.openTargetContent}
                   </Link>
                 ) : (
-                  <p className="text-muted-foreground">Target content is unavailable.</p>
+                  <p className="text-muted-foreground">{moderationDict.targetUnavailable}</p>
                 )}
               </CardContent>
             </Card>

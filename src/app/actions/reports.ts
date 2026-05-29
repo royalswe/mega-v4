@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import type { RequiredDataFromCollectionSlug } from 'payload'
 
 import { getAuthenticatedUser } from '@/lib/auth'
 
@@ -87,16 +88,19 @@ export async function submitReport(input: {
   if (input.targetType === 'link') targetData.targetLink = input.targetId
   if (input.targetType === 'user') targetData.targetUser = input.targetId
 
+  const reportData: RequiredDataFromCollectionSlug<'reports'> = {
+    reporter: user.id,
+    targetType: input.targetType,
+    targetId: String(input.targetId),
+    reason: input.reason,
+    status: 'pending',
+    details: details || undefined,
+    ...targetData,
+  }
+
   const report = await payload.create({
     collection: 'reports',
-    data: {
-      reporter: user.id,
-      targetType: input.targetType,
-      targetId: String(input.targetId),
-      reason: input.reason,
-      details: details || undefined,
-      ...targetData,
-    } as any,
+    data: reportData,
     ...withAccess,
   })
 
