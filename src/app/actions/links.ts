@@ -1,12 +1,30 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { getAuthenticatedUser } from '@/lib/auth'
 import {
   canManageSubmittedLinks,
   canModerateCommunity,
   isSubfeedMemberOrModerator,
 } from '@/lib/community/subfeeds'
+
+export async function setMainFeedMixPreference(includeSubfeeds: boolean) {
+  const { user } = await getAuthenticatedUser()
+
+  if (!user) {
+    throw new Error('You must be logged in to update feed preferences')
+  }
+
+  const cookieStore = await cookies()
+  cookieStore.set('mixSubfeeds', includeSubfeeds ? 'true' : 'false', {
+    path: '/',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 365,
+  })
+
+  revalidatePath('/')
+}
 
 export async function vote(linkId: number, type: 'up' | 'down') {
   const { user, payload } = await getAuthenticatedUser()
@@ -128,6 +146,7 @@ export async function submitLink(values: {
 
   let subfeedId: number | undefined
   let subfeedSlug: string | null = null
+  const isSubfeedSubmission = values.feed === 'subfeed'
 
   if (values.feed === 'subfeed') {
     if (
@@ -153,21 +172,43 @@ export async function submitLink(values: {
     subfeedSlug = subfeed.slug
   }
 
-  await payload.create({
-    collection: 'links',
-    data: {
-      title: values.title,
-      url: values.url,
-      description: values.description,
-      nsfw: values.nsfw,
-      type: values.type,
-      user: userId,
-      feed: values.feed,
-      subfeed: subfeedId,
-    },
-    draft: true,
-    ...withAccess,
-  })
+  const linkData = {
+    title: values.title,
+    url: values.url,
+    description: values.description,
+    nsfw: values.nsfw,
+    type: values.type,
+    user: userId,
+    feed: values.feed,
+    subfeed: subfeedId,
+  }
+
+  if (isSubfeedSubmission) {
+    const createdLink = await payload.create({
+      collection: 'links',
+      data: linkData,
+      draft: true,
+      ...withAccess,
+    })
+
+    await payload.update({
+      collection: 'links',
+      id: createdLink.id,
+      data: {
+        _status: 'published',
+        featured: false,
+      },
+      draft: false,
+      ...withAccess,
+    })
+  } else {
+    await payload.create({
+      collection: 'links',
+      data: linkData,
+      draft: true,
+      ...withAccess,
+    })
+  }
 
   revalidatePath('/')
   revalidatePath('/submitted')
@@ -178,10 +219,55 @@ export async function submitLink(values: {
   }
 }
 
-export async function toggleSubmittedLinkStatus(
-  linkId: number,
-  nextStatus: 'draft' | 'published',
-) {
+export async function enableSubmittedLinkInMainFeed(linkId: number) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user || !canManageSubmittedLinks(user)) {
+    throw new Error('You are not authorized to enable links in main feed')
+  }
+
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
+
+  const link = await payload.findByID({
+    collection: 'links',
+    id: linkId,
+    depth: 1,
+    draft: true,
+    ...withAccess,
+  })
+
+  if (!link || link.softDeleted) {
+    throw new Error('Link not found')
+  }
+
+  if (link.feed !== 'subfeed') {
+    throw new Error('Only subfeed links can be enabled in main feed')
+  }
+
+  await payload.update({
+    collection: 'links',
+    id: linkId,
+    data: {
+      featured: true,
+      _status: 'published',
+    },
+    draft: false,
+    ...withAccess,
+  })
+
+  revalidatePath('/')
+  revalidatePath('/submitted')
+  revalidatePath('/subfeeds')
+
+  if (link.subfeed && typeof link.subfeed === 'object' && link.subfeed.slug) {
+    revalidatePath(`/subfeeds/${link.subfeed.slug}`)
+  }
+}
+
+export async function toggleSubmittedLinkStatus(linkId: number, nextStatus: 'draft' | 'published') {
   const { user, payload } = await getAuthenticatedUser()
 
   if (!user || !canManageSubmittedLinks(user)) {

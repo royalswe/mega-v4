@@ -31,6 +31,10 @@ const dictionaries = {
     pages: {
       title: 'Approved Links',
       bookmarksOnly: 'Show Bookmarks Only',
+      mixSubfeeds: 'Mix in my SubFeeds',
+      mainFeedOnly: 'Main feed only',
+      enableInMainFeed: 'Enable in main feed',
+      inMainFeed: 'In main feed',
       noBookmarks: 'No bookmarks found',
       noLinks: 'No links found',
       submittedTitle: 'All Submitted Links',
@@ -237,6 +241,10 @@ const dictionaries = {
     pages: {
       title: 'Godkända Länkar',
       bookmarksOnly: 'Visa endast bokmärken',
+      mixSubfeeds: 'Blanda in mina delflöden',
+      mainFeedOnly: 'Endast huvudflöde',
+      enableInMainFeed: 'Visa i huvudflödet',
+      inMainFeed: 'Visas i huvudflödet',
       noBookmarks: 'Inga bokmärken hittades',
       noLinks: 'Inga länkar hittades',
       submittedTitle: 'Alla inskickade länkar',

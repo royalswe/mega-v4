@@ -10,7 +10,11 @@ import { Button } from '@/components/ui/button'
 import { redirect } from 'next/navigation'
 
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
-import { deleteSubmittedLink, toggleSubmittedLinkStatus } from '@/app/actions/links'
+import {
+  deleteSubmittedLink,
+  enableSubmittedLinkInMainFeed,
+  toggleSubmittedLinkStatus,
+} from '@/app/actions/links'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { canManageSubmittedLinks } from '@/lib/community/subfeeds'
 import { getDictionary } from '@/lib/dictionaries'
@@ -170,6 +174,20 @@ const SubmittedLinksPage = async () => {
                   dict={dict}
                 />
                 <div className="ml-auto flex items-center gap-2">
+                  {link.feed === 'subfeed' ? (
+                    <form action={enableSubmittedLinkInMainFeed.bind(null, link.id)}>
+                      <Button
+                        type="submit"
+                        size="xs"
+                        variant="secondary"
+                        disabled={link.featured === true}
+                      >
+                        {link.featured === true
+                          ? dict.pages.inMainFeed || 'In main feed'
+                          : dict.pages.enableInMainFeed || 'Enable in main feed'}
+                      </Button>
+                    </form>
+                  ) : null}
                   <form
                     action={toggleSubmittedLinkStatus.bind(
                       null,

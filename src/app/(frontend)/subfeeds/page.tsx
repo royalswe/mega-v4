@@ -30,6 +30,25 @@ export default async function SubfeedsPage() {
     ...withAccess,
   })
 
+  const rankedSubfeeds = subfeeds
+    .map((subfeed) => {
+      const memberIds = readRelationshipIds(subfeed.members)
+      const isMember = user ? memberIds.includes(user.id) : false
+
+      return {
+        subfeed,
+        memberIds,
+        isMember,
+      }
+    })
+    .sort((a, b) => {
+      if (a.isMember !== b.isMember) {
+        return a.isMember ? -1 : 1
+      }
+
+      return (b.subfeed.reputation ?? 0) - (a.subfeed.reputation ?? 0)
+    })
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -53,10 +72,7 @@ export default async function SubfeedsPage() {
       </div>
 
       <div className="grid gap-4">
-        {subfeeds.map((subfeed) => {
-          const memberIds = readRelationshipIds(subfeed.members)
-          const isMember = user ? memberIds.includes(user.id) : false
-
+        {rankedSubfeeds.map(({ subfeed, memberIds, isMember }) => {
           return (
             <Card key={subfeed.id}>
               <CardHeader>
@@ -101,7 +117,7 @@ export default async function SubfeedsPage() {
           )
         })}
 
-        {subfeeds.length === 0 ? (
+        {rankedSubfeeds.length === 0 ? (
           <Card>
             <CardContent className="pt-6 text-sm text-muted-foreground">
               {dict.subfeeds?.emptyState ||
