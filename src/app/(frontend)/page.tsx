@@ -15,8 +15,6 @@ const SUBFEED_PROMOTION_THRESHOLD = {
   score: 4,
   upvotes: 5,
   rankingScore: 100,
-  spamProbability: 0.45,
-  ragebaitProbability: 0.7,
 } as const
 
 export default async function HomePage({
@@ -126,13 +124,8 @@ export default async function HomePage({
                 },
               },
               {
-                spamProbability: {
-                  less_than: SUBFEED_PROMOTION_THRESHOLD.spamProbability,
-                },
-              },
-              {
-                ragebaitProbability: {
-                  less_than: SUBFEED_PROMOTION_THRESHOLD.ragebaitProbability,
+                controversial: {
+                  not_equals: true,
                 },
               },
             ],
