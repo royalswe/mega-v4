@@ -26,8 +26,8 @@ export default async function HomePage({
       },
     },
     {
-      moderationStatus: {
-        not_equals: 'removed',
+      softDeleted: {
+        not_equals: true,
       },
     },
   ]

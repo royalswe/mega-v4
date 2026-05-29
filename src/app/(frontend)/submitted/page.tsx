@@ -6,30 +6,59 @@ import Link from 'next/link'
 import { VoteButtons } from '@/components/links/VoteButtons'
 import { MessageCircle, Image, Video, FileText, Music, Gamepad2 } from 'lucide-react'
 import { BookmarkButton } from '@/components/links/BookmarkButton'
+import { Button } from '@/components/ui/button'
+import { redirect } from 'next/navigation'
 
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
+import { deleteSubmittedLink, toggleSubmittedLinkStatus } from '@/app/actions/links'
 import { getAuthenticatedUser } from '@/lib/auth'
+import { canManageSubmittedLinks } from '@/lib/community/subfeeds'
 import { getDictionary } from '@/lib/dictionaries'
 
 import type { Payload } from 'payload'
 import type { User } from '@/payload-types'
 
 async function getAllLinks(payload: Payload, user: User | null, showNSFW: boolean) {
+  const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()
+
+  const recentVisibilityFilter: Where = showNSFW
+    ? {
+        createdAt: {
+          greater_than_equal: twelveHoursAgo,
+        },
+      }
+    : {
+        and: [
+          {
+            createdAt: {
+              greater_than_equal: twelveHoursAgo,
+            },
+          },
+          {
+            nsfw: {
+              not_equals: true,
+            },
+          },
+        ],
+      }
+
   const andFilters: Where[] = [
     {
-      moderationStatus: {
-        not_equals: 'removed',
-      },
-    },
-  ]
-
-  if (!showNSFW) {
-    andFilters.push({
-      nsfw: {
+      softDeleted: {
         not_equals: true,
       },
-    })
-  }
+    },
+    {
+      or: [
+        {
+          _status: {
+            equals: 'draft',
+          },
+        },
+        recentVisibilityFilter,
+      ],
+    },
+  ]
 
   const where: Where = {
     and: andFilters,
@@ -48,6 +77,8 @@ async function getAllLinks(payload: Payload, user: User | null, showNSFW: boolea
     collection: 'links',
     where,
     sort: '-rankingScore',
+    draft: true,
+    pagination: false,
     ...withAccess,
   })
 
@@ -56,6 +87,11 @@ async function getAllLinks(payload: Payload, user: User | null, showNSFW: boolea
 
 const SubmittedLinksPage = async () => {
   const { user, payload } = await getAuthenticatedUser()
+
+  if (!user || !canManageSubmittedLinks(user)) {
+    redirect('/')
+  }
+
   const showNSFW = user?.settings?.nsfw === true
   const { dict } = await getDictionary()
   const links = await getAllLinks(payload, user, showNSFW)
@@ -133,6 +169,24 @@ const SubmittedLinksPage = async () => {
                   isBookmarked={bookmarks[link.id]}
                   dict={dict}
                 />
+                <div className="ml-auto flex items-center gap-2">
+                  <form
+                    action={toggleSubmittedLinkStatus.bind(
+                      null,
+                      link.id,
+                      link._status === 'published' ? 'draft' : 'published',
+                    )}
+                  >
+                    <Button type="submit" size="xs" variant="outline">
+                      {link._status === 'published' ? 'Set draft' : 'Publish'}
+                    </Button>
+                  </form>
+                  <form action={deleteSubmittedLink.bind(null, link.id)}>
+                    <Button type="submit" size="xs" variant="destructive">
+                      Soft delete
+                    </Button>
+                  </form>
+                </div>
               </div>
             </div>
           </Card>

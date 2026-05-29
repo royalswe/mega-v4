@@ -1,5 +1,6 @@
-import * as migration_20260210_184006 from './20260210_184006'
-import * as migration_20260527_194848_community_engine_feature from './20260527_194848_community_engine_feature'
+import * as migration_20260210_184006 from './20260210_184006';
+import * as migration_20260527_194848_community_engine_feature from './20260527_194848_community_engine_feature';
+import * as migration_20260528_205202___name from './20260528_205202___name';
 
 export const migrations = [
   {
@@ -12,4 +13,9 @@ export const migrations = [
     down: migration_20260527_194848_community_engine_feature.down,
     name: '20260527_194848_community_engine_feature',
   },
-]
+  {
+    up: migration_20260528_205202___name.up,
+    down: migration_20260528_205202___name.down,
+    name: '20260528_205202___name'
+  },
+];

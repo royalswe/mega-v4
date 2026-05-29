@@ -74,8 +74,8 @@ export default async function SubfeedDetailsPage({
             },
           },
           {
-            moderationStatus: {
-              not_equals: 'removed',
+            softDeleted: {
+              not_equals: true,
             },
           },
         ],

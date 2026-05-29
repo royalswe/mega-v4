@@ -30,8 +30,8 @@ const readAccess: Access = ({ req: { user } }) => {
           },
         },
         {
-          moderationStatus: {
-            not_equals: 'removed',
+          softDeleted: {
+            not_equals: true,
           },
         },
       ],
@@ -45,8 +45,8 @@ const readAccess: Access = ({ req: { user } }) => {
   return {
     and: [
       {
-        moderationStatus: {
-          not_equals: 'removed',
+        softDeleted: {
+          not_equals: true,
         },
       },
       {
@@ -79,8 +79,8 @@ const updateAccess: Access = ({ req: { user } }) => {
         },
       },
       {
-        moderationStatus: {
-          not_equals: 'removed',
+        softDeleted: {
+          not_equals: true,
         },
       },
     ],
@@ -125,8 +125,8 @@ const prepareLink: CollectionBeforeValidateHook = async ({ data, operation, req 
     }
   }
 
-  if (operation === 'create' && !nextData?.moderationStatus) {
-    nextData.moderationStatus = canModerateCommunity(req.user) ? 'approved' : 'pending'
+  if (operation === 'create' && typeof nextData?.softDeleted !== 'boolean') {
+    nextData.softDeleted = false
   }
 
   return nextData
@@ -207,7 +207,7 @@ export const Links: CollectionConfig = {
   slug: 'links',
   admin: {
     useAsTitle: 'title',
-    defaultColumns: ['title', 'user', 'moderationStatus', 'rankingScore', '_status'],
+    defaultColumns: ['title', 'user', 'softDeleted', 'rankingScore', '_status'],
   },
   access: {
     read: readAccess,
@@ -427,24 +427,10 @@ export const Links: CollectionConfig = {
       defaultValue: false,
     },
     {
-      name: 'moderationStatus',
-      type: 'select',
-      defaultValue: 'pending',
+      name: 'softDeleted',
+      type: 'checkbox',
+      defaultValue: false,
       index: true,
-      options: [
-        {
-          label: 'Pending',
-          value: 'pending',
-        },
-        {
-          label: 'Approved',
-          value: 'approved',
-        },
-        {
-          label: 'Removed',
-          value: 'removed',
-        },
-      ],
       access: {
         create: canEditModeration,
         update: canEditModeration,

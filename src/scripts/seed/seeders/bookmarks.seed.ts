@@ -23,8 +23,8 @@ export async function seedBookmarks(payload: Payload) {
     payload.find({
       collection: 'links',
       where: {
-        moderationStatus: {
-          not_equals: 'removed',
+        softDeleted: {
+          not_equals: true,
         },
       },
       limit: 400,

@@ -9,6 +9,17 @@ export const canModerateCommunity = (user: unknown): boolean => {
   )
 }
 
+export const canManageSubmittedLinks = (user: unknown): boolean => {
+  return Boolean(
+    user &&
+    typeof user === 'object' &&
+    checkRole(
+      ['admin', 'moderator', 'editor', 'uploader'],
+      user as Parameters<typeof checkRole>[1],
+    ),
+  )
+}
+
 export const readRelationshipIds = (value: unknown): number[] => {
   if (!Array.isArray(value)) return []
 

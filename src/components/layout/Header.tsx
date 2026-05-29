@@ -14,11 +14,13 @@ import { logout } from '@/app/actions/auth'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 import { checkRole } from '@/access/checkRole'
+import { canManageSubmittedLinks } from '@/lib/community/subfeeds'
 
 export async function Header() {
   const { user } = await getAuthenticatedUser()
   const { dict, lang } = await getDictionary()
   const canModerate = user ? checkRole(['admin', 'moderator', 'editor'], user) : false
+  const canViewSubmitted = user ? canManageSubmittedLinks(user) : false
 
   return (
     <header className="py-4 px-6 border-b flex items-center justify-between">
@@ -34,11 +36,13 @@ export async function Header() {
               <Link href="/">{dict.menu.home}</Link>
             </Button>
           </li>
-          <li>
-            <Button variant="ghost" asChild>
-              <Link href="/submitted">{dict.menu.submitted}</Link>
-            </Button>
-          </li>
+          {canViewSubmitted ? (
+            <li>
+              <Button variant="ghost" asChild>
+                <Link href="/submitted">{dict.menu.submitted}</Link>
+              </Button>
+            </li>
+          ) : null}
           <li>
             <Button variant="ghost" asChild>
               <Link href="/subfeeds">{dict.menu.subfeeds || 'SubFeeds'}</Link>

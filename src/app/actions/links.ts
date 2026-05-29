@@ -2,7 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedUser } from '@/lib/auth'
-import { canModerateCommunity, isSubfeedMemberOrModerator } from '@/lib/community/subfeeds'
+import {
+  canManageSubmittedLinks,
+  canModerateCommunity,
+  isSubfeedMemberOrModerator,
+} from '@/lib/community/subfeeds'
 
 export async function vote(linkId: number, type: 'up' | 'down') {
   const { user, payload } = await getAuthenticatedUser()
@@ -172,4 +176,75 @@ export async function submitLink(values: {
   if (subfeedSlug) {
     revalidatePath(`/subfeeds/${subfeedSlug}`)
   }
+}
+
+export async function toggleSubmittedLinkStatus(
+  linkId: number,
+  nextStatus: 'draft' | 'published',
+) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user || !canManageSubmittedLinks(user)) {
+    throw new Error('You are not authorized to change link status')
+  }
+
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
+
+  if (nextStatus === 'draft') {
+    await payload.update({
+      collection: 'links',
+      id: linkId,
+      data: {
+        _status: 'draft',
+      },
+      draft: false,
+      publishAllLocales: false,
+      unpublishAllLocales: true,
+      ...withAccess,
+    })
+  } else {
+    await payload.update({
+      collection: 'links',
+      id: linkId,
+      data: {
+        _status: 'published',
+      },
+      draft: false,
+      ...withAccess,
+    })
+  }
+
+  revalidatePath('/')
+  revalidatePath('/submitted')
+  revalidatePath(`/link/${linkId}`)
+}
+
+export async function deleteSubmittedLink(linkId: number) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user || !canManageSubmittedLinks(user)) {
+    throw new Error('You are not authorized to soft delete links')
+  }
+
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
+
+  await payload.update({
+    collection: 'links',
+    id: linkId,
+    data: {
+      softDeleted: true,
+    },
+    ...withAccess,
+  })
+
+  revalidatePath('/')
+  revalidatePath('/submitted')
+  revalidatePath('/subfeeds')
+  revalidatePath(`/link/${linkId}`)
 }

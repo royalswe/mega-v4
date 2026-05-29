@@ -106,7 +106,7 @@ const applyReportDecision: CollectionAfterChangeHook = async ({ doc, previousDoc
       collection: 'links',
       id: targetLinkId,
       data: {
-        moderationStatus: 'removed',
+        softDeleted: true,
       },
       overrideAccess: true,
       req,

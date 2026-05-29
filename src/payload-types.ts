@@ -264,7 +264,7 @@ export interface Link {
   featured?: boolean | null;
   breaking?: boolean | null;
   controversial?: boolean | null;
-  moderationStatus?: ('pending' | 'approved' | 'removed') | null;
+  softDeleted?: boolean | null;
   clickCount?: number | null;
   /**
    * Comments related to this link
@@ -761,7 +761,7 @@ export interface LinksSelect<T extends boolean = true> {
   featured?: T;
   breaking?: T;
   controversial?: T;
-  moderationStatus?: T;
+  softDeleted?: T;
   clickCount?: T;
   relatedComments?: T;
   saves?: T;
