@@ -18,6 +18,7 @@ export async function createSubfeed(values: {
   description: string
   rules?: string
   theme?: string
+  avatarId?: number
 }) {
   const { user, payload } = await getAuthenticatedUser()
 
@@ -29,6 +30,7 @@ export async function createSubfeed(values: {
   const description = values.description.trim()
   const rules = values.rules?.trim()
   const theme = values.theme?.trim()
+  const avatarId = values.avatarId
 
   if (name.length < 3) {
     throw new Error('Subfeed name must be at least 3 characters')
@@ -36,6 +38,10 @@ export async function createSubfeed(values: {
 
   if (description.length < 12) {
     throw new Error('Description must be at least 12 characters')
+  }
+
+  if (avatarId !== undefined && (!Number.isInteger(avatarId) || avatarId <= 0)) {
+    throw new Error('Invalid subfeed image')
   }
 
   const slug = slugify(name)
@@ -66,6 +72,7 @@ export async function createSubfeed(values: {
       name,
       slug,
       description,
+      avatar: avatarId,
       rules: rules || undefined,
       theme: theme || undefined,
       moderators: [user.id],
@@ -80,6 +87,69 @@ export async function createSubfeed(values: {
   return {
     id: subfeed.id,
     slug: subfeed.slug,
+  }
+}
+
+export async function uploadSubfeedAvatar(formData: FormData) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user) {
+    throw new Error('You must be logged in to upload a subfeed image')
+  }
+
+  const file = formData.get('file')
+  const subfeedName = String(formData.get('subfeedName') || '').trim()
+
+  if (!file || !(file instanceof File)) {
+    throw new Error('No file provided')
+  }
+
+  const allowedMimeTypes = [
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+    'image/avif',
+    'image/webp',
+  ]
+  if (!allowedMimeTypes.includes(file.type)) {
+    throw new Error('Invalid file type. Only images are allowed.')
+  }
+
+  const maxSize = 5 * 1024 * 1024
+  if (file.size > maxSize) {
+    throw new Error('File size exceeds the 5MB limit.')
+  }
+
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
+
+  const alt = subfeedName.length > 0 ? `Avatar for ${subfeedName}` : 'Subfeed avatar'
+
+  try {
+    const media = await payload.create({
+      collection: 'media',
+      data: {
+        alt,
+      },
+      file: {
+        data: buffer,
+        name: file.name,
+        mimetype: file.type,
+        size: file.size,
+      },
+      ...withAccess,
+    })
+
+    return media
+  } catch (error) {
+    console.error('Error uploading subfeed image:', error)
+    throw new Error('Failed to upload subfeed image')
   }
 }
 

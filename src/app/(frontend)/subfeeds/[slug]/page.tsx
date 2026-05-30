@@ -7,6 +7,7 @@ import { getPostInteractions } from '@/app/(frontend)/data/getPostInteractions'
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import { LinkCard } from '@/components/links/LinkCard'
 import { PostCard } from '@/components/posts/PostCard'
+import { SubfeedAvatar } from '@/components/subfeeds/SubfeedAvatar'
 import { JoinSubfeedButton } from '@/components/subfeeds/JoinSubfeedButton'
 import { SubfeedCreatePanel } from '@/components/subfeeds/SubfeedCreatePanel'
 import { SubfeedPulseHeader } from '@/components/subfeeds/SubfeedPulseHeader'
@@ -497,7 +498,14 @@ export default async function SubfeedDetailsPage({
       <section className="rounded-xl border p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold">{subfeed.name}</h1>
+            <div className="flex items-center gap-3 text-3xl font-bold">
+              <SubfeedAvatar
+                subfeed={subfeed}
+                className="h-10 w-10 rounded-full border object-cover"
+                fallbackClassName="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-muted text-sm font-semibold"
+              />
+              <h1>{subfeed.name}</h1>
+            </div>
             <p className="max-w-2xl text-muted-foreground">{subfeed.description}</p>
             <p className="text-sm text-muted-foreground">
               {memberIds.length} {dict.subfeeds?.membersLabel || 'members'} •{' '}

@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { ArrowUpDown, Check, ChevronDown, Filter } from 'lucide-react'
 
+import { SubfeedAvatar } from '@/components/subfeeds/SubfeedAvatar'
 import { JoinSubfeedButton } from '@/components/subfeeds/JoinSubfeedButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -83,7 +84,7 @@ export default async function SubfeedsPage({
     collection: 'subfeeds',
     sort: '-reputation',
     limit: 100,
-    depth: 0,
+    depth: 1,
     ...withAccess,
   })
 
@@ -480,12 +481,17 @@ export default async function SubfeedsPage({
                       <CardTitle>
                         <Link
                           href={`/subfeeds/${subfeed.slug}`}
-                          className="break-words hover:underline"
+                          className="inline-flex items-center gap-1.5 wrap-break-word hover:underline"
                         >
+                          <SubfeedAvatar
+                            subfeed={subfeed}
+                            className="size-5 shrink-0 rounded-full object-cover"
+                            fallbackClassName="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold"
+                          />
                           {subfeed.name}
                         </Link>
                       </CardTitle>
-                      <CardDescription className="break-words">
+                      <CardDescription className="wrap-break-word">
                         {subfeed.description}
                       </CardDescription>
                     </div>

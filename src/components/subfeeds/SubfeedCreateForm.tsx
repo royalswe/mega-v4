@@ -1,10 +1,10 @@
 'use client'
 
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
-import { createSubfeed } from '@/app/actions/subfeeds'
+import { createSubfeed, uploadSubfeedAvatar } from '@/app/actions/subfeeds'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -17,6 +17,8 @@ export function SubfeedCreateForm({ dict }: { dict: Record<string, any> }) {
   const [description, setDescription] = useState('')
   const [rules, setRules] = useState('')
   const [theme, setTheme] = useState('')
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
 
   const copy = dict.subfeeds?.createForm || {}
 
@@ -26,11 +28,22 @@ export function SubfeedCreateForm({ dict }: { dict: Record<string, any> }) {
     setIsSubmitting(true)
 
     try {
+      let avatarId: number | undefined
+
+      if (avatarFile) {
+        const formData = new FormData()
+        formData.append('file', avatarFile)
+        formData.append('subfeedName', name)
+        const media = await uploadSubfeedAvatar(formData)
+        avatarId = media.id
+      }
+
       const created = await createSubfeed({
         name,
         description,
         rules,
         theme,
+        avatarId,
       })
 
       toast.success(copy.createdToast || 'Subfeed created')
@@ -44,6 +57,14 @@ export function SubfeedCreateForm({ dict }: { dict: Record<string, any> }) {
       setIsSubmitting(false)
     }
   }
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) {
+        URL.revokeObjectURL(avatarPreview)
+      }
+    }
+  }, [avatarPreview])
 
   return (
     <Card className="max-w-2xl mx-auto">
@@ -96,6 +117,37 @@ export function SubfeedCreateForm({ dict }: { dict: Record<string, any> }) {
               value={rules}
               onChange={(event) => setRules(event.target.value)}
             />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="avatar">
+              {copy.imageLabel || 'Subfeed image (optional)'}
+            </label>
+            <Input
+              id="avatar"
+              type="file"
+              accept="image/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0] || null
+                setAvatarFile(file)
+
+                if (avatarPreview) {
+                  URL.revokeObjectURL(avatarPreview)
+                }
+
+                setAvatarPreview(file ? URL.createObjectURL(file) : null)
+              }}
+            />
+            {avatarPreview ? (
+              <img
+                src={avatarPreview}
+                alt={copy.imagePreviewAlt || 'Subfeed image preview'}
+                className="h-16 w-16 rounded-full border object-cover"
+              />
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              {copy.imageHelp || 'Shown on links and the subfeed list.'}
+            </p>
           </div>
 
           <div className="space-y-2">

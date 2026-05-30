@@ -80,7 +80,6 @@ export async function seedSubfeeds(payload: Payload) {
       .map((member) => member.id)
 
     const uniqueMembers = Array.from(new Set([moderator.id, ...members]))
-
     await payload.create({
       collection: 'subfeeds',
       data: {
