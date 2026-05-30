@@ -15,7 +15,7 @@ const isDuplicateClickError = (error: unknown): boolean => {
   return code === '23505' || /duplicate|unique/i.test(message)
 }
 
-const createAnonFingerprint = async (): Promise<string> => {
+const createClickFingerprint = async (): Promise<string> => {
   const requestHeaders = await headers()
   const forwarded = requestHeaders.get('x-forwarded-for') || ''
   const ip = forwarded.split(',')[0]?.trim() || requestHeaders.get('x-real-ip') || 'unknown'
@@ -37,18 +37,16 @@ export async function trackClick(linkId: number) {
   const { payload, user } = await getAuthenticatedUser()
 
   try {
-    const anonFingerprint = user ? null : await createAnonFingerprint()
-    const identityKey = user
-      ? `link:${linkId}|user:${user.id}`
-      : `link:${linkId}|anon:${anonFingerprint}`
+    const fingerprint = await createClickFingerprint()
+    const identityKey = `link:${linkId}|fingerprint:${fingerprint}`
 
-    // Unique identity key ensures one counted click per identity per link, even across incognito sessions.
+    // Unique identity key ensures one counted click per browser fingerprint per link.
     await payload.create({
       collection: 'link-clicks',
       data: {
         link: linkId,
         user: user?.id,
-        fingerprint: anonFingerprint,
+        fingerprint,
         identityKey,
       },
       overrideAccess: true,
