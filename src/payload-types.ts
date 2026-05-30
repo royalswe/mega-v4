@@ -76,6 +76,7 @@ export interface Config {
     bookmarks: Bookmark;
     subfeeds: Subfeed;
     discoveries: Discovery;
+    'link-clicks': LinkClick;
     reports: Report;
     'payload-kv': PayloadKv;
     'payload-jobs': PayloadJob;
@@ -103,6 +104,7 @@ export interface Config {
     bookmarks: BookmarksSelect<false> | BookmarksSelect<true>;
     subfeeds: SubfeedsSelect<false> | SubfeedsSelect<true>;
     discoveries: DiscoveriesSelect<false> | DiscoveriesSelect<true>;
+    'link-clicks': LinkClicksSelect<false> | LinkClicksSelect<true>;
     reports: ReportsSelect<false> | ReportsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
@@ -445,6 +447,19 @@ export interface Discovery {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "link-clicks".
+ */
+export interface LinkClick {
+  id: number;
+  link: number | Link;
+  user?: (number | null) | User;
+  fingerprint?: string | null;
+  identityKey: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "reports".
  */
 export interface Report {
@@ -615,6 +630,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'discoveries';
         value: number | Discovery;
+      } | null)
+    | ({
+        relationTo: 'link-clicks';
+        value: number | LinkClick;
       } | null)
     | ({
         relationTo: 'reports';
@@ -875,6 +894,18 @@ export interface DiscoveriesSelect<T extends boolean = true> {
   post?: T;
   discoveredAt?: T;
   engagementGenerated?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "link-clicks_select".
+ */
+export interface LinkClicksSelect<T extends boolean = true> {
+  link?: T;
+  user?: T;
+  fingerprint?: T;
+  identityKey?: T;
   updatedAt?: T;
   createdAt?: T;
 }

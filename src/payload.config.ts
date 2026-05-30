@@ -15,6 +15,7 @@ import { Votes } from './collections/Votes'
 import { Bookmarks } from './collections/Bookmarks'
 import { SubFeeds } from './collections/SubFeeds'
 import { Discoveries } from './collections/Discoveries'
+import { LinkClicks } from './collections/LinkClicks'
 import { Reports } from './collections/Reports'
 
 const filename = fileURLToPath(import.meta.url)
@@ -53,6 +54,7 @@ export default buildConfig({
     Bookmarks,
     SubFeeds,
     Discoveries,
+    LinkClicks,
     Reports,
   ],
   editor: lexicalEditor(),
