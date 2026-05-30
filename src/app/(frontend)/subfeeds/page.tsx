@@ -409,7 +409,11 @@ export default async function SubfeedsPage({
           </DropdownMenu>
         </div>
 
-        <form action="/subfeeds" method="get" className="flex w-full gap-2 sm:max-w-md">
+        <form
+          action="/subfeeds"
+          method="get"
+          className="flex w-full flex-col gap-2 sm:max-w-md sm:flex-row"
+        >
           {selectedSort !== 'trending' ? (
             <input type="hidden" name="sort" value={selectedSort} />
           ) : null}
@@ -451,7 +455,7 @@ export default async function SubfeedsPage({
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
+      <div className="flex flex-col justify-between gap-2 px-1 text-xs text-muted-foreground sm:flex-row sm:items-center">
         <span>
           {rankedSubfeeds.length} {resultCountLabel}
         </span>
@@ -471,14 +475,19 @@ export default async function SubfeedsPage({
             return (
               <Card key={subfeed.id}>
                 <CardHeader>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
+                  <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                    <div className="min-w-0">
                       <CardTitle>
-                        <Link href={`/subfeeds/${subfeed.slug}`} className="hover:underline">
+                        <Link
+                          href={`/subfeeds/${subfeed.slug}`}
+                          className="break-words hover:underline"
+                        >
                           {subfeed.name}
                         </Link>
                       </CardTitle>
-                      <CardDescription>{subfeed.description}</CardDescription>
+                      <CardDescription className="break-words">
+                        {subfeed.description}
+                      </CardDescription>
                     </div>
                     {subfeed.featured ? (
                       <span className="rounded-full border px-2 py-1 text-xs font-medium">
@@ -487,8 +496,8 @@ export default async function SubfeedsPage({
                     ) : null}
                   </div>
                 </CardHeader>
-                <CardContent className="flex items-center justify-between gap-3">
-                  <div className="text-sm text-muted-foreground">
+                <CardContent className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                  <div className="min-w-0 text-sm text-muted-foreground">
                     <p>
                       {memberIds.length} {dict.subfeeds?.membersLabel || 'members'}
                     </p>
@@ -501,17 +510,19 @@ export default async function SubfeedsPage({
                         : dict.subfeeds?.listControls?.quietToday || 'Quiet today'}
                     </p>
                   </div>
-                  {user ? (
-                    <JoinSubfeedButton
-                      subfeedId={subfeed.id}
-                      isMember={isMember}
-                      labels={dict.subfeeds?.joinButton}
-                    />
-                  ) : (
-                    <Button asChild variant="outline">
-                      <Link href="/login">{dict.subfeeds?.loginToJoin || 'Log in to join'}</Link>
-                    </Button>
-                  )}
+                  <div className="w-full sm:w-auto">
+                    {user ? (
+                      <JoinSubfeedButton
+                        subfeedId={subfeed.id}
+                        isMember={isMember}
+                        labels={dict.subfeeds?.joinButton}
+                      />
+                    ) : (
+                      <Button asChild variant="outline" className="w-full sm:w-auto">
+                        <Link href="/login">{dict.subfeeds?.loginToJoin || 'Log in to join'}</Link>
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )

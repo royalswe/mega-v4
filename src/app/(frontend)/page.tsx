@@ -11,6 +11,7 @@ import { getDictionary } from '@/lib/dictionaries'
 import { BookmarksFilter } from '@/components/links/BookmarksFilter'
 import { FeedMixFilter } from '@/components/links/FeedMixFilter'
 import { MainFeedHighlights } from '@/components/links/MainFeedHighlights'
+import { ReorderAwareList } from '@/components/links/ReorderAwareList.client'
 import { readRelationshipIds } from '@/lib/community/subfeeds'
 
 const SUBFEED_PROMOTION_THRESHOLD = {
@@ -567,10 +568,10 @@ export default async function HomePage({
         activeSignal={signal}
       />
 
-      <div className="flex items-center justify-between mb-4">
-        <div className="space-y-2">
+      <div className="mb-4 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <div className="min-w-0 space-y-2">
           <h2 className="text-xl font-semibold">{dict.pages.title}</h2>
-          <div className="inline-flex items-center gap-1 rounded-md border bg-muted/40 p-1 text-xs">
+          <div className="inline-flex flex-wrap items-center gap-1 rounded-md border bg-muted/40 p-1 text-xs">
             <span className="px-2 text-muted-foreground">{dict.pages.modeLabel}</span>
             <Link
               href={buildModeHref('best')}
@@ -593,7 +594,7 @@ export default async function HomePage({
           </div>
           <p className="text-xs text-muted-foreground">{modeDescriptionByKey[mode]}</p>
           {signal ? (
-            <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/70 bg-sky-50 px-3 py-1 text-xs text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-100">
+            <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-sky-300/70 bg-sky-50 px-3 py-1 text-xs text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-100">
               <span>
                 {dict.pages.highlights.activeFilterPrefix}: {signalLabelByKey[signal]}
               </span>
@@ -607,7 +608,7 @@ export default async function HomePage({
           ) : null}
         </div>
         {user ? (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
             <FeedMixFilter
               initialValue={includeSubfeeds}
               label={dict.pages.mixSubfeeds || 'Include links from my SubFeeds'}
@@ -617,18 +618,20 @@ export default async function HomePage({
           </div>
         ) : null}
       </div>
-      <div className="flex flex-col gap-4">
+      <div>
         {links.length > 0 ? (
-          links.map((link) => (
-            <LinkCard
-              key={link.id}
-              link={link}
-              userId={user?.id}
-              userVote={votes[link.id]}
-              isBookmarked={bookmarks[link.id]}
-              className={link.nsfw ? 'nsfw-text' : ''}
-            />
-          ))
+          <ReorderAwareList itemIds={links.map((link) => link.id)}>
+            {links.map((link) => (
+              <LinkCard
+                key={link.id}
+                link={link}
+                userId={user?.id}
+                userVote={votes[link.id]}
+                isBookmarked={bookmarks[link.id]}
+                className={link.nsfw ? 'nsfw-text' : ''}
+              />
+            ))}
+          </ReorderAwareList>
         ) : (
           <p className="text-muted-foreground text-center py-8">
             {showBookmarksOnly ? dict.pages.noBookmarks : dict.pages.noLinks}{' '}

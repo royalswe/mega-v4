@@ -108,12 +108,12 @@ export default async function ModerationPage() {
           return (
             <Card key={report.id}>
               <CardHeader>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <CardTitle>
+                <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
+                  <div className="min-w-0">
+                    <CardTitle className="break-words">
                       {reasonLabel} • {targetTypeLabel} #{report.targetId}
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="break-words">
                       {moderationDict.reportedBy} {reporter}
                       {report.fastTracked ? ` • ${moderationDict.fastTracked}` : ''}
                     </CardDescription>
