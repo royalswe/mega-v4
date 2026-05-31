@@ -1,40 +1,54 @@
-import { type Page, type Locator, expect } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
+
+import { expect } from '@playwright/test'
 
 export class AuthPage {
   readonly page: Page
+  readonly identifierInput: Locator
   readonly emailInput: Locator
   readonly passwordInput: Locator
   readonly confirmPasswordInput: Locator
   readonly usernameInput: Locator
-  readonly submitButton: Locator
+  readonly loginSubmitButton: Locator
+  readonly registerSubmitButton: Locator
   readonly loginHeading: Locator
 
   constructor(page: Page) {
     this.page = page
-    // Selectors based on existing test findings
-    this.emailInput = page.getByLabel('Email', { exact: false }) // Matches labels containing "Email" (e.g., "Email" or "Email or Username")
-    this.passwordInput = page.getByLabel('Password', { exact: true })
-    this.confirmPasswordInput = page.getByLabel('Confirm Password')
-    this.usernameInput = page.getByLabel('Username')
-    this.submitButton = page.getByRole('button', { name: /Log In|Create Account/i })
-    this.loginHeading = page.getByRole('heading', { name: /Log In/i })
+    // Prefer stable form field names over visible labels (labels can be localized).
+    this.identifierInput = page.locator('input[name="login"], input[name="email"]').first()
+    this.emailInput = page.locator('input[name="email"]').first()
+    this.passwordInput = page.locator('input[name="password"]').first()
+    this.confirmPasswordInput = page.locator('input[name="confirmPassword"]').first()
+    this.usernameInput = page.locator('input[name="username"]').first()
+    this.loginSubmitButton = page
+      .locator('form')
+      .filter({ has: this.identifierInput })
+      .locator('button[type="submit"]')
+      .first()
+    this.registerSubmitButton = page
+      .locator('form')
+      .filter({ has: this.usernameInput })
+      .locator('button[type="submit"]')
+      .first()
+    this.loginHeading = page.getByRole('heading', { name: /log in|login|logga in/i })
   }
 
   async gotoLogin() {
     await this.page.goto('/login')
+    await expect(this.identifierInput).toBeVisible()
   }
 
   async gotoRegister() {
     await this.page.goto('/create-account')
+    await expect(this.usernameInput).toBeVisible()
   }
 
-  async login(email: string, password: string = 'password123') {
+  async login(identifier: string, password: string = 'password123') {
     await this.gotoLogin()
-    await this.emailInput.fill(email)
+    await this.identifierInput.fill(identifier)
     await this.passwordInput.fill(password)
-    await this.submitButton.click()
-    // Wait for navigation or state change
-    await expect(this.page).toHaveURL('/')
+    await this.loginSubmitButton.click()
   }
 
   async register(username: string, email: string, password: string = 'password123') {
@@ -43,6 +57,6 @@ export class AuthPage {
     await this.emailInput.fill(email)
     await this.passwordInput.fill(password)
     await this.confirmPasswordInput.fill(password)
-    await this.submitButton.click()
+    await this.registerSubmitButton.click()
   }
 }

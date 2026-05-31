@@ -25,10 +25,7 @@ setup('authenticate', async ({ page }) => {
   console.log(`Attempting to authenticate as ${email}...`)
 
   // Try to login first
-  await authPage.gotoLogin()
-  await authPage.emailInput.fill(email)
-  await authPage.passwordInput.fill(password)
-  await authPage.submitButton.click()
+  await authPage.login(email, password)
 
   try {
     // Check if login was successful (redirected to home)

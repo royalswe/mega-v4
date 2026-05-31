@@ -12,7 +12,7 @@ test.describe('Voting Flow', () => {
     const votingPage = new VotingPage(page)
 
     // 1. Create a Link (User is already logged in via global setup)
-    await linkPage.createLink(linkTitle, linkUrl, 'Video')
+    await linkPage.createLink(linkTitle, linkUrl)
 
     // 2. Verify Link appears
     await linkPage.verifyLinkVisible(linkTitle)

@@ -49,3 +49,7 @@ node_modules/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+/tests/playwright/.auth/user.json
+
+# Vitest
+/tests/vitest/report/**/*

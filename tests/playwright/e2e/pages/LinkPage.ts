@@ -1,7 +1,10 @@
-import { type Page, type Locator, expect } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
+
+import { expect } from '@playwright/test'
 
 export class LinkPage {
   readonly page: Page
+  readonly form: Locator
   readonly titleInput: Locator
   readonly urlInput: Locator
   readonly typeTrigger: Locator
@@ -9,33 +12,28 @@ export class LinkPage {
 
   constructor(page: Page) {
     this.page = page
-    this.titleInput = page.getByLabel('Title')
-    this.urlInput = page.getByLabel('URL')
-    // Generic selector for Shadcn Select trigger
-    this.typeTrigger = page.locator('button[role="combobox"]').first()
-    this.submitButton = page.getByRole('button', { name: 'Submit' })
+    this.form = page
+      .locator('form')
+      .filter({ has: page.locator('input[name="title"]') })
+      .first()
+    this.titleInput = this.form.locator('input[name="title"]').first()
+    this.urlInput = this.form.locator('input[name="url"]').first()
+    // Optional content type select; not required for successful submit.
+    this.typeTrigger = this.form.locator('button[role="combobox"]').first()
+    this.submitButton = this.form.locator('button[type="submit"]').first()
   }
 
   async gotoNewLink() {
     await this.page.goto('/new-link')
   }
 
-  async createLink(
-    title: string,
-    url: string,
-    type: 'Article' | 'Video' | 'Repository' = 'Article',
-  ) {
+  async createLink(title: string, url: string) {
     await this.gotoNewLink()
+    await expect(this.titleInput).toBeVisible()
     await this.titleInput.fill(title)
     await this.urlInput.fill(url)
 
-    // Select Type
-    await this.typeTrigger.click()
-    await this.page.getByRole('option', { name: type }).click()
-
     await this.submitButton.click()
-    // Wait for the navigation to complete by checking for a specific element on the target page
-    await this.page.waitForSelector('text=Link submitted successfully!', { timeout: 10000 })
   }
 
   async verifyLinkVisible(title: string) {
