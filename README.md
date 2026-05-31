@@ -4,15 +4,11 @@ This template comes configured with the bare minimum to get started on anything 
 
 ## Quick start
 
-This template can be deployed directly from our Cloud hosting and it will setup MongoDB and cloud S3 object storage for media.
-
 ## Quick Start - local setup
 
 To spin up this template locally, follow these steps:
 
 ### Clone
-
-After you click the `Deploy` button above, you'll want to have standalone copy of this repo on your machine. If you've already cloned this repo, skip to [Development](#development).
 
 ### Development
 
@@ -22,7 +18,7 @@ After you click the `Deploy` button above, you'll want to have standalone copy o
 3. `pnpm install && pnpm dev` to install dependencies and start the dev server
 4. open `http://localhost:3000` to open the app in your browser
 
-That's it! Changes made in `./src` will be reflected in your app. Follow the on-screen instructions to login and create your first admin user. Then check out [Production](#production) once you're ready to build and serve your app, and [Deployment](#deployment) when you're ready to go live.
+That's it! Changes made in `./src` will be reflected in your app. Follow the on-screen instructions to login and create your first admin user. Then check out [Production](#production) once you're ready to build and serve your app, when you're ready to go live.
 
 #### Docker (Optional)
 

@@ -137,8 +137,6 @@ Available storage adapters:
 - **@payloadcms/storage-azure** - Azure Blob Storage
 - **@payloadcms/storage-gcs** - Google Cloud Storage
 - **@payloadcms/storage-r2** - Cloudflare R2
-- **@payloadcms/storage-vercel-blob** - Vercel Blob
-- **@payloadcms/storage-uploadthing** - Uploadthing
 
 ### AWS S3
 
