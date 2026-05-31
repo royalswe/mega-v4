@@ -1,4 +1,4 @@
-import type { CollectionBeforeChangeHook, CollectionConfig } from 'payload'
+import type { CollectionBeforeChangeHook, CollectionConfig, Where } from 'payload'
 
 import { checkRole } from '@/access/checkRole'
 import { resolveID } from '@/lib/community/userSignals'
@@ -35,7 +35,7 @@ const ensureUniqueVote: CollectionBeforeChangeHook = async ({
     throw new Error('Cannot vote on both link and post simultaneously')
   }
 
-  const where: any = {
+  const where: Where = {
     user: {
       equals: userId,
     },

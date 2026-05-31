@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { PostCard } from '@/components/posts/PostCard'
 import { getPostInteractions } from '@/app/(frontend)/data/getPostInteractions'
 import { getAuthenticatedUser } from '@/lib/auth'
-import { getDictionary } from '@/lib/dictionaries'
 import { Button } from '@/components/ui/button'
 
 import { BookmarksFilter } from '@/components/links/BookmarksFilter'
@@ -17,7 +16,6 @@ export default async function WallPage({
   searchParams: Promise<{ bookmarks?: string }>
 }) {
   const { user, payload } = await getAuthenticatedUser()
-  const { dict } = await getDictionary()
 
   // Use optional chaining for safe access
   const showNSFW = user?.settings?.nsfw === true
@@ -43,6 +41,7 @@ export default async function WallPage({
       },
       limit: 1000,
       depth: 0,
+      select: { post: true },
       user,
       overrideAccess: false,
     })

@@ -1,6 +1,8 @@
 'use client'
 
-import { type FormEvent, useEffect, useState } from 'react'
+import type { AppDictionary } from '@/lib/dictionaries'
+
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -10,7 +12,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 
-export function SubfeedCreateForm({ dict }: { dict: Record<string, any> }) {
+type SubfeedCreateDictionary = AppDictionary & {
+  subfeeds: AppDictionary['subfeeds'] & {
+    createForm: AppDictionary['subfeeds']['createForm'] & {
+      imageLabel?: string
+      imagePreviewAlt?: string
+      imageHelp?: string
+    }
+  }
+}
+
+export function SubfeedCreateForm({ dict }: { dict: SubfeedCreateDictionary }) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [name, setName] = useState('')
@@ -22,9 +34,7 @@ export function SubfeedCreateForm({ dict }: { dict: Record<string, any> }) {
 
   const copy = dict.subfeeds?.createForm || {}
 
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
+  const onSubmit = async () => {
     setIsSubmitting(true)
 
     try {
@@ -75,7 +85,13 @@ export function SubfeedCreateForm({ dict }: { dict: Record<string, any> }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            void onSubmit()
+          }}
+          className="space-y-4"
+        >
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="name">
               {copy.nameLabel || 'Name'}

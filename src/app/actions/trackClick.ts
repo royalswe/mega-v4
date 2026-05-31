@@ -41,6 +41,8 @@ export async function trackClick(linkId: number) {
     const identityKey = `link:${linkId}|fingerprint:${fingerprint}`
 
     // Unique identity key ensures one counted click per browser fingerprint per link.
+    // The `links.clickCount` counter is incremented in the `link-clicks` afterChange hook,
+    // keeping the trusted write inside the collection rather than this client-callable action.
     await payload.create({
       collection: 'link-clicks',
       data: {
@@ -48,23 +50,6 @@ export async function trackClick(linkId: number) {
         user: user?.id,
         fingerprint,
         identityKey,
-      },
-      overrideAccess: true,
-    })
-
-    const link = await payload.findByID({
-      collection: 'links',
-      id: linkId,
-      overrideAccess: false,
-    })
-
-    if (!link) return
-
-    await payload.update({
-      collection: 'links',
-      id: linkId,
-      data: {
-        clickCount: (link.clickCount || 0) + 1,
       },
       overrideAccess: true,
     })

@@ -158,6 +158,7 @@ export default async function HomePage({
       },
       limit: 1000,
       depth: 0,
+      select: { link: true },
       user,
       overrideAccess: false,
     })

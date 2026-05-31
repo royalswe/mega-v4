@@ -1,5 +1,7 @@
 'use client'
 
+import type { AppDictionary } from '@/lib/dictionaries'
+
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -26,13 +28,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
-export function ForgotPasswordForm({ dict }: { dict: Record<string, any> }) {
+export function ForgotPasswordForm({ dict }: { dict: AppDictionary }) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
   const forgotPasswordSchema = z.object({
-    email: z.email(dict.authForm.invalidEmail),
+    email: z.string().email(dict.authForm.invalidEmail),
   })
 
   type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>

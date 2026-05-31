@@ -196,9 +196,10 @@ export const recalculateVotes: CollectionAfterChangeHook & CollectionAfterDelete
         direction: -1,
       })
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
     req.payload.logger.error(
-      `Failed to recalculate vote signals for ${target.collection} ${target.id}: ${error.message}`,
+      `Failed to recalculate vote signals for ${target.collection} ${target.id}: ${message}`,
     )
   }
 }

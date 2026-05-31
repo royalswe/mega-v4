@@ -128,6 +128,7 @@ export default async function SubfeedsPage({
             sort: '-createdAt',
             limit: 1000,
             depth: 0,
+            select: { subfeed: true },
             ...withAccess,
           }),
           payload.find({
@@ -159,6 +160,7 @@ export default async function SubfeedsPage({
             sort: '-createdAt',
             limit: 1000,
             depth: 0,
+            select: { subfeed: true },
             ...withAccess,
           }),
         ])

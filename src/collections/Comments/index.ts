@@ -4,6 +4,7 @@ import type {
   CollectionAfterDeleteHook,
   CollectionBeforeChangeHook,
   CollectionConfig,
+  Where,
 } from 'payload'
 
 import { checkRole } from '@/access/checkRole'
@@ -25,7 +26,7 @@ const readAccess: Access = ({ req: { user } }) => {
       moderationStatus: {
         equals: 'visible',
       },
-    } as any
+    } as Where
   }
 
   if (canModerate(user)) return true
@@ -52,7 +53,7 @@ const readAccess: Access = ({ req: { user } }) => {
         ],
       },
     ],
-  } as any
+  } as Where
 }
 
 const updateAccess: Access = ({ req: { user } }) => {
@@ -72,7 +73,7 @@ const updateAccess: Access = ({ req: { user } }) => {
         },
       },
     ],
-  } as any
+  } as Where
 }
 
 const syncCommentScore: CollectionBeforeChangeHook = ({ data, originalDoc }) => {

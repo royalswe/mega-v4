@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import type { Subfeed } from '@/payload-types'
 import { faker } from '@faker-js/faker'
 
 import { asLexicalRichText, chance, pickOne, randomInt } from './utils.seed'
@@ -83,7 +84,7 @@ const postBlueprints: PostBlueprint[] = [
   },
 ]
 
-const pickEligibleSubfeed = (subfeeds: any[], authorId: number) => {
+const pickEligibleSubfeed = (subfeeds: Subfeed[], authorId: number) => {
   const eligibleSubfeeds = subfeeds.filter((subfeed) => {
     const members = readRelationshipIds(subfeed.members)
     const moderators = readRelationshipIds(subfeed.moderators)

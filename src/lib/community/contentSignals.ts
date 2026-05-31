@@ -11,6 +11,12 @@ interface RecalculateArgs {
   targetId: number
 }
 
+type TargetSignalDoc = {
+  createdAt?: string | null
+  clickCount?: number | null
+  sharesCount?: number | null
+}
+
 export const recalculateTargetSignals = async ({
   req,
   targetCollection,
@@ -56,7 +62,7 @@ export const recalculateTargetSignals = async ({
   ])
 
   if (!targetDoc) return
-  const targetAny = targetDoc as any
+  const targetDocData = targetDoc as TargetSignalDoc
 
   let upvotes = 0
   let downvotes = 0
@@ -105,21 +111,21 @@ export const recalculateTargetSignals = async ({
     discoveryMomentum = Math.round((discoveryMomentum + discoveries.docs.length * 8) * 100) / 100
   } else {
     const clickCount =
-      typeof targetAny.clickCount === 'number' && Number.isFinite(targetAny.clickCount)
-        ? targetAny.clickCount
+      typeof targetDocData.clickCount === 'number' && Number.isFinite(targetDocData.clickCount)
+        ? targetDocData.clickCount
         : 0
 
     discoveryMomentum = Math.round(clickCount * 0.35 * 100) / 100
   }
 
   const ranking = calculateRanking({
-    createdAt: targetAny.createdAt,
+    createdAt: targetDocData.createdAt ?? new Date().toISOString(),
     upvotes,
     downvotes,
     commentsCount,
     sharesCount:
-      typeof targetAny.sharesCount === 'number' && Number.isFinite(targetAny.sharesCount)
-        ? targetAny.sharesCount
+      typeof targetDocData.sharesCount === 'number' && Number.isFinite(targetDocData.sharesCount)
+        ? targetDocData.sharesCount
         : 0,
     uniqueCommenters,
     trustedInteractions,
@@ -127,7 +133,8 @@ export const recalculateTargetSignals = async ({
   })
 
   const score = upvotes - downvotes
-  const ageHours = Math.max(0, (Date.now() - new Date(targetAny.createdAt).getTime()) / 3_600_000)
+  const createdAt = targetDocData.createdAt ?? new Date().toISOString()
+  const ageHours = Math.max(0, (Date.now() - new Date(createdAt).getTime()) / 3_600_000)
 
   await req.payload.update({
     collection: targetCollection,
@@ -152,5 +159,5 @@ export const recalculateTargetSignals = async ({
     },
     overrideAccess: true,
     req,
-  } as any)
+  } as Parameters<typeof req.payload.update>[0])
 }

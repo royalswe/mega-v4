@@ -4,6 +4,7 @@ import type {
   CollectionBeforeValidateHook,
   CollectionConfig,
   FieldAccess,
+  Where,
 } from 'payload'
 
 import { calculateRanking } from '@/lib/community/ranking'
@@ -26,7 +27,7 @@ const readAccess: Access = ({ req: { user } }) => {
       status: {
         equals: 'published',
       },
-    } as any
+    } as Where
   }
 
   if (canModerateCommunity(user)) {
@@ -55,7 +56,7 @@ const readAccess: Access = ({ req: { user } }) => {
         ],
       },
     ],
-  } as any
+  } as Where
 }
 
 const updateAccess: Access = ({ req: { user } }) => {
@@ -75,7 +76,7 @@ const updateAccess: Access = ({ req: { user } }) => {
         },
       },
     ],
-  } as any
+  } as Where
 }
 
 const preparePost: CollectionBeforeValidateHook = async ({ data, operation, req }) => {

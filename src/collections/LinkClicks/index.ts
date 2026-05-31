@@ -1,6 +1,45 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionAfterChangeHook, CollectionConfig } from 'payload'
 
 import { checkRole } from '@/access/checkRole'
+
+const incrementLinkClickCount: CollectionAfterChangeHook = async ({ doc, operation, req }) => {
+  if (operation !== 'create') return doc
+
+  const linkId =
+    typeof doc.link === 'number'
+      ? doc.link
+      : typeof doc.link === 'object' && doc.link
+        ? (doc.link as { id?: number }).id
+        : null
+
+  if (!linkId) return doc
+
+  try {
+    const link = await req.payload.findByID({
+      collection: 'links',
+      id: linkId,
+      depth: 0,
+      overrideAccess: true,
+      req,
+    })
+
+    if (!link) return doc
+
+    await req.payload.update({
+      collection: 'links',
+      id: linkId,
+      data: {
+        clickCount: (link.clickCount || 0) + 1,
+      },
+      overrideAccess: true,
+      req,
+    })
+  } catch (error) {
+    req.payload.logger.error({ msg: 'Failed to increment link click count', err: error })
+  }
+
+  return doc
+}
 
 export const LinkClicks: CollectionConfig = {
   slug: 'link-clicks',
@@ -58,5 +97,6 @@ export const LinkClicks: CollectionConfig = {
         return data
       },
     ],
+    afterChange: [incrementLinkClickCount],
   },
 }

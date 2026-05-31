@@ -1,5 +1,7 @@
 'use client'
 
+import type { AppDictionary } from '@/lib/dictionaries'
+
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import * as z from 'zod'
@@ -15,7 +17,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { RichTextEditor } from '@/components/ui/RichTextEditor'
-import { submitComment } from '@/app/actions/comments'
+import { submitComment, submitPostComment } from '@/app/actions/comments'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
@@ -34,7 +36,7 @@ export function CommentForm({
   linkId?: number
   postId?: number
   userId?: string | number | null
-  dict: Record<string, any>
+  dict: AppDictionary
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const form = useForm<z.infer<typeof formSchema>>({
@@ -50,8 +52,6 @@ export function CommentForm({
       if (linkId) {
         await submitComment(linkId, values.comment)
       } else if (postId) {
-        // We'll need to create a submitPostComment action
-        const { submitPostComment } = await import('@/app/actions/comments')
         await submitPostComment(postId, values.comment)
       }
       toast.success(dict.common.commentAdded)
@@ -84,7 +84,7 @@ export function CommentForm({
           name="comment"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Add a comment</FormLabel>
+              <FormLabel>{dict.common.addComment}</FormLabel>
               <FormControl>
                 <RichTextEditor
                   placeholder="What are your thoughts?"
