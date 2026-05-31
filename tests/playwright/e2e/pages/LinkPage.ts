@@ -27,19 +27,43 @@ export class LinkPage {
     await this.page.goto('/new-link')
   }
 
-  async createLink(title: string, url: string) {
+  async createLink(title: string, url: string): Promise<number> {
     await this.gotoNewLink()
     await expect(this.titleInput).toBeVisible()
     await this.titleInput.fill(title)
     await this.urlInput.fill(url)
 
     await this.submitButton.click()
-  }
 
-  async verifyLinkVisible(title: string) {
-    // Navigate to /submitted to see the link if it's draft/pending, or confirm where it lands
-    // Based on test analysis, newly created links might be in /submitted
-    await this.page.goto('/submitted')
-    await expect(this.page.getByText(title)).toBeVisible()
+    // Form returns to idle after submit; then resolve the created link by title.
+    await expect(this.submitButton).toBeEnabled({ timeout: 15000 })
+
+    let createdLinkId: number | null = null
+    await expect
+      .poll(
+        async () => {
+          const response = await this.page.request.get(
+            `/api/links?where[title][equals]=${encodeURIComponent(title)}&sort=-createdAt&limit=1&draft=true`,
+          )
+
+          if (!response.ok()) return null
+
+          const payload = (await response.json()) as {
+            docs?: Array<{ id?: number }>
+          }
+
+          const id = payload.docs?.[0]?.id
+          createdLinkId = typeof id === 'number' ? id : null
+          return createdLinkId
+        },
+        { timeout: 15000 },
+      )
+      .not.toBeNull()
+
+    if (createdLinkId === null) {
+      throw new Error(`Could not resolve created link ID for title: ${title}`)
+    }
+
+    return createdLinkId
   }
 }

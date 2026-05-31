@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test } from '@playwright/test'
 import { LinkPage } from './pages/LinkPage'
 import { VotingPage } from './pages/VotingPage'
 import { faker } from '@faker-js/faker'
@@ -11,24 +11,17 @@ test.describe('Voting Flow', () => {
     const linkPage = new LinkPage(page)
     const votingPage = new VotingPage(page)
 
-    // 1. Create a Link (User is already logged in via global setup)
-    await linkPage.createLink(linkTitle, linkUrl)
+    // 1. Create a link and resolve its ID from the authenticated API.
+    const linkId = await linkPage.createLink(linkTitle, linkUrl)
 
-    // 2. Verify Link appears
-    await linkPage.verifyLinkVisible(linkTitle)
+    // 2. Navigate directly to the new link details page.
+    await votingPage.gotoLink(linkId)
 
-    // 3. Vote on the link
-    // Find the upvote button for this link.
-    const linkCard = votingPage.getLinkCard(linkTitle)
-    await expect(linkCard).toBeVisible()
+    // 3. Verify initial vote count and upvote.
+    await votingPage.verifyVoteCount(linkId, 0)
+    await votingPage.upvote()
 
-    // 4. Verify Vote Count starts at 0 or check initial state
-    // New links have 0 votes.
-    await expect(linkCard).toContainText('0')
-
-    await votingPage.upvote(linkTitle)
-
-    // 5. Verify Vote Count updates to 1
-    await expect(linkCard).toContainText('1')
+    // 4. Verify vote count updates.
+    await votingPage.verifyVoteCount(linkId, 1)
   })
 })

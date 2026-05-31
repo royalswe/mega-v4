@@ -63,6 +63,7 @@ export function VoteButtons({
       <Button
         size="sm"
         variant="ghost"
+        aria-label="Upvote link"
         disabled={isPending || !isEnabled}
         onClick={() => handleVote('up')}
         className={cn(
@@ -74,6 +75,7 @@ export function VoteButtons({
         <ArrowUp className="w-4 h-4" />
       </Button>
       <span
+        data-testid={`link-vote-count-${linkId}`}
         className={cn(
           'text-sm font-bold',
           optimisticState.userVote === 'up' && 'text-green-600!',
@@ -85,6 +87,7 @@ export function VoteButtons({
       <Button
         size="sm"
         variant="ghost"
+        aria-label="Downvote link"
         disabled={isPending || !isEnabled}
         onClick={() => handleVote('down')}
         className={cn(
