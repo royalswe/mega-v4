@@ -1,6 +1,7 @@
 import type {
   Access,
   CollectionBeforeChangeHook,
+  CollectionBeforeDeleteHook,
   CollectionBeforeValidateHook,
   CollectionConfig,
   FieldAccess,
@@ -204,6 +205,19 @@ const syncDerivedSignals: CollectionBeforeChangeHook = ({ data, originalDoc }) =
   }
 }
 
+const deleteRelatedLinkClicks: CollectionBeforeDeleteHook = async ({ id, req }) => {
+  await req.payload.delete({
+    collection: 'link-clicks',
+    where: {
+      link: {
+        equals: id,
+      },
+    },
+    overrideAccess: true,
+    req,
+  })
+}
+
 export const Links: CollectionConfig = {
   slug: 'links',
   admin: {
@@ -225,6 +239,7 @@ export const Links: CollectionConfig = {
   hooks: {
     beforeValidate: [prepareLink],
     beforeChange: [syncDerivedSignals],
+    beforeDelete: [deleteRelatedLinkClicks],
   },
   fields: [
     {
