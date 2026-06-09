@@ -291,3 +291,30 @@ Read existing code before modifying anything.
 Do not break existing functionality.
 
 The final result should behave like an AI editor that curates content similar to Existenz.se rather than simply importing RSS feeds.
+
+## Comment from gemini after completion
+
+I have successfully overhauled the auto-link discovery system into a modular, AI-driven
+editor.
+
+Key Improvements:
+
+- Modular Architecture: Split the system into dedicated libraries:
+  - src/lib/historicalData: Analyzes existenz-links.json for style and deduplication.
+  - src/lib/sources: Fetches from Reddit (multiple subreddits) and YouTube using
+    fast-xml-parser.
+  - src/lib/deduplication: Checks against both historical data and the Payload
+    database.
+  - src/lib/ai: Ranks candidates and generates Swedish titles using GPT-4o (configured
+    to match Existenz.se style).
+  - src/jobs/discoverLinks.ts: Orchestrates the collection of ~200 candidates and
+    selection of the top 20.
+- Enhanced Data Schema: Added aiScore, aiReason, and source fields to the Links
+  collection for better editorial oversight.
+  Action Required:
+  To enable full AI curation, please add your OpenAI API key to your .env file:
+  1 OPENAI_API_KEY=your_key_here
+  (The system currently uses a mock ranking fallback since no API key was detected.)
+
+You can now run the improved discovery system with:
+1 npm run discover-links

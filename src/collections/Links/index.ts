@@ -398,6 +398,30 @@ export const Links: CollectionConfig = {
       admin: { readOnly: true },
     },
     {
+      name: 'aiScore',
+      type: 'number',
+      admin: {
+        position: 'sidebar',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'aiReason',
+      type: 'textarea',
+      admin: {
+        position: 'sidebar',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'source',
+      type: 'text',
+      admin: {
+        position: 'sidebar',
+        readOnly: true,
+      },
+    },
+    {
       name: 'uniqueCommenters',
       type: 'number',
       defaultValue: 0,

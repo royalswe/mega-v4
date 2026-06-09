@@ -260,6 +260,9 @@ export interface Link {
   downvotes?: number | null;
   commentsCount?: number | null;
   sharesCount?: number | null;
+  aiScore?: number | null;
+  aiReason?: string | null;
+  source?: string | null;
   uniqueCommenters?: number | null;
   trustedInteractions?: number | null;
   spamProbability?: number | null;
@@ -775,6 +778,9 @@ export interface LinksSelect<T extends boolean = true> {
   downvotes?: T;
   commentsCount?: T;
   sharesCount?: T;
+  aiScore?: T;
+  aiReason?: T;
+  source?: T;
   uniqueCommenters?: T;
   trustedInteractions?: T;
   spamProbability?: T;
