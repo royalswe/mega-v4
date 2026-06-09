@@ -1,8 +1,9 @@
-import * as migration_20260210_184006 from './20260210_184006'
-import * as migration_20260527_194848_community_engine_feature from './20260527_194848_community_engine_feature'
-import * as migration_20260528_205202___name from './20260528_205202___name'
-import * as migration_20260530_205839 from './20260530_205839'
-import * as migration_20260530_214358_media_uploaded_by from './20260530_214358_media_uploaded_by'
+import * as migration_20260210_184006 from './20260210_184006';
+import * as migration_20260527_194848_community_engine_feature from './20260527_194848_community_engine_feature';
+import * as migration_20260528_205202___name from './20260528_205202___name';
+import * as migration_20260530_205839 from './20260530_205839';
+import * as migration_20260530_214358_media_uploaded_by from './20260530_214358_media_uploaded_by';
+import * as migration_20260609_205953 from './20260609_205953';
 
 export const migrations = [
   {
@@ -30,4 +31,9 @@ export const migrations = [
     down: migration_20260530_214358_media_uploaded_by.down,
     name: '20260530_214358_media_uploaded_by',
   },
-]
+  {
+    up: migration_20260609_205953.up,
+    down: migration_20260609_205953.down,
+    name: '20260609_205953'
+  },
+];
