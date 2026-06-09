@@ -1,5 +1,6 @@
-import type { Payload } from 'payload'
-import { getPayload } from 'payload'
+import { type Payload, getPayload } from 'payload'
+import { fileURLToPath } from 'url'
+import path from 'path'
 import configPromise from '@payload-config'
 import { collectCandidates } from '../lib/sources'
 import { filterDuplicates } from '../lib/deduplication'
@@ -7,6 +8,7 @@ import { rankCandidates } from '../lib/ai'
 
 const AGENT_EMAIL = 'agent@existenz.se'
 const AGENT_USERNAME = 'auto-agent'
+const __filename = fileURLToPath(import.meta.url)
 
 async function getAgentUser(payload: Payload) {
   const { docs: users } = await payload.find({
@@ -28,7 +30,7 @@ async function getAgentUser(payload: Payload) {
     data: {
       email: AGENT_EMAIL,
       username: AGENT_USERNAME,
-      password: 'agent-password-123!',
+      password: process.env.AGENT_PASSWORD,
       roles: ['user', 'uploader'],
       settings: {
         nsfw: true,
@@ -100,7 +102,7 @@ export async function discoverLinks() {
 }
 
 // If running directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (path.resolve(__filename) === path.resolve(process.argv[1] ?? '')) {
   discoverLinks()
     .then(() => process.exit(0))
     .catch((err) => {

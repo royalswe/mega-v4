@@ -60,6 +60,10 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Copy files needed for background jobs
+COPY --from=builder --chown=nextjs:nodejs /app/existenz-links.json ./existenz-links.json
+# COPY --from=builder --chown=nextjs:nodejs /app/src ./src
+
 RUN mkdir -p media && chown -R nextjs:nodejs media
 
 USER nextjs

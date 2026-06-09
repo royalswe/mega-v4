@@ -1,4 +1,4 @@
-import { getPayload } from 'payload'
+import { type Payload, getPayload } from 'payload'
 import configPromise from '@payload-config'
 import fs from 'fs'
 import path from 'path'
@@ -71,11 +71,11 @@ const SOURCES: Source[] = [
     name: 'CrazyFuckingVideos',
     url: 'https://www.reddit.com/r/crazyfuckingvideos/hot/.rss',
     type: 'reddit',
-    prefix: 'Djur: ',
+    prefix: 'Galen: ',
   },
 ]
 
-async function getAgentUser(payload: any) {
+async function getAgentUser(payload: Payload) {
   const { docs: users } = await payload.find({
     collection: 'users',
     where: {
@@ -95,7 +95,11 @@ async function getAgentUser(payload: any) {
     data: {
       email: AGENT_EMAIL,
       username: AGENT_USERNAME,
-      password: 'agent-password-123!',
+      password:
+        process.env.AGENT_PASSWORD ||
+        (() => {
+          throw new Error('AGENT_PASSWORD environment variable is required')
+        })(),
       roles: ['user', 'uploader'],
       settings: {
         nsfw: true,
@@ -158,7 +162,7 @@ async function fetchSource(source: Source) {
       return []
     }
     const xml = await response.text()
-    const entries: any[] = []
+    const entries: { title: string; url: string; nsfw: boolean }[] = []
 
     if (source.type === 'reddit') {
       const entryMatches = xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)

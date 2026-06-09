@@ -39,7 +39,7 @@ For each item in the input list, return a JSON object inside an "items" array wi
   "reason": "short explanation in English"
 }`
 
-async function rankWithOpenAI(batch: Candidate[], examples: string): Promise<any[]> {
+async function rankWithOpenAI(batch: Candidate[], examples: string): Promise<unknown[]> {
   if (!openai) return []
   try {
     const response = await openai.chat.completions.create({
@@ -63,10 +63,12 @@ async function rankWithOpenAI(batch: Candidate[], examples: string): Promise<any
   }
 }
 
-async function rankWithGemini(batch: Candidate[], examples: string): Promise<any[]> {
+async function rankWithGemini(batch: Candidate[], examples: string): Promise<unknown[]> {
   if (!genAI) return []
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' })
+    const model = genAI.getGenerativeModel({
+      model: process.env.GEMINI_MODEL || 'gemini-3-flash-preview',
+    })
     const prompt = `${SYSTEM_PROMPT(examples)}\n\nInput items:\n${JSON.stringify(batch.map((c) => ({ title: c.title, source: c.source, type: c.type })))}`
 
     const result = await model.generateContent(prompt)
@@ -114,7 +116,7 @@ export async function rankCandidates(candidates: Candidate[]): Promise<RankedCan
 
   for (let i = 0; i < candidates.length; i += batchSize) {
     const batch = candidates.slice(i, i + batchSize)
-    let results: any[] = []
+    let results: unknown[] = []
 
     if (process.env.GEMINI_API_KEY) {
       results = await rankWithGemini(batch, examples)
@@ -123,8 +125,18 @@ export async function rankCandidates(candidates: Candidate[]): Promise<RankedCan
     }
 
     if (results.length > 0) {
+      if (results.length < batch.length) {
+        console.warn(
+          `AI returned ${results.length} results for batch of ${batch.length} candidates`,
+        )
+      }
       for (let j = 0; j < Math.min(batch.length, results.length); j++) {
-        const res = results[j]
+        const res = results[j] as {
+          score?: number
+          title?: string
+          reason?: string
+          nsfw?: boolean
+        }
         if (res && typeof res.score === 'number') {
           ranked.push({
             ...batch[j],

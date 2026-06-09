@@ -30,8 +30,13 @@ export function loadHistoricalData(): HistoricalDay[] {
 
   try {
     const content = fs.readFileSync(HISTORICAL_DATA_PATH, 'utf-8')
-    cachedData = JSON.parse(content)
-    return cachedData || []
+    const parsed = JSON.parse(content)
+    if (!Array.isArray(parsed)) {
+      console.error('Historical data is not an array')
+      return []
+    }
+    cachedData = parsed
+    return cachedData
   } catch (error) {
     console.error('Failed to load historical data:', error)
     return []

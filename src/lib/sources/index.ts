@@ -16,7 +16,9 @@ const parser = new XMLParser({
 })
 
 function extractYoutubeId(url: string): string | null {
-  const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i)
+  const match = url.match(
+    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i,
+  )
   return match ? match[1] : null
 }
 
@@ -40,9 +42,9 @@ async function fetchRss(url: string, sourceName: string): Promise<Candidate[]> {
     if (!response.ok) return []
     const xml = await response.text()
     const data = parser.parse(xml)
-    
+
     const candidates: Candidate[] = []
-    
+
     // Handle Atom (Reddit/YouTube)
     if (data.feed && data.feed.entry) {
       const entries = Array.isArray(data.feed.entry) ? data.feed.entry : [data.feed.entry]
@@ -51,12 +53,15 @@ async function fetchRss(url: string, sourceName: string): Promise<Candidate[]> {
         let link = ''
         if (entry.link) {
           if (Array.isArray(entry.link)) {
-            link = entry.link.find((l: any) => l['@_rel'] === 'alternate')?.['@_href'] || entry.link[0]?.['@_href']
+            link =
+              entry.link.find(
+                (l: { '@_rel': string; '@_href': string }) => l['@_rel'] === 'alternate',
+              )?.['@_href'] || entry.link[0]?.['@_href']
           } else {
             link = entry.link['@_href']
           }
         }
-        
+
         let contentUrl = link
         if (entry.content && entry.content['#text']) {
           const contentHtml = decodeHtml(entry.content['#text'])
@@ -65,36 +70,42 @@ async function fetchRss(url: string, sourceName: string): Promise<Candidate[]> {
         }
 
         const yid = extractYoutubeId(contentUrl)
-        
+
         candidates.push({
           title,
           url: yid || contentUrl,
           source: sourceName,
           nsfw: xml.includes('nsfw') || title.toLowerCase().includes('nsfw'),
-          type: yid ? 'video' : (contentUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? 'image' : 'article'),
-          youtubeId: yid || undefined
+          type: yid
+            ? 'video'
+            : contentUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+              ? 'image'
+              : 'article',
+          youtubeId: yid || undefined,
         })
       }
-    } 
+    }
     // Handle standard RSS
     else if (data.rss && data.rss.channel && data.rss.channel.item) {
-      const items = Array.isArray(data.rss.channel.item) ? data.rss.channel.item : [data.rss.channel.item]
+      const items = Array.isArray(data.rss.channel.item)
+        ? data.rss.channel.item
+        : [data.rss.channel.item]
       for (const item of items) {
         const title = decodeHtml(item.title || '')
         const url = item.link || ''
         const yid = extractYoutubeId(url)
-        
+
         candidates.push({
           title,
           url: yid || url,
           source: sourceName,
           nsfw: title.toLowerCase().includes('nsfw'),
           type: yid ? 'video' : 'article',
-          youtubeId: yid || undefined
+          youtubeId: yid || undefined,
         })
       }
     }
-    
+
     return candidates
   } catch (error) {
     console.error(`Error fetching source ${sourceName}:`, error)
@@ -113,8 +124,14 @@ export async function collectCandidates(): Promise<Candidate[]> {
     { name: 'r/nextfuckinglevel', url: 'https://www.reddit.com/r/nextfuckinglevel/hot/.rss' },
     { name: 'r/interestingasfuck', url: 'https://www.reddit.com/r/interestingasfuck/hot/.rss' },
     // Some popular YouTube channels instead of trending feed
-    { name: 'YouTube: FailArmy', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCoY7U_Wp_OatfN6K_LpW_Pw' },
-    { name: 'YouTube: People Are Awesome', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCv77YatT0_p6S_uK7HstFsw' },
+    {
+      name: 'YouTube: FailArmy',
+      url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCoY7U_Wp_OatfN6K_LpW_Pw',
+    },
+    {
+      name: 'YouTube: People Are Awesome',
+      url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCv77YatT0_p6S_uK7HstFsw',
+    },
   ]
 
   const allCandidates: Candidate[] = []
