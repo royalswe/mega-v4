@@ -1,7 +1,43 @@
 import type { CollectionConfig } from 'payload'
 
+import { checkRole } from '@/access/checkRole'
+import { resolveID } from '@/lib/community/userSignals'
+
 export const Bookmarks: CollectionConfig = {
   slug: 'bookmarks',
+  access: {
+    read: ({ req: { user } }) => {
+      if (!user) return false
+      if (checkRole(['admin', 'moderator', 'editor'], user)) return true
+
+      return {
+        user: {
+          equals: user.id,
+        },
+      }
+    },
+    create: ({ req: { user } }) => Boolean(user),
+    update: ({ req: { user } }) => {
+      if (!user) return false
+      if (checkRole(['admin', 'moderator', 'editor'], user)) return true
+
+      return {
+        user: {
+          equals: user.id,
+        },
+      }
+    },
+    delete: ({ req: { user } }) => {
+      if (!user) return false
+      if (checkRole(['admin', 'moderator', 'editor'], user)) return true
+
+      return {
+        user: {
+          equals: user.id,
+        },
+      }
+    },
+  },
   fields: [
     {
       name: 'user',
@@ -24,6 +60,17 @@ export const Bookmarks: CollectionConfig = {
     },
   ],
   hooks: {
+    beforeChange: [
+      ({ data, req }) => {
+        if (!req.user) return data
+        if (checkRole(['admin', 'moderator'], req.user)) return data
+
+        return {
+          ...data,
+          user: resolveID(req.user) || data?.user,
+        }
+      },
+    ],
     beforeValidate: [
       ({ data }) => {
         // Ensure either link or post is provided, but not both

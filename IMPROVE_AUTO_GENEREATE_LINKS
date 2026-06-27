@@ -1,0 +1,320 @@
+# TASK
+
+Improve the automatic link discovery system for this Payload CMS project.
+
+The goal is to automatically add approximately 20 high-quality links per day in the style of Existenz.se.
+
+Current implementation is too simplistic. It mostly imports RSS titles and publishes them directly.
+
+The system should behave like an editor, not a feed reader.
+
+---
+
+# Existing Files
+
+Historical examples:
+
+```text
+./existenz-links.json
+```
+
+Payload collection:
+
+```text
+src/collections/Links/index.ts
+```
+
+Inspect the collection schema before creating documents.
+
+Do not assume field names.
+
+---
+
+# Main Goal
+
+Produce entertaining content similar to Existenz.se.
+
+Prioritize:
+
+- Funny videos
+- Public freakouts
+- WTF moments
+- Fails
+- Amazing skills
+- Unexpected events
+- Swedish humor
+- Animals
+- Memes
+- Viral clips
+
+Entertainment value is more important than news value.
+
+---
+
+# Sources
+
+Prefer:
+
+- r/PublicFreakout
+- r/Unexpected
+- r/funny
+- r/Whatcouldgowrong
+- r/therewasanattempt
+- r/CrazyFuckingVideos
+- r/nextfuckinglevel
+- r/interestingasfuck
+- YouTube channels
+- RSS feeds containing videos
+
+Remove sources that are mostly text news:
+
+- BBC
+- Hacker News
+- The Verge
+
+---
+
+# Improve Architecture
+
+Current architecture:
+
+source
+↓
+title
+↓
+publish
+
+Replace with:
+
+sources
+↓
+collect 100-200 candidates
+↓
+deduplicate
+↓
+AI ranking
+↓
+title generation
+↓
+top 20
+↓
+Payload CMS
+
+---
+
+# Historical Dataset
+
+Use:
+
+```text
+./existenz-links.json
+```
+
+not only for duplicate detection.
+
+Learn:
+
+- title style
+- categories
+- source types
+- NSFW patterns
+- what content gets posted
+
+The historical dataset is the source of truth.
+
+---
+
+# AI Ranking
+
+Implement an AI editor.
+
+For each candidate:
+
+Provide:
+
+- title
+- description
+- URL
+- source
+
+Retrieve similar examples from existenz-links.json.
+
+Ask the model:
+
+"Would this fit the audience of the site?"
+
+Return:
+
+```ts
+{
+ score: number,
+ title: string,
+ nsfw: boolean,
+ reason: string
+}
+```
+
+Only accept:
+
+```ts
+score >= 8
+```
+
+Target:
+
+20 links every 24 hours.
+
+Quality is more important than quantity.
+
+---
+
+# Title Style
+
+Generate titles similar to historical entries.
+
+Examples:
+
+- Svensk humor: ...
+- WTF: ...
+- Fail: ...
+- Djur: ...
+- Teknik: ...
+- Webm: ...
+
+Avoid:
+
+- emojis
+- ALL CAPS
+- excessive clickbait
+- long titles
+
+Maximum title length:
+
+100 characters.
+
+---
+
+# Duplicate Detection
+
+Search:
+
+1. existenz-links.json
+2. existing Payload documents
+
+Reject:
+
+- same URLs
+- same YouTube IDs
+- similar titles
+- reposts
+
+---
+
+# XML Parsing
+
+Do not parse XML with regex.
+
+Replace with:
+
+- fast-xml-parser
+
+Create reusable utilities.
+
+---
+
+# YouTube
+
+Replace invalid trending feeds.
+
+Use:
+
+- YouTube Data API
+- channel feeds
+- reddit video links
+
+---
+
+# Publishing
+
+Initially create:
+
+```ts
+_status: 'draft'
+```
+
+instead of publishing immediately.
+
+Add fields such as:
+
+```ts
+aiScore
+aiReason
+source
+```
+
+if they exist.
+
+If they do not exist, add them in a backward-compatible way.
+
+---
+
+# Code Requirements
+
+Use TypeScript.
+
+Reuse existing project structure.
+
+Keep code clean and modular.
+
+Split logic into:
+
+```text
+src/jobs/discoverLinks.ts
+
+src/lib/sources/
+
+src/lib/ai/
+
+src/lib/deduplication/
+
+src/lib/titleGeneration/
+
+src/lib/historicalData/
+```
+
+Avoid large files.
+
+Prefer small composable functions.
+
+Read existing code before modifying anything.
+
+Do not break existing functionality.
+
+The final result should behave like an AI editor that curates content similar to Existenz.se rather than simply importing RSS feeds.
+
+## Comment from gemini after completion
+
+I have successfully overhauled the auto-link discovery system into a modular, AI-driven
+editor.
+
+Key Improvements:
+
+- Modular Architecture: Split the system into dedicated libraries:
+  - src/lib/historicalData: Analyzes existenz-links.json for style and deduplication.
+  - src/lib/sources: Fetches from Reddit (multiple subreddits) and YouTube using
+    fast-xml-parser.
+  - src/lib/deduplication: Checks against both historical data and the Payload
+    database.
+  - src/lib/ai: Ranks candidates and generates Swedish titles using GPT-4o (configured
+    to match Existenz.se style).
+  - src/jobs/discoverLinks.ts: Orchestrates the collection of ~200 candidates and
+    selection of the top 20.
+- Enhanced Data Schema: Added aiScore, aiReason, and source fields to the Links
+  collection for better editorial oversight.
+  Action Required:
+  To enable full AI curation, please add your OpenAI API key to your .env file:
+  1 OPENAI_API_KEY=your_key_here
+  (The system currently uses a mock ranking fallback since no API key was detected.)
+
+You can now run the improved discovery system with:
+1 npm run discover-links

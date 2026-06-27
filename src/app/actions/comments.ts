@@ -11,6 +11,10 @@ export async function submitComment(linkId: number, comment: string) {
   }
 
   const userId = user.id
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
 
   await payload.create({
     collection: 'comments',
@@ -19,6 +23,7 @@ export async function submitComment(linkId: number, comment: string) {
       user: userId,
       comment: JSON.parse(comment),
     },
+    ...withAccess,
   })
 
   revalidatePath(`/link/${linkId}`)
@@ -33,6 +38,10 @@ export async function submitPostComment(postId: number, comment: string) {
   }
 
   const userId = user.id
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
 
   await payload.create({
     collection: 'comments',
@@ -41,6 +50,7 @@ export async function submitPostComment(postId: number, comment: string) {
       user: userId,
       comment: JSON.parse(comment),
     },
+    ...withAccess,
   })
 
   revalidatePath(`/post/${postId}`)

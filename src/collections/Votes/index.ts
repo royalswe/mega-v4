@@ -1,5 +1,80 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionBeforeChangeHook, CollectionConfig, Where } from 'payload'
+
+import { checkRole } from '@/access/checkRole'
+import { resolveID } from '@/lib/community/userSignals'
+
 import { recalculateVotes } from './hooks/recalculateVotes'
+
+const ensureUniqueVote: CollectionBeforeChangeHook = async ({
+  data,
+  operation,
+  req,
+  originalDoc,
+}) => {
+  const userId = resolveID(data?.user) || resolveID(req.user)
+  const currentVoteId = resolveID(originalDoc)
+
+  if (!userId) {
+    throw new Error('Voting requires an authenticated user')
+  }
+
+  const isModerator = checkRole(['admin', 'moderator'], req.user)
+  const nextData: Record<string, unknown> = {
+    ...data,
+    user: isModerator ? data?.user || userId : userId,
+  }
+
+  const linkId = resolveID(nextData.link)
+  const postId = resolveID(nextData.post)
+
+  if (!linkId && !postId) {
+    throw new Error('Either link or post must be provided')
+  }
+
+  if (linkId && postId) {
+    throw new Error('Cannot vote on both link and post simultaneously')
+  }
+
+  const where: Where = {
+    user: {
+      equals: userId,
+    },
+  }
+
+  if (linkId) {
+    where.link = {
+      equals: linkId,
+    }
+  }
+
+  if (postId) {
+    where.post = {
+      equals: postId,
+    }
+  }
+
+  if (operation === 'update' && currentVoteId) {
+    where.id = {
+      not_equals: currentVoteId,
+    }
+  }
+
+  const existingVotes = await req.payload.find({
+    collection: 'votes',
+    where,
+    limit: 1,
+    depth: 0,
+    pagination: false,
+    overrideAccess: true,
+    req,
+  })
+
+  if (existingVotes.docs.length > 0) {
+    throw new Error('You have already voted on this item')
+  }
+
+  return nextData
+}
 
 /**
  * Votes collection configuration.
@@ -7,22 +82,29 @@ import { recalculateVotes } from './hooks/recalculateVotes'
  */
 export const Votes: CollectionConfig = {
   slug: 'votes',
+  admin: {
+    defaultColumns: ['user', 'link', 'post', 'vote', 'createdAt'],
+    group: 'Social',
+  },
   fields: [
     {
       name: 'user',
       type: 'relationship',
       relationTo: 'users',
       required: true,
+      index: true,
     },
     {
       name: 'link',
       type: 'relationship',
       relationTo: 'links',
+      index: true,
     },
     {
       name: 'post',
       type: 'relationship',
       relationTo: 'posts',
+      index: true,
     },
     {
       name: 'vote',
@@ -41,11 +123,22 @@ export const Votes: CollectionConfig = {
     },
   ],
   access: {
-    create: ({ req: { user } }) => !!user,
-    update: ({ req: { user } }) => !!user,
-    delete: ({ req: { user } }) => !!user,
+    read: ({ req: { user } }) => {
+      if (!user) return false
+      if (checkRole(['admin', 'moderator', 'editor'], user)) return true
+
+      return {
+        user: {
+          equals: user.id,
+        },
+      }
+    },
+    create: ({ req: { user } }) => Boolean(user),
+    update: ({ req: { user } }) => Boolean(user),
+    delete: ({ req: { user } }) => Boolean(user),
   },
   hooks: {
+    beforeChange: [ensureUniqueVote],
     beforeValidate: [
       ({ data }) => {
         // Ensure either link or post is provided, but not both

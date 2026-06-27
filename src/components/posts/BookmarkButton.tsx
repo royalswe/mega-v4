@@ -1,5 +1,7 @@
 'use client'
 
+import type { AppDictionary } from '@/lib/dictionaries'
+
 import { useTransition } from 'react'
 import { Bookmark } from 'lucide-react'
 import { toggleBookmark } from '@/app/actions/posts'
@@ -13,7 +15,7 @@ export function BookmarkButton({
   postId: number
   userId?: string | number | null
   isBookmarked?: boolean
-  dict: Record<string, any>
+  dict: AppDictionary
 }) {
   const [isPending, startTransition] = useTransition()
   const isEnabled = !!userId

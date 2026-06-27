@@ -8,6 +8,7 @@ export default defineConfig({
     environment: 'node',
     setupFiles: ['tests/vitest/vitest.setup.ts'],
     include: ['tests/vitest/int/**/*.int.spec.ts'],
+    fileParallelism: false,
     reporters: [
       'default',
       [

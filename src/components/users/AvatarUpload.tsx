@@ -1,16 +1,26 @@
 'use client'
 
+import type { AppDictionary } from '@/lib/dictionaries'
+import type { User } from '@/payload-types'
+
 import { useState, useRef, useTransition, useEffect } from 'react'
 import { Upload, Loader2 } from 'lucide-react'
 import { Avatar } from './Avatar'
 import { uploadMedia, updateUserAvatar } from '@/app/actions/users'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import type { User } from '@/payload-types'
+
+type AvatarDictionary = AppDictionary & {
+  profile?: {
+    avatarUpdated?: string
+    avatarUpdateError?: string
+    changeAvatar?: string
+  }
+}
 
 interface AvatarUploadProps {
   user: User
-  dict: Record<string, any>
+  dict: AvatarDictionary
 }
 
 export function AvatarUpload({ user, dict }: AvatarUploadProps) {

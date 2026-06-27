@@ -27,6 +27,10 @@ export async function uploadMedia(formData: FormData) {
 
   const arrayBuffer = await file.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
 
   try {
     const media = await payload.create({
@@ -40,6 +44,7 @@ export async function uploadMedia(formData: FormData) {
         mimetype: file.type,
         size: file.size,
       },
+      ...withAccess,
     })
 
     return media
@@ -56,10 +61,16 @@ export async function updateUserAvatar(mediaId: number) {
     throw new Error('You must be logged in to update profile')
   }
 
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
+
   // Verify the media exists and belongs to the current user
   const media = await payload.findByID({
     collection: 'media',
     id: mediaId,
+    ...withAccess,
   })
 
   if (!media) {
@@ -73,6 +84,7 @@ export async function updateUserAvatar(mediaId: number) {
       data: {
         avatar: mediaId,
       },
+      ...withAccess,
     })
   } catch (error) {
     console.error('Error updating user avatar:', {

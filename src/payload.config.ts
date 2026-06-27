@@ -13,6 +13,10 @@ import { Posts } from './collections/Posts'
 import { Comments } from './collections/Comments'
 import { Votes } from './collections/Votes'
 import { Bookmarks } from './collections/Bookmarks'
+import { SubFeeds } from './collections/SubFeeds'
+import { Discoveries } from './collections/Discoveries'
+import { LinkClicks } from './collections/LinkClicks'
+import { Reports } from './collections/Reports'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -40,7 +44,19 @@ export default buildConfig({
       },
     ],
   },
-  collections: [Users, Media, Links, Posts, Comments, Votes, Bookmarks],
+  collections: [
+    Users,
+    Media,
+    Links,
+    Posts,
+    Comments,
+    Votes,
+    Bookmarks,
+    SubFeeds,
+    Discoveries,
+    LinkClicks,
+    Reports,
+  ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

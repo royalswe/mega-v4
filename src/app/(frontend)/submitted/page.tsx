@@ -1,48 +1,108 @@
 export const dynamic = 'force-dynamic' // This stops the build-time DB check
 
-import { getPayload, type Where } from 'payload'
-import configPromise from '@payload-config'
+import type { Where } from 'payload'
 import { Card, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { VoteButtons } from '@/components/links/VoteButtons'
 import { MessageCircle, Image, Video, FileText, Music, Gamepad2 } from 'lucide-react'
 import { BookmarkButton } from '@/components/links/BookmarkButton'
+import { Button } from '@/components/ui/button'
+import { redirect } from 'next/navigation'
 
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
+import {
+  deleteSubmittedLink,
+  enableSubmittedLinkInMainFeed,
+  toggleSubmittedLinkStatus,
+} from '@/app/actions/links'
 import { getAuthenticatedUser } from '@/lib/auth'
+import { canManageSubmittedLinks } from '@/lib/community/subfeeds'
 import { getDictionary } from '@/lib/dictionaries'
 
-async function getAllLinks(showNSFW: boolean) {
-  const where: Where = {}
+import type { Payload } from 'payload'
+import type { User } from '@/payload-types'
 
-  if (!showNSFW) {
-    where.nsfw = {
-      not_equals: true,
-    }
+async function getAllLinks(payload: Payload, user: User | null, showNSFW: boolean) {
+  const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()
+
+  const recentVisibilityFilter: Where = showNSFW
+    ? {
+        createdAt: {
+          greater_than_equal: twelveHoursAgo,
+        },
+      }
+    : {
+        and: [
+          {
+            createdAt: {
+              greater_than_equal: twelveHoursAgo,
+            },
+          },
+          {
+            nsfw: {
+              not_equals: true,
+            },
+          },
+        ],
+      }
+
+  const andFilters: Where[] = [
+    {
+      softDeleted: {
+        not_equals: true,
+      },
+    },
+    {
+      or: [
+        {
+          _status: {
+            equals: 'draft',
+          },
+        },
+        recentVisibilityFilter,
+      ],
+    },
+  ]
+
+  const where: Where = {
+    and: andFilters,
   }
 
-  const payload = await getPayload({
-    config: configPromise,
-  })
+  const withAccess = user
+    ? {
+        user,
+        overrideAccess: false as const,
+      }
+    : {
+        overrideAccess: false as const,
+      }
 
   const links = await payload.find({
     collection: 'links',
     where,
-    sort: '-createdAt',
+    sort: '-rankingScore',
+    draft: true,
+    pagination: false,
+    ...withAccess,
   })
 
   return links.docs
 }
 
 const SubmittedLinksPage = async () => {
-  const { user } = await getAuthenticatedUser()
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user || !canManageSubmittedLinks(user)) {
+    redirect('/')
+  }
+
   const showNSFW = user?.settings?.nsfw === true
   const { dict } = await getDictionary()
-  const links = await getAllLinks(showNSFW)
+  const links = await getAllLinks(payload, user, showNSFW)
 
   // Fetch user interactions
   const linkIds = links.map((link) => link.id)
-  const { votes, bookmarks } = await getUserInteractions(user?.id || '', linkIds)
+  const { votes, bookmarks } = await getUserInteractions(user, linkIds)
 
   const getLinkIcon = (type: string) => {
     switch (type) {
@@ -113,6 +173,38 @@ const SubmittedLinksPage = async () => {
                   isBookmarked={bookmarks[link.id]}
                   dict={dict}
                 />
+                <div className="ml-auto flex items-center gap-2">
+                  {link.feed === 'subfeed' ? (
+                    <form action={enableSubmittedLinkInMainFeed.bind(null, link.id)}>
+                      <Button
+                        type="submit"
+                        size="xs"
+                        variant="secondary"
+                        disabled={link.featured === true}
+                      >
+                        {link.featured === true
+                          ? dict.pages.inMainFeed || 'In main feed'
+                          : dict.pages.enableInMainFeed || 'Enable in main feed'}
+                      </Button>
+                    </form>
+                  ) : null}
+                  <form
+                    action={toggleSubmittedLinkStatus.bind(
+                      null,
+                      link.id,
+                      link._status === 'published' ? 'draft' : 'published',
+                    )}
+                  >
+                    <Button type="submit" size="xs" variant="outline">
+                      {link._status === 'published' ? 'Set draft' : 'Publish'}
+                    </Button>
+                  </form>
+                  <form action={deleteSubmittedLink.bind(null, link.id)}>
+                    <Button type="submit" size="xs" variant="destructive">
+                      Soft delete
+                    </Button>
+                  </form>
+                </div>
               </div>
             </div>
           </Card>

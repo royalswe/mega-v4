@@ -6,7 +6,6 @@ import * as z from 'zod'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -27,19 +26,55 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { submitLink } from '@/app/actions/links'
+import type { AppDictionary } from '@/lib/dictionaries'
+import { SubmissionActionRow } from '@/components/subfeeds/SubmissionActionRow'
+import { SubmissionDestinationFields } from '@/components/subfeeds/SubmissionDestinationFields'
 
-export function LinkSubmitForm({ dict }: { dict: Record<string, any> }) {
+interface SubfeedOption {
+  id: number
+  name: string
+}
+
+export function LinkSubmitForm({
+  dict,
+  subfeeds,
+  defaultSubfeedId,
+  defaultFeed,
+  lockDestination,
+  onSuccess,
+  onCancel,
+}: {
+  dict: AppDictionary
+  subfeeds: SubfeedOption[]
+  defaultSubfeedId?: number
+  defaultFeed?: 'main' | 'subfeed'
+  lockDestination?: boolean
+  onSuccess?: () => void
+  onCancel?: () => void
+}) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const formSchema = z.object({
-    title: z.string().min(2, {
-      message: dict.linkForm.titleRequired,
-    }),
-    url: z.url({ message: dict.linkForm.urlInvalid }),
-    description: z.string().optional(),
-    nsfw: z.boolean().optional(),
-    type: z.enum(['article', 'video', 'image', 'audio', 'game']).optional(),
-  })
+  const formSchema = z
+    .object({
+      title: z.string().min(2, {
+        message: dict.linkForm.titleRequired,
+      }),
+      url: z.url({ message: dict.linkForm.urlInvalid }),
+      description: z.string().optional(),
+      nsfw: z.boolean().optional(),
+      type: z.enum(['article', 'video', 'image', 'audio', 'game']).optional(),
+      feed: z.enum(['main', 'subfeed']),
+      subfeedId: z.string().optional(),
+    })
+    .superRefine((data, ctx) => {
+      if (data.feed === 'subfeed' && !data.subfeedId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['subfeedId'],
+          message: dict.linkForm.subfeedRequired,
+        })
+      }
+    })
 
   type FormSchema = z.infer<typeof formSchema>
 
@@ -51,15 +86,36 @@ export function LinkSubmitForm({ dict }: { dict: Record<string, any> }) {
       description: '',
       nsfw: false,
       type: 'article',
+      feed: defaultFeed ?? 'main',
+      subfeedId: defaultSubfeedId ? String(defaultSubfeedId) : '',
     },
   })
+
+  const selectedFeed = form.watch('feed')
 
   async function onSubmit(values: FormSchema) {
     setIsSubmitting(true)
     try {
-      await submitLink(values)
+      await submitLink({
+        title: values.title,
+        url: values.url,
+        description: values.description,
+        nsfw: values.nsfw,
+        type: values.type,
+        feed: values.feed,
+        subfeedId: values.subfeedId ? Number(values.subfeedId) : undefined,
+      })
       toast.success(dict.linkForm.submitSuccess)
-      form.reset()
+      form.reset({
+        title: '',
+        url: '',
+        description: '',
+        nsfw: false,
+        type: 'article',
+        feed: defaultFeed ?? 'main',
+        subfeedId: defaultSubfeedId ? String(defaultSubfeedId) : '',
+      })
+      onSuccess?.()
     } catch (error) {
       console.error(error)
       toast.error(dict.linkForm.submitError)
@@ -145,6 +201,28 @@ export function LinkSubmitForm({ dict }: { dict: Record<string, any> }) {
                 </FormItem>
               )}
             />
+            <SubmissionDestinationFields
+              form={form}
+              feedName="feed"
+              subfeedIdName="subfeedId"
+              selectedFeed={selectedFeed}
+              lockDestination={lockDestination}
+              defaultFeed={defaultFeed}
+              subfeeds={subfeeds}
+              labels={{
+                destinationLabel: dict.linkForm.destinationLabel,
+                destinationPlaceholder: dict.linkForm.destinationPlaceholder,
+                destinationDesc: dict.linkForm.destinationDesc,
+                subfeedLabel: dict.linkForm.subfeedLabel,
+                subfeedPlaceholder: dict.linkForm.subfeedPlaceholder,
+                subfeedDesc: dict.linkForm.subfeedDesc,
+                noSubfeeds: dict.linkForm.noSubfeeds,
+              }}
+              feedOptions={[
+                { value: 'main', label: dict.linkForm.destinationOptions.main },
+                { value: 'subfeed', label: dict.linkForm.destinationOptions.subfeed },
+              ]}
+            />
             <FormField
               control={form.control}
               name="nsfw"
@@ -161,9 +239,13 @@ export function LinkSubmitForm({ dict }: { dict: Record<string, any> }) {
                 </FormItem>
               )}
             />
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? dict.linkForm.submitting : dict.linkForm.submitButton}
-            </Button>
+            <SubmissionActionRow
+              isSubmitting={isSubmitting}
+              submitLabel={dict.linkForm.submitButton}
+              submittingLabel={dict.linkForm.submitting}
+              onCancel={onCancel}
+              cancelLabel={dict.subfeeds.closeModalButton}
+            />
           </form>
         </Form>
       </CardContent>

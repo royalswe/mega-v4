@@ -1,6 +1,6 @@
 'use client'
 
-import type { UserLanguage } from '@/lib/dictionaries'
+import type { AppDictionary, UserLanguage } from '@/lib/dictionaries'
 import type { User } from '@/payload-types'
 
 import { Switch } from '@/components/ui/switch'
@@ -16,7 +16,7 @@ import { LanguageSelector } from '../layout/LanguageSelector'
 interface ProfileSettingsProps {
   user: User
   currentUser: User | null
-  dict: Record<string, any>
+  dict: AppDictionary
   lang: UserLanguage
 }
 
@@ -42,15 +42,11 @@ export function ProfileSettings({ user, currentUser, dict, lang }: ProfileSettin
 
   return (
     <div className="space-y-6 mt-8 border-t pt-8">
-      <h2 className="text-xl font-bold">{dict.menu.settings || 'Settings'}</h2>
-
       <div className="space-y-4">
         <div className="flex items-center justify-between rounded-lg border p-4">
           <div className="space-y-0.5">
             <Label htmlFor="nsfw-mode">{dict.settings.showNSFW}</Label>
-            <p className="text-sm text-muted-foreground">
-              {dict.settings.nsfwDescription || 'Show content marked as NSFW'}
-            </p>
+            <p className="text-sm text-muted-foreground">Show content marked as NSFW</p>
           </div>
           <Switch
             id="nsfw-mode"
@@ -61,19 +57,15 @@ export function ProfileSettings({ user, currentUser, dict, lang }: ProfileSettin
 
         <div className="flex items-center justify-between rounded-lg border p-4">
           <div className="space-y-0.5">
-            <Label htmlFor="language">{dict.settings.language || 'Language'}</Label>
-            <p className="text-sm text-muted-foreground">
-              {dict.settings.languageDescription || 'Select your preferred language'}
-            </p>
+            <Label htmlFor="language">{dict.settings.language}</Label>
+            <p className="text-sm text-muted-foreground">Select your preferred language</p>
           </div>
           <LanguageSelector currentLang={user?.settings?.language || lang} />
         </div>
         <div className="flex items-center justify-between rounded-lg border p-4">
           <div className="space-y-0.5">
-            <Label htmlFor="theme">{dict.settings.theme || 'Theme'}</Label>
-            <p className="text-sm text-muted-foreground">
-              {dict.settings.themeDescription || 'Toggle between light and dark mode'}
-            </p>
+            <Label htmlFor="theme">{dict.settings.theme}</Label>
+            <p className="text-sm text-muted-foreground">Toggle between light and dark mode</p>
           </div>
           <ThemeToggle />
         </div>

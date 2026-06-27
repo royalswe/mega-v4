@@ -25,11 +25,13 @@ export const createTestUser = async (payload: Payload) => {
 }
 
 export const createTestLink = async (payload: Payload, userId: number | string) => {
+  const unique = faker.string.alphanumeric(10).toLowerCase()
+
   return await payload.create({
     collection: 'links',
     data: {
-      title: 'Integration Test Link',
-      url: 'https://example.com',
+      title: `Integration Test Link ${unique}`,
+      url: `https://example.com/${unique}`,
       type: 'article',
       user: userId as number, // Cast to number if that's what Payload expects, or check schema
       _status: 'published',

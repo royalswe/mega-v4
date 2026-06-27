@@ -15,19 +15,28 @@ interface RichTextDisplayProps {
   className?: string
 }
 
+type RenderableLexicalNode = SerializedLexicalNode & {
+  children?: RenderableLexicalNode[]
+  tag?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
+  listType?: 'number' | 'bullet'
+  url?: string
+  text?: string
+  format?: number
+}
+
 export function RichTextDisplay({ content, className = '' }: RichTextDisplayProps) {
   if (!content?.root?.children) {
     return null
   }
 
-  const renderNode = (node: any, index: number): React.ReactNode => {
+  const renderNode = (node: RenderableLexicalNode, index: number): React.ReactNode => {
     const key = `${node.type}-${index}`
 
     switch (node.type) {
       case 'paragraph':
         return (
           <p key={key} className="mb-2">
-            {node.children?.map((child: unknown, i: number) => renderNode(child, i))}
+            {node.children?.map((child: RenderableLexicalNode, i: number) => renderNode(child, i))}
           </p>
         )
 
@@ -43,7 +52,7 @@ export function RichTextDisplay({ content, className = '' }: RichTextDisplayProp
         }
         return (
           <HeadingTag key={key} className={headingClasses[HeadingTag]}>
-            {node.children?.map((child: unknown, i: number) => renderNode(child, i))}
+            {node.children?.map((child: RenderableLexicalNode, i: number) => renderNode(child, i))}
           </HeadingTag>
         )
 
@@ -52,14 +61,14 @@ export function RichTextDisplay({ content, className = '' }: RichTextDisplayProp
         const listClass = node.listType === 'number' ? 'list-decimal' : 'list-disc'
         return (
           <ListTag key={key} className={`${listClass} ml-6 mb-2`}>
-            {node.children?.map((child: unknown, i: number) => renderNode(child, i))}
+            {node.children?.map((child: RenderableLexicalNode, i: number) => renderNode(child, i))}
           </ListTag>
         )
 
       case 'listitem':
         return (
           <li key={key} className="mb-1">
-            {node.children?.map((child: unknown, i: number) => renderNode(child, i))}
+            {node.children?.map((child: RenderableLexicalNode, i: number) => renderNode(child, i))}
           </li>
         )
 
@@ -72,7 +81,7 @@ export function RichTextDisplay({ content, className = '' }: RichTextDisplayProp
             rel="noopener noreferrer"
             className="text-primary hover:underline"
           >
-            {node.children?.map((child: unknown, i: number) => renderNode(child, i))}
+            {node.children?.map((child: RenderableLexicalNode, i: number) => renderNode(child, i))}
           </a>
         )
 
@@ -107,14 +116,18 @@ export function RichTextDisplay({ content, className = '' }: RichTextDisplayProp
       case 'code':
         return (
           <pre key={key} className="bg-muted p-3 rounded mb-2 overflow-x-auto">
-            <code>{node.children?.map((child: unknown, i: number) => renderNode(child, i))}</code>
+            <code>
+              {node.children?.map((child: RenderableLexicalNode, i: number) =>
+                renderNode(child, i),
+              )}
+            </code>
           </pre>
         )
 
       case 'quote':
         return (
           <blockquote key={key} className="border-l-4 border-muted pl-4 italic mb-2">
-            {node.children?.map((child: unknown, i: number) => renderNode(child, i))}
+            {node.children?.map((child: RenderableLexicalNode, i: number) => renderNode(child, i))}
           </blockquote>
         )
 
@@ -125,7 +138,7 @@ export function RichTextDisplay({ content, className = '' }: RichTextDisplayProp
         if (node.children) {
           return (
             <React.Fragment key={key}>
-              {node.children.map((child: unknown, i: number) => renderNode(child, i))}
+              {node.children.map((child: RenderableLexicalNode, i: number) => renderNode(child, i))}
             </React.Fragment>
           )
         }

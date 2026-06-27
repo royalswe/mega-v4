@@ -32,8 +32,7 @@ yarn-error.log*
 # local env files
 .env*.local
 
-# vercel
-.vercel
+
 
 # typescript
 *.tsbuildinfo
@@ -49,3 +48,7 @@ node_modules/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+/tests/playwright/.auth/user.json
+
+# Vitest
+/tests/vitest/report/**/*

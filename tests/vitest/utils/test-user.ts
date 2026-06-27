@@ -11,45 +11,75 @@ dotenv.config({ path: path.resolve(process.cwd(), 'tests/test.env') })
 let cachedPayload: Payload | null = null
 let cachedUser: User | null = null
 
+let payloadInitPromise: Promise<Payload> | null = null
+let userInitPromise: Promise<User> | null = null
 export async function getTestPayload(): Promise<Payload> {
   if (cachedPayload) return cachedPayload
-  const payloadConfig = await config
-  cachedPayload = await getPayload({ config: payloadConfig })
-  return cachedPayload
+  if (payloadInitPromise) return payloadInitPromise
+
+  payloadInitPromise = (async () => {
+    const payloadConfig = await config
+    const initializedPayload = await getPayload({ config: payloadConfig })
+    cachedPayload = initializedPayload
+    return initializedPayload
+  })()
+
+  try {
+    return await payloadInitPromise
+  } finally {
+    payloadInitPromise = null
+  }
+}
+
+const usernameFromEmail = (email: string): string => {
+  const localPart = email.split('@')[0] || 'tester'
+  return `${localPart}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 export async function getTestUser(): Promise<User> {
   if (cachedUser) return cachedUser
+  if (userInitPromise) return userInitPromise
 
-  const payload = await getTestPayload()
-  const email = process.env.EMAIL ?? 'admin@mail.com'
-  const password = process.env.PASSWORD ?? 'test'
+  userInitPromise = (async () => {
+    const payload = await getTestPayload()
+    const email = process.env.EMAIL ?? 'admin@mail.com'
+    const password = process.env.PASSWORD ?? 'test'
 
-  // Try to find existing user
-  const { docs: users } = await payload.find({
-    collection: 'users',
-    where: {
-      email: {
-        equals: email,
+    const { docs: users } = await payload.find({
+      collection: 'users',
+      where: {
+        email: {
+          equals: email,
+        },
       },
-    },
-  })
+      overrideAccess: true,
+    })
 
-  if (users.length > 0) {
-    cachedUser = users[0] as User
+    if (users.length > 0) {
+      cachedUser = users[0] as User
+      return cachedUser
+    }
+
+    cachedUser = (await payload.create({
+      collection: 'users',
+      data: {
+        email,
+        username: usernameFromEmail(email),
+        password,
+        settings: {
+          nsfw: false,
+          language: 'en',
+        },
+      },
+      overrideAccess: true,
+    } as any)) as User
+
     return cachedUser
+  })()
+
+  try {
+    return await userInitPromise
+  } finally {
+    userInitPromise = null
   }
-
-  // Create new user if not found
-  cachedUser = (await payload.create({
-    collection: 'users',
-    data: {
-      email,
-      password,
-      // Add other required fields here if necessary
-    },
-    overrideAccess: true, // Ensure we can create admin without existing auth
-  } as any)) as User
-
-  return cachedUser
 }

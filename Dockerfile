@@ -1,7 +1,7 @@
 # To use this Dockerfile, you have to set `output: 'standalone'` in your next.config.mjs file.
 # From https://github.com/vercel/next.js/blob/canary/examples/with-docker/Dockerfile
 
-FROM node:22.22.0-alpine AS base
+FROM node:24.16.0-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -59,6 +59,10 @@ RUN chown nextjs:nodejs .next
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy files needed for background jobs
+COPY --from=builder --chown=nextjs:nodejs /app/existenz-links.json ./existenz-links.json
+# COPY --from=builder --chown=nextjs:nodejs /app/src ./src
 
 RUN mkdir -p media && chown -R nextjs:nodejs media
 
