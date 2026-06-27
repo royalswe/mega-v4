@@ -124,14 +124,6 @@ export async function collectCandidates(): Promise<Candidate[]> {
     { name: 'r/nextfuckinglevel', url: 'https://www.reddit.com/r/nextfuckinglevel/hot/.rss' },
     { name: 'r/interestingasfuck', url: 'https://www.reddit.com/r/interestingasfuck/hot/.rss' },
     // Some popular YouTube channels instead of trending feed
-    {
-      name: 'YouTube: FailArmy',
-      url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCoY7U_Wp_OatfN6K_LpW_Pw',
-    },
-    {
-      name: 'YouTube: People Are Awesome',
-      url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCv77YatT0_p6S_uK7HstFsw',
-    },
   ]
 
   const allCandidates: Candidate[] = []
