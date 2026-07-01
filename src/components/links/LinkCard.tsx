@@ -44,6 +44,7 @@ export async function LinkCard({
                 url={link.url}
                 title={link.title}
                 linkId={link.id}
+                type={link.type}
                 className="wrap-break-word hover:underline"
               />
             </CardTitle>

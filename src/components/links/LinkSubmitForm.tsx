@@ -5,6 +5,11 @@ import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { Modal, ModalContent, ModalTitle, ModalDescription } from '@/components/ui/modal'
+import { Button } from '@/components/ui/button'
+import { getEmbedType } from '@/components/links/LinkPreviewModal'
+import { cn } from '@/lib/utils'
+import { AlertTriangle, Check } from 'lucide-react'
 
 import {
   Form,
@@ -93,7 +98,16 @@ export function LinkSubmitForm({
 
   const selectedFeed = form.watch('feed')
 
-  async function onSubmit(values: FormSchema) {
+  const [isCheckingMedia, setIsCheckingMedia] = useState(false)
+  const [suggestionState, setSuggestionState] = useState<{
+    type: 'video' | 'image'
+    originalUrl: string
+    suggestedUrls: string[]
+    values: FormSchema
+  } | null>(null)
+  const [selectedSuggestion, setSelectedSuggestion] = useState<string>('')
+
+  async function proceedSubmit(values: FormSchema) {
     setIsSubmitting(true)
     try {
       await submitLink({
@@ -121,6 +135,54 @@ export function LinkSubmitForm({
       toast.error(dict.linkForm.submitError)
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function onSubmit(values: FormSchema) {
+    const isVideo = values.type === 'video'
+    const isImage = values.type === 'image'
+
+    if (!isVideo && !isImage) {
+      await proceedSubmit(values)
+      return
+    }
+
+    // Check if the current URL is directly previewable
+    const embedInfo = getEmbedType(values.url)
+    const isValidVideo = isVideo && embedInfo.type !== 'iframe'
+    const isValidImage = isImage && embedInfo.type === 'image'
+
+    if (isValidVideo || isValidImage) {
+      await proceedSubmit(values)
+      return
+    }
+
+    // Not direct, let's scan the target page for matching direct media links
+    setIsCheckingMedia(true)
+    try {
+      const res = await fetch(
+        `/api/scrape-media?url=${encodeURIComponent(values.url)}&type=${values.type}`,
+      )
+      const data = await res.json()
+
+      if (data.success && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
+        setSuggestionState({
+          type: values.type as 'video' | 'image',
+          originalUrl: values.url,
+          suggestedUrls: data.suggestions,
+          values,
+        })
+        setSelectedSuggestion(data.suggestions[0])
+      } else {
+        // No direct media links found, proceed submitting the original URL
+        await proceedSubmit(values)
+      }
+    } catch (err) {
+      console.error('Failed to verify media link', err)
+      // Scraping failed, proceed submitting the original URL as fallback
+      await proceedSubmit(values)
+    } finally {
+      setIsCheckingMedia(false)
     }
   }
 
@@ -240,15 +302,98 @@ export function LinkSubmitForm({
               )}
             />
             <SubmissionActionRow
-              isSubmitting={isSubmitting}
-              submitLabel={dict.linkForm.submitButton}
-              submittingLabel={dict.linkForm.submitting}
+              isSubmitting={isSubmitting || isCheckingMedia}
+              submitLabel={isCheckingMedia ? 'Checking Link...' : dict.linkForm.submitButton}
+              submittingLabel={isCheckingMedia ? 'Scanning Site...' : dict.linkForm.submitting}
               onCancel={onCancel}
               cancelLabel={dict.subfeeds.closeModalButton}
             />
           </form>
         </Form>
       </CardContent>
+
+      {/* Suggest direct media link modal */}
+      {suggestionState && (
+        <Modal
+          open={suggestionState !== null}
+          onOpenChange={(open) => {
+            if (!open) setSuggestionState(null)
+          }}
+        >
+          <ModalContent className="max-w-md p-6 flex flex-col gap-4 border bg-background rounded-xl shadow-lg">
+            <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <ModalTitle className="text-lg font-semibold">Direct Link Suggestion</ModalTitle>
+            </div>
+            <ModalDescription className="text-sm text-muted-foreground">
+              This URL is not a direct {suggestionState.type} address. We scanned the page and found
+              these direct resource paths instead:
+            </ModalDescription>
+
+            <div className="flex flex-col gap-2 max-h-48 overflow-y-auto border rounded-lg p-2 bg-muted/20">
+              {suggestionState.suggestedUrls.map((url, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setSelectedSuggestion(url)}
+                  className={cn(
+                    'w-full text-left px-3 py-2 rounded-md border text-xs font-mono break-all flex items-center justify-between transition-colors',
+                    selectedSuggestion === url
+                      ? 'bg-primary/10 border-primary text-foreground font-semibold'
+                      : 'bg-background hover:bg-muted border-input text-muted-foreground',
+                  )}
+                >
+                  <span className="truncate max-w-[90%]">{url}</span>
+                  {selectedSuggestion === url && (
+                    <Check className="h-4 w-4 shrink-0 text-primary" />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-2 mt-2">
+              <Button
+                type="button"
+                disabled={!selectedSuggestion}
+                onClick={() => {
+                  const updatedValues = { ...suggestionState.values, url: selectedSuggestion }
+                  setSuggestionState(null)
+                  setSelectedSuggestion('')
+                  proceedSubmit(updatedValues)
+                }}
+                className="w-full"
+              >
+                Use Suggested URL & Submit
+              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    proceedSubmit(suggestionState.values)
+                    setSuggestionState(null)
+                    setSelectedSuggestion('')
+                  }}
+                  className="flex-1"
+                >
+                  Keep Original
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setSuggestionState(null)
+                    setSelectedSuggestion('')
+                  }}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </ModalContent>
+        </Modal>
+      )}
     </Card>
   )
 }

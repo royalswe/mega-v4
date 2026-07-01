@@ -8,6 +8,7 @@ import { MessageCircle, Image, Video, FileText, Music, Gamepad2 } from 'lucide-r
 import { BookmarkButton } from '@/components/links/BookmarkButton'
 import { Button } from '@/components/ui/button'
 import { redirect } from 'next/navigation'
+import { TrackedLink } from '@/components/links/TrackedLink'
 
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import {
@@ -141,14 +142,13 @@ const SubmittedLinksPage = async () => {
                 <CardTitle
                   className={`text-lg font-semibold leading-none ${link.nsfw ? 'nsfw-text' : ''}`}
                 >
-                  <a
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <TrackedLink
+                    url={link.url}
+                    title={link.title}
+                    linkId={link.id}
+                    type={link.type}
                     className="hover:underline"
-                  >
-                    {link.title}
-                  </a>
+                  />
                 </CardTitle>
               </div>
               <p className="text-sm text-muted-foreground mb-2">

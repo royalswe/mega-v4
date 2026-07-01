@@ -8,11 +8,26 @@ import { getAuthenticatedUser } from '@/lib/auth'
 const isDuplicateClickError = (error: unknown): boolean => {
   if (!error || typeof error !== 'object') return false
 
-  const maybe = error as { code?: unknown; message?: unknown }
+  const maybe = error as any
   const code = typeof maybe.code === 'string' ? maybe.code : ''
   const message = typeof maybe.message === 'string' ? maybe.message : ''
+  const name = typeof maybe.name === 'string' ? maybe.name : ''
 
-  return code === '23505' || /duplicate|unique/i.test(message)
+  if (code === '23505' || /duplicate|unique/i.test(message)) {
+    return true
+  }
+
+  // Handle Payload ValidationError for unique constraint on identityKey
+  if (name === 'ValidationError' || maybe.status === 400) {
+    const errors = maybe.data?.errors || maybe.errors
+    if (Array.isArray(errors)) {
+      return errors.some(
+        (err: any) => err?.field === 'identityKey' || /unique/i.test(err?.message || ''),
+      )
+    }
+  }
+
+  return false
 }
 
 const createClickFingerprint = async (): Promise<string> => {
