@@ -1,14 +1,18 @@
 import { NextResponse } from 'next/server'
+import { assertSafeUrl, fetchWithSafeRedirects } from '@/app/api/_utils/safe-fetch'
 
 export const dynamic = 'force-dynamic'
 
+const MAX_SCAN_BYTES = 300_000
+
 function getMetaAll(html: string, nameOrProperty: string): string[] {
   const results: string[] = []
+  const htmlToScan = html.slice(0, MAX_SCAN_BYTES)
 
   // Regex to find all meta tags
   const metaRegex = /<meta\s+[^>]*>/gi
   let match
-  while ((match = metaRegex.exec(html)) !== null) {
+  while ((match = metaRegex.exec(htmlToScan)) !== null) {
     const metaTag = match[0]
 
     // Check if this meta tag matches nameOrProperty
@@ -24,8 +28,9 @@ function getMetaAll(html: string, nameOrProperty: string): string[] {
   return results
 }
 
-function findVideoUrls(html: string, baseUrl: string): string[] {
+function findVideoUrls(html: string, _baseUrl: string): string[] {
   const suggestions = new Set<string>()
+  const htmlToScan = html.slice(0, MAX_SCAN_BYTES)
 
   // 1. OG video tags
   const ogVideoKeys = ['og:video', 'og:video:url', 'og:video:secure_url']
@@ -38,11 +43,13 @@ function findVideoUrls(html: string, baseUrl: string): string[] {
   // 2. Scan all href/src attributes in the HTML for YouTube/Vimeo links
   const hrefSrcRegex = /(?:href|src)=["']([^"']+)["']/gi
   let match
-  while ((match = hrefSrcRegex.exec(html)) !== null) {
+  while ((match = hrefSrcRegex.exec(htmlToScan)) !== null) {
     const linkUrl = match[1]
     if (linkUrl) {
       // Check YouTube pattern (fixed regex escape [^"&?/\s])
-      const ytMatch = linkUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i)
+      const ytMatch = linkUrl.match(
+        /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i,
+      )
       if (ytMatch) {
         suggestions.add(`https://www.youtube.com/watch?v=${ytMatch[1]}`)
       }
@@ -55,9 +62,10 @@ function findVideoUrls(html: string, baseUrl: string): string[] {
   }
 
   // 3. General page regex fallback for raw YouTube links not inside quotes
-  const ytRegexFallback = /(?:https?:)?\/\/(?:www\.)?(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s\s]{11})/gi
+  const ytRegexFallback =
+    /(?:https?:)?\/\/(?:www\.)?(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s\s]{11})/gi
   let matchFallback
-  while ((matchFallback = ytRegexFallback.exec(html)) !== null) {
+  while ((matchFallback = ytRegexFallback.exec(htmlToScan)) !== null) {
     if (matchFallback[0]) suggestions.add(matchFallback[0].replace(/&amp;/g, '&'))
   }
 
@@ -66,6 +74,7 @@ function findVideoUrls(html: string, baseUrl: string): string[] {
 
 function findImageUrls(html: string, baseUrl: string): string[] {
   const suggestions = new Set<string>()
+  const htmlToScan = html.slice(0, MAX_SCAN_BYTES)
 
   // 1. OG / Twitter Image tags
   const ogImgKeys = ['og:image', 'twitter:image']
@@ -78,7 +87,7 @@ function findImageUrls(html: string, baseUrl: string): string[] {
   // 2. Standard image source tags
   const imgRegex = /<img[^>]+src=["']([^"']+)["']/gi
   let match
-  while ((match = imgRegex.exec(html)) !== null) {
+  while ((match = imgRegex.exec(htmlToScan)) !== null) {
     const imgSrc = match[1]
     if (imgSrc) {
       if (imgSrc.startsWith('http')) {
@@ -119,6 +128,8 @@ export async function GET(request: Request) {
   let fetchUrl = url
   try {
     const parsed = new URL(url)
+    await assertSafeUrl(parsed)
+
     if (parsed.hostname === 'www.reddit.com' || parsed.hostname === 'reddit.com') {
       parsed.hostname = 'old.reddit.com'
       fetchUrl = parsed.toString()
@@ -131,7 +142,7 @@ export async function GET(request: Request) {
     const controller = new AbortController()
     const id = setTimeout(() => controller.abort(), 4000) // 4s timeout
 
-    const res = await fetch(fetchUrl, {
+    const res = await fetchWithSafeRedirects(fetchUrl, {
       method: 'GET',
       headers: {
         'User-Agent':
@@ -148,17 +159,18 @@ export async function GET(request: Request) {
     }
 
     const html = await res.text()
-    const suggestions = type === 'video' ? findVideoUrls(html, url) : findImageUrls(html, url)
+    const suggestions =
+      type === 'video' ? findVideoUrls(html, fetchUrl) : findImageUrls(html, fetchUrl)
 
     return NextResponse.json({
       success: true,
       suggestions,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error scraping media for url:', url, err)
     return NextResponse.json({
       success: false,
-      error: err.message || 'Scrape request failed',
+      error: err instanceof Error ? err.message : 'Scrape request failed',
       suggestions: [],
     })
   }

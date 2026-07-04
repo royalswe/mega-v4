@@ -103,9 +103,10 @@ export function LinkSubmitForm({
     type: 'video' | 'image'
     originalUrl: string
     suggestedUrls: string[]
-    values: FormSchema
   } | null>(null)
   const [selectedSuggestion, setSelectedSuggestion] = useState<string>('')
+  const isSuggestionOpen = suggestionState !== null
+  const isFormBusy = isSubmitting || isCheckingMedia || isSuggestionOpen
 
   async function proceedSubmit(values: FormSchema) {
     setIsSubmitting(true)
@@ -139,6 +140,10 @@ export function LinkSubmitForm({
   }
 
   async function onSubmit(values: FormSchema) {
+    if (isCheckingMedia || suggestionState) {
+      return
+    }
+
     const isVideo = values.type === 'video'
     const isImage = values.type === 'image'
 
@@ -170,7 +175,6 @@ export function LinkSubmitForm({
           type: values.type as 'video' | 'image',
           originalUrl: values.url,
           suggestedUrls: data.suggestions,
-          values,
         })
         setSelectedSuggestion(data.suggestions[0])
       } else {
@@ -194,120 +198,126 @@ export function LinkSubmitForm({
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{dict.linkForm.titleLabel}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={dict.linkForm.titlePlaceholder} {...field} />
-                  </FormControl>
-                  <FormDescription>{dict.linkForm.titleDesc}</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="url"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{dict.linkForm.urlLabel}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={dict.linkForm.urlPlaceholder} {...field} />
-                  </FormControl>
-                  <FormDescription>{dict.linkForm.urlDesc}</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{dict.linkForm.descLabel}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={dict.linkForm.descPlaceholder} {...field} />
-                  </FormControl>
-                  <FormDescription>{dict.linkForm.descDesc}</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="type"
-              render={() => (
-                <FormItem>
-                  <FormLabel>{dict.linkForm.typeLabel}</FormLabel>
-                  <FormControl>
-                    <Select
-                      onValueChange={form.setValue.bind(null, 'type')}
-                      defaultValue={form.getValues().type}
-                    >
-                      <SelectTrigger className="w-100">
-                        <SelectValue placeholder={dict.linkForm.typePlaceholder} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="article">{dict.linkForm.types.article}</SelectItem>
-                        <SelectItem value="video">{dict.linkForm.types.video}</SelectItem>
-                        <SelectItem value="image">{dict.linkForm.types.image}</SelectItem>
-                        <SelectItem value="audio">{dict.linkForm.types.audio}</SelectItem>
-                        <SelectItem value="game">{dict.linkForm.types.game}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <SubmissionDestinationFields
-              form={form}
-              feedName="feed"
-              subfeedIdName="subfeedId"
-              selectedFeed={selectedFeed}
-              lockDestination={lockDestination}
-              defaultFeed={defaultFeed}
-              subfeeds={subfeeds}
-              labels={{
-                destinationLabel: dict.linkForm.destinationLabel,
-                destinationPlaceholder: dict.linkForm.destinationPlaceholder,
-                destinationDesc: dict.linkForm.destinationDesc,
-                subfeedLabel: dict.linkForm.subfeedLabel,
-                subfeedPlaceholder: dict.linkForm.subfeedPlaceholder,
-                subfeedDesc: dict.linkForm.subfeedDesc,
-                noSubfeeds: dict.linkForm.noSubfeeds,
-              }}
-              feedOptions={[
-                { value: 'main', label: dict.linkForm.destinationOptions.main },
-                { value: 'subfeed', label: dict.linkForm.destinationOptions.subfeed },
-              ]}
-            />
-            <FormField
-              control={form.control}
-              name="nsfw"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                  <FormControl>
-                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>{dict.linkForm.nsfwLabel}</FormLabel>
-                    <FormDescription>{dict.linkForm.nsfwDesc}</FormDescription>
+            <fieldset disabled={isFormBusy} className="space-y-8">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{dict.linkForm.titleLabel}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={dict.linkForm.titlePlaceholder} {...field} />
+                    </FormControl>
+                    <FormDescription>{dict.linkForm.titleDesc}</FormDescription>
                     <FormMessage />
-                  </div>
-                </FormItem>
-              )}
-            />
-            <SubmissionActionRow
-              isSubmitting={isSubmitting || isCheckingMedia}
-              submitLabel={isCheckingMedia ? 'Checking Link...' : dict.linkForm.submitButton}
-              submittingLabel={isCheckingMedia ? 'Scanning Site...' : dict.linkForm.submitting}
-              onCancel={onCancel}
-              cancelLabel={dict.subfeeds.closeModalButton}
-            />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="url"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{dict.linkForm.urlLabel}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={dict.linkForm.urlPlaceholder} {...field} />
+                    </FormControl>
+                    <FormDescription>{dict.linkForm.urlDesc}</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{dict.linkForm.descLabel}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={dict.linkForm.descPlaceholder} {...field} />
+                    </FormControl>
+                    <FormDescription>{dict.linkForm.descDesc}</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="type"
+                render={() => (
+                  <FormItem>
+                    <FormLabel>{dict.linkForm.typeLabel}</FormLabel>
+                    <FormControl>
+                      <Select
+                        onValueChange={form.setValue.bind(null, 'type')}
+                        defaultValue={form.getValues().type}
+                      >
+                        <SelectTrigger className="w-100">
+                          <SelectValue placeholder={dict.linkForm.typePlaceholder} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="article">{dict.linkForm.types.article}</SelectItem>
+                          <SelectItem value="video">{dict.linkForm.types.video}</SelectItem>
+                          <SelectItem value="image">{dict.linkForm.types.image}</SelectItem>
+                          <SelectItem value="audio">{dict.linkForm.types.audio}</SelectItem>
+                          <SelectItem value="game">{dict.linkForm.types.game}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <SubmissionDestinationFields
+                form={form}
+                feedName="feed"
+                subfeedIdName="subfeedId"
+                selectedFeed={selectedFeed}
+                lockDestination={lockDestination}
+                defaultFeed={defaultFeed}
+                subfeeds={subfeeds}
+                labels={{
+                  destinationLabel: dict.linkForm.destinationLabel,
+                  destinationPlaceholder: dict.linkForm.destinationPlaceholder,
+                  destinationDesc: dict.linkForm.destinationDesc,
+                  subfeedLabel: dict.linkForm.subfeedLabel,
+                  subfeedPlaceholder: dict.linkForm.subfeedPlaceholder,
+                  subfeedDesc: dict.linkForm.subfeedDesc,
+                  noSubfeeds: dict.linkForm.noSubfeeds,
+                }}
+                feedOptions={[
+                  { value: 'main', label: dict.linkForm.destinationOptions.main },
+                  { value: 'subfeed', label: dict.linkForm.destinationOptions.subfeed },
+                ]}
+              />
+              <FormField
+                control={form.control}
+                name="nsfw"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>{dict.linkForm.nsfwLabel}</FormLabel>
+                      <FormDescription>{dict.linkForm.nsfwDesc}</FormDescription>
+                      <FormMessage />
+                    </div>
+                  </FormItem>
+                )}
+              />
+              <SubmissionActionRow
+                isSubmitting={isFormBusy}
+                submitLabel={
+                  isCheckingMedia ? dict.linkForm.checkingLink : dict.linkForm.submitButton
+                }
+                submittingLabel={
+                  isCheckingMedia ? dict.linkForm.scanningSite : dict.linkForm.submitting
+                }
+                onCancel={onCancel}
+                cancelLabel={dict.linkForm.cancelButton}
+              />
+            </fieldset>
           </form>
         </Form>
       </CardContent>
@@ -323,11 +333,12 @@ export function LinkSubmitForm({
           <ModalContent className="max-w-md p-6 flex flex-col gap-4 border bg-background rounded-xl shadow-lg">
             <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
               <AlertTriangle className="h-5 w-5 shrink-0" />
-              <ModalTitle className="text-lg font-semibold">Direct Link Suggestion</ModalTitle>
+              <ModalTitle className="text-lg font-semibold">
+                {dict.linkForm.suggestionModalTitle}
+              </ModalTitle>
             </div>
             <ModalDescription className="text-sm text-muted-foreground">
-              This URL is not a direct {suggestionState.type} address. We scanned the page and found
-              these direct resource paths instead:
+              {dict.linkForm.suggestionModalDescription.replace('{type}', suggestionState.type)}
             </ModalDescription>
 
             <div className="flex flex-col gap-2 max-h-48 overflow-y-auto border rounded-lg p-2 bg-muted/20">
@@ -356,27 +367,28 @@ export function LinkSubmitForm({
                 type="button"
                 disabled={!selectedSuggestion}
                 onClick={() => {
-                  const updatedValues = { ...suggestionState.values, url: selectedSuggestion }
+                  const latestValues = form.getValues()
+                  const updatedValues = { ...latestValues, url: selectedSuggestion }
                   setSuggestionState(null)
                   setSelectedSuggestion('')
                   proceedSubmit(updatedValues)
                 }}
                 className="w-full"
               >
-                Use Suggested URL & Submit
+                {dict.linkForm.useSuggestedUrlButton}
               </Button>
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    proceedSubmit(suggestionState.values)
+                    proceedSubmit(form.getValues())
                     setSuggestionState(null)
                     setSelectedSuggestion('')
                   }}
                   className="flex-1"
                 >
-                  Keep Original
+                  {dict.linkForm.keepOriginalButton}
                 </Button>
                 <Button
                   type="button"
@@ -387,7 +399,7 @@ export function LinkSubmitForm({
                   }}
                   className="flex-1"
                 >
-                  Cancel
+                  {dict.linkForm.cancelButton}
                 </Button>
               </div>
             </div>

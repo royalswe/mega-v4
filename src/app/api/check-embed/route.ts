@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { assertSafeUrl, fetchWithSafeRedirects } from '@/app/api/_utils/safe-fetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,10 +74,13 @@ export async function GET(request: Request) {
   }
 
   try {
+    const parsedUrl = new URL(url)
+    await assertSafeUrl(parsedUrl)
+
     const controller = new AbortController()
     const id = setTimeout(() => controller.abort(), 4000) // 4s timeout
 
-    const res = await fetch(url, {
+    const res = await fetchWithSafeRedirects(parsedUrl.toString(), {
       method: 'GET',
       headers: {
         'User-Agent':
@@ -88,6 +92,10 @@ export async function GET(request: Request) {
     })
     clearTimeout(id)
 
+    if (!res.ok) {
+      throw new Error(`Failed to fetch page status ${res.status}`)
+    }
+
     const xFrameOptions = res.headers.get('x-frame-options') || ''
     const csp = res.headers.get('content-security-policy') || ''
 
@@ -95,6 +103,7 @@ export async function GET(request: Request) {
     const hasCSP = /frame-ancestors/i.test(csp)
     const embeddable = !hasXFrame && !hasCSP
 
+    // Only successful pages are considered for embedding metadata extraction.
     let metadata = { title: '', description: '', image: '', readerText: '' }
     if (!embeddable) {
       const html = await res.text()

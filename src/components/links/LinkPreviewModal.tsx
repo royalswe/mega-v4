@@ -1,6 +1,5 @@
 'use client'
 
-import * as React from 'react'
 import { useState, useEffect } from 'react'
 import {
   Modal,
@@ -10,7 +9,7 @@ import {
   ModalClose,
 } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
-import { ExternalLink, X, FileText, Globe, Loader2, Play, Image as ImageIcon, Volume2 } from 'lucide-react'
+import { ExternalLink, X, FileText, Globe, Loader2, Volume2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface LinkPreviewModalProps {
@@ -29,7 +28,7 @@ interface LinkPreviewModalProps {
   } | null
 }
 
-export function getEmbedType(url: string, dbType?: string) {
+export function getEmbedType(url: string) {
   // Use the URL API for reliable parsing instead of fragile regexes.
   try {
     const parsed = new URL(url)
@@ -114,12 +113,11 @@ export function getEmbedType(url: string, dbType?: string) {
 export function LinkPreviewModal({
   url,
   title,
-  type: dbType,
   isOpen,
   setIsOpen,
   embedCheck,
 }: LinkPreviewModalProps) {
-  const embedInfo = getEmbedType(url, dbType)
+  const embedInfo = getEmbedType(url)
   const isMedia = ['youtube', 'vimeo', 'image', 'video', 'audio'].includes(embedInfo.type)
 
   // Determine starting tab
@@ -144,13 +142,15 @@ export function LinkPreviewModal({
 
   return (
     <Modal open={isOpen} onOpenChange={setIsOpen}>
-      <ModalContent className={cn(
-        "flex flex-col border bg-background shadow-lg overflow-hidden duration-200",
-        // Media files get a tighter container matching aspect ratio, webpage gets larger space
-        isMedia
-          ? "max-w-3xl w-[95vw] max-h-[85vh] rounded-xl"
-          : "max-w-5xl w-[95vw] h-[85vh] rounded-xl"
-      )}>
+      <ModalContent
+        className={cn(
+          'flex flex-col border bg-background shadow-lg overflow-hidden duration-200',
+          // Media files get a tighter container matching aspect ratio, webpage gets larger space
+          isMedia
+            ? 'max-w-3xl w-[95vw] max-h-[85vh] rounded-xl'
+            : 'max-w-5xl w-[95vw] h-[85vh] rounded-xl',
+        )}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
           <div className="flex flex-col min-w-0 mr-4">
@@ -160,9 +160,7 @@ export function LinkPreviewModal({
             <ModalDescription className="sr-only">
               Preview of {title} from {hostname}
             </ModalDescription>
-            <span className="text-xs text-muted-foreground truncate mt-0.5">
-              {hostname}
-            </span>
+            <span className="text-xs text-muted-foreground truncate mt-0.5">{hostname}</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {/* Tab switchers (only for standard webpage iframes, or if not embeddable) */}
@@ -172,10 +170,10 @@ export function LinkPreviewModal({
                   <button
                     onClick={() => setActiveTab('preview')}
                     className={cn(
-                      "flex items-center gap-1.5 px-3 py-1 rounded-md font-medium transition-all",
+                      'flex items-center gap-1.5 px-3 py-1 rounded-md font-medium transition-all',
                       activeTab === 'preview'
-                        ? "bg-background shadow-sm text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? 'bg-background shadow-sm text-foreground'
+                        : 'text-muted-foreground hover:text-foreground',
                     )}
                   >
                     <Globe className="h-3.5 w-3.5" />
@@ -185,10 +183,10 @@ export function LinkPreviewModal({
                 <button
                   onClick={() => setActiveTab('reader')}
                   className={cn(
-                    "flex items-center gap-1.5 px-3 py-1 rounded-md font-medium transition-all",
+                    'flex items-center gap-1.5 px-3 py-1 rounded-md font-medium transition-all',
                     activeTab === 'reader' || (!embedCheck.embeddable && activeTab === 'preview')
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? 'bg-background shadow-sm text-foreground'
+                      : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
                   <FileText className="h-3.5 w-3.5" />
@@ -236,12 +234,7 @@ export function LinkPreviewModal({
           {/* Direct Video File */}
           {embedInfo.type === 'video' && (
             <div className="w-full h-full aspect-video bg-black flex items-center justify-center">
-              <video
-                src={url}
-                controls
-                playsInline
-                className="w-full h-full object-contain"
-              />
+              <video src={url} controls playsInline className="w-full h-full object-contain" />
             </div>
           )}
 
@@ -286,7 +279,7 @@ export function LinkPreviewModal({
                       src={url}
                       title={title}
                       className="w-full h-full border-0 bg-white"
-                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                      sandbox="allow-scripts allow-forms allow-popups"
                     />
                   )}
 
@@ -299,7 +292,8 @@ export function LinkPreviewModal({
                       <div>
                         <h3 className="font-semibold text-lg">Direct Preview Blocked</h3>
                         <p className="text-sm text-muted-foreground mt-1">
-                          This website blocks previews inside other applications due to its security policy (X-Frame-Options/CSP).
+                          This website blocks previews inside other applications due to its security
+                          policy (X-Frame-Options/CSP).
                         </p>
                       </div>
                       <div className="flex flex-col gap-2 w-full mt-2">
@@ -312,7 +306,12 @@ export function LinkPreviewModal({
                           View Reader Mode Extract
                         </Button>
                         <Button asChild className="w-full">
-                          <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2">
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-2"
+                          >
                             Open website directly
                             <ExternalLink className="h-4 w-4" />
                           </a>
@@ -356,7 +355,8 @@ export function LinkPreviewModal({
                         </div>
                       ) : (
                         <div className="text-center py-8 text-muted-foreground text-sm">
-                          No text paragraphs could be extracted from this website. Click below to read the original article.
+                          No text paragraphs could be extracted from this website. Click below to
+                          read the original article.
                         </div>
                       )}
                     </article>

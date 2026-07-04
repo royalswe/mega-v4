@@ -27,6 +27,7 @@ export function TrackedLink({ url, title, linkId, type, className }: TrackedLink
   } | null>(null)
 
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const preloadResetTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   /**
    * Cache for scrape-media results.
    * - `undefined` → not yet attempted
@@ -41,10 +42,13 @@ export function TrackedLink({ url, title, linkId, type, className }: TrackedLink
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current)
       }
+      if (preloadResetTimeoutRef.current) {
+        clearTimeout(preloadResetTimeoutRef.current)
+      }
     }
   }, [])
 
-  const embedInfo = getEmbedType(url, type)
+  const embedInfo = getEmbedType(url)
 
   // ---------------------------------------------------------------------------
   // Helpers
@@ -73,30 +77,43 @@ export function TrackedLink({ url, title, linkId, type, className }: TrackedLink
    * Scrape the target page for an embeddable media URL.
    * Result is cached in `scrapedMediaRef` so repeated calls are free.
    */
+  const scrapedMediaPromiseRef = useRef<Promise<string | null> | null>(null)
+
   const scrapeMediaUrl = async (): Promise<string | null> => {
     if (scrapedMediaRef.current !== undefined) return scrapedMediaRef.current
-    // Mark as in-flight so concurrent calls don't double-fetch
-    scrapedMediaRef.current = null
-    try {
-      const mediaType = type === 'image' ? 'image' : 'video'
-      const res = await fetch(
-        `/api/scrape-media?url=${encodeURIComponent(url)}&type=${mediaType}`,
-      )
-      const data = await res.json()
-      const found =
-        data.success && Array.isArray(data.suggestions) && data.suggestions.length > 0
-          ? (data.suggestions[0] as string)
-          : null
-      scrapedMediaRef.current = found
-      return found
-    } catch {
-      scrapedMediaRef.current = null
-      return null
-    }
+    if (scrapedMediaPromiseRef.current) return scrapedMediaPromiseRef.current
+    const promise = (async () => {
+      try {
+        const mediaType = type === 'image' ? 'image' : 'video'
+        const res = await fetch(
+          `/api/scrape-media?url=${encodeURIComponent(url)}&type=${mediaType}`,
+        )
+        const data = await res.json()
+        const found =
+          data.success && Array.isArray(data.suggestions) && data.suggestions.length > 0
+            ? (data.suggestions[0] as string)
+            : null
+        scrapedMediaRef.current = found
+        return found
+      } catch {
+        scrapedMediaRef.current = null
+        return null
+      }
+    })()
+    scrapedMediaPromiseRef.current = promise
+    return promise
   }
 
   const handlePreload = () => {
     setShouldLoad(true)
+
+    if (preloadResetTimeoutRef.current) {
+      clearTimeout(preloadResetTimeoutRef.current)
+    }
+    preloadResetTimeoutRef.current = setTimeout(() => {
+      setShouldLoad(false)
+    }, 3000)
+
     if (embedInfo.type === 'iframe') {
       checkEmbeddability()
       // For video/image links that aren't directly embeddable, warm the scrape
@@ -121,14 +138,26 @@ export function TrackedLink({ url, title, linkId, type, className }: TrackedLink
       clearTimeout(hoverTimeoutRef.current)
       hoverTimeoutRef.current = null
     }
+    if (!isOpen) {
+      setShouldLoad(false)
+    }
   }
 
   const handleClick = async (e: React.MouseEvent) => {
+    const isModifiedClick = e.metaKey || e.ctrlKey || e.shiftKey || e.altKey
+    const isPrimaryButton = e.button === 0
+
+    if (!isPrimaryButton || isModifiedClick) {
+      void trackClick(linkId).catch(() => {})
+      return
+    }
+
     e.preventDefault()
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+    hoverTimeoutRef.current = null
 
     // Track click (fire-and-forget)
-    trackClick(linkId)
+    void trackClick(linkId).catch(() => {})
 
     const mediaTypes = ['video', 'image', 'audio']
     const isUnresolvableMedia = type && mediaTypes.includes(type) && embedInfo.type === 'iframe'
@@ -189,7 +218,7 @@ export function TrackedLink({ url, title, linkId, type, className }: TrackedLink
                 pointerEvents: 'none',
               }}
               referrerPolicy="no-referrer"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+              sandbox="allow-scripts allow-forms allow-popups"
             />
           )}
           {embedInfo.type === 'video' && (
@@ -208,7 +237,12 @@ export function TrackedLink({ url, title, linkId, type, className }: TrackedLink
           title={title}
           type={type}
           isOpen={isOpen}
-          setIsOpen={setIsOpen}
+          setIsOpen={(open) => {
+            setIsOpen(open)
+            if (!open) {
+              setShouldLoad(false)
+            }
+          }}
           embedCheck={embedCheck}
         />
       )}

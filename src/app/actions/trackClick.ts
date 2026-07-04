@@ -17,13 +17,25 @@ const isDuplicateClickError = (error: unknown): boolean => {
     return true
   }
 
-  // Handle Payload ValidationError for unique constraint on identityKey
-  if (name === 'ValidationError' || maybe.status === 400) {
-    const errors = maybe.data?.errors || maybe.errors
+  // Handle Payload local-api ValidationError (v3) where details are nested under cause.errors.
+  if (
+    name === 'ValidationError' ||
+    maybe.status === 400 ||
+    maybe.cause?.name === 'ValidationError'
+  ) {
+    const errors = maybe.cause?.errors || maybe.errors || maybe.data?.errors
     if (Array.isArray(errors)) {
-      return errors.some(
-        (err: any) => err?.field === 'identityKey' || /unique/i.test(err?.message || ''),
-      )
+      return errors.some((err: any) => {
+        const path = typeof err?.path === 'string' ? err.path : ''
+        const field = typeof err?.field === 'string' ? err.field : ''
+        const errorMessage = typeof err?.message === 'string' ? err.message : ''
+
+        return (
+          /identityKey/i.test(path) ||
+          /identityKey/i.test(field) ||
+          (/identityKey/i.test(`${path}.${field}`) && /duplicate|unique/i.test(errorMessage))
+        )
+      })
     }
   }
 
