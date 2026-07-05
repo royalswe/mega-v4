@@ -150,8 +150,16 @@ const dictionaries = {
       nsfwDesc: 'Check if the link contains Not Safe For Work content.',
       submitButton: 'Submit',
       submitting: 'Submitting...',
+      checkingLink: 'Checking Link...',
+      scanningSite: 'Scanning Site...',
       submitSuccess: 'Link submitted successfully!',
       submitError: 'Failed to submit link. Please try again.',
+      suggestionModalTitle: 'Direct Link Suggestion',
+      suggestionModalDescription:
+        'This URL is not a direct {type} address. We scanned the page and found these direct resource paths instead:',
+      useSuggestedUrlButton: 'Use Suggested URL and Submit',
+      keepOriginalButton: 'Keep Original',
+      cancelButton: 'Cancel',
       types: {
         article: 'Article',
         video: 'Video',
@@ -458,8 +466,16 @@ const dictionaries = {
       nsfwDesc: 'Markera om länken innehåller innehåll som inte är säkert för arbete (NSFW).',
       submitButton: 'Skicka',
       submitting: 'Skickar...',
+      checkingLink: 'Kontrollerar länk...',
+      scanningSite: 'Skannar sida...',
       submitSuccess: 'Länken skickades!',
       submitError: 'Kunde inte skicka länken. Försök igen.',
+      suggestionModalTitle: 'Förslag på direktlänk',
+      suggestionModalDescription:
+        'Denna URL är inte en direkt {type}-adress. Vi skannade sidan och hittade dessa direkta resurssökvägar i stället:',
+      useSuggestedUrlButton: 'Använd föreslagen URL och skicka',
+      keepOriginalButton: 'Behåll original',
+      cancelButton: 'Avbryt',
       types: {
         article: 'Artikel',
         video: 'Video',

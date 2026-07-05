@@ -8,11 +8,38 @@ import { getAuthenticatedUser } from '@/lib/auth'
 const isDuplicateClickError = (error: unknown): boolean => {
   if (!error || typeof error !== 'object') return false
 
-  const maybe = error as { code?: unknown; message?: unknown }
+  const maybe = error as any
   const code = typeof maybe.code === 'string' ? maybe.code : ''
   const message = typeof maybe.message === 'string' ? maybe.message : ''
+  const name = typeof maybe.name === 'string' ? maybe.name : ''
 
-  return code === '23505' || /duplicate|unique/i.test(message)
+  if (code === '23505' || /duplicate|unique/i.test(message)) {
+    return true
+  }
+
+  // Handle Payload local-api ValidationError (v3) where details are nested under cause.errors.
+  if (
+    name === 'ValidationError' ||
+    maybe.status === 400 ||
+    maybe.cause?.name === 'ValidationError'
+  ) {
+    const errors = maybe.cause?.errors || maybe.errors || maybe.data?.errors
+    if (Array.isArray(errors)) {
+      return errors.some((err: any) => {
+        const path = typeof err?.path === 'string' ? err.path : ''
+        const field = typeof err?.field === 'string' ? err.field : ''
+        const errorMessage = typeof err?.message === 'string' ? err.message : ''
+
+        return (
+          /identityKey/i.test(path) ||
+          /identityKey/i.test(field) ||
+          (/identityKey/i.test(`${path}.${field}`) && /duplicate|unique/i.test(errorMessage))
+        )
+      })
+    }
+  }
+
+  return false
 }
 
 const createClickFingerprint = async (): Promise<string> => {

@@ -12,6 +12,7 @@ import { getDictionary } from '@/lib/dictionaries'
 import { Avatar } from '@/components/users/Avatar'
 import { RichTextDisplay } from '@/components/ui/RichTextDisplay'
 import { Timestamp } from '@/components/ui/Timestamp'
+import { TrackedLink } from '@/components/links/TrackedLink'
 
 import type { Payload } from 'payload'
 import type { User } from '@/payload-types'
@@ -101,9 +102,12 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
           <div className="flex items-center gap-2 mb-2">
             <LinkIcon type={link.type} />
             <h1 className="text-2xl font-bold hover:underline">
-              <a href={link.url} target="_blank" rel="noopener noreferrer">
-                {link.title}
-              </a>
+              <TrackedLink
+                url={link.url}
+                title={link.title}
+                linkId={link.id}
+                type={link.type}
+              />
             </h1>
           </div>
           <p className="text-muted-foreground mb-4">
