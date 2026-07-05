@@ -112,6 +112,7 @@ describe('SubFeed Targeting Integration', () => {
 
     expect(post.feed).toBe('subfeed')
     expect(getRelationId(post.subfeed)).toBe(subfeed.id)
+    expect(post.status).toBe('published')
   })
 
   it('rejects creating a link in subfeed feed without subfeed relation', async () => {

@@ -25,15 +25,15 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^5.4.0",
-    "@lexical/code": "0.35.0",
-    "@lexical/history": "0.35.0",
-    "@lexical/link": "0.35.0",
-    "@lexical/list": "0.35.0",
-    "@lexical/markdown": "0.35.0",
-    "@lexical/react": "0.35.0",
-    "@lexical/rich-text": "0.35.0",
-    "@lexical/table": "0.35.0",
-    "@lexical/utils": "0.35.0",
+    "@lexical/code": "0.41.0",
+    "@lexical/history": "0.41.0",
+    "@lexical/link": "0.41.0",
+    "@lexical/list": "0.41.0",
+    "@lexical/markdown": "0.41.0",
+    "@lexical/react": "0.41.0",
+    "@lexical/rich-text": "0.41.0",
+    "@lexical/table": "0.41.0",
+    "@lexical/utils": "0.41.0",
     "@payloadcms/db-postgres": "3.85.0",
     "@payloadcms/next": "3.85.0",
     "@payloadcms/richtext-lexical": "3.85.0",
@@ -53,7 +53,7 @@
     "dotenv": "17.4.2",
     "fast-xml-parser": "^5.8.0",
     "graphql": "^16.14.0",
-    "lexical": "0.35.0",
+    "lexical": "0.41.0",
     "lucide-react": "^1.17.0",
     "next": "16.2.6",
     "next-themes": "^0.4.6",
@@ -97,29 +97,5 @@
   "engines": {
     "node": "^18.20.2 || >=20.9.0",
     "pnpm": "^10 || ^11"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp",
-      "esbuild",
-      "unrs-resolver"
-    ],
-    "overrides": {
-      "lexical": "0.35.0",
-      "@lexical/react": "0.35.0",
-      "@lexical/code": "0.35.0",
-      "@lexical/history": "0.35.0",
-      "@lexical/link": "0.35.0",
-      "@lexical/list": "0.35.0",
-      "@lexical/markdown": "0.35.0",
-      "@lexical/rich-text": "0.35.0",
-      "@lexical/table": "0.35.0",
-      "@lexical/utils": "0.35.0",
-      "@lexical/selection": "0.35.0",
-      "@lexical/clipboard": "0.35.0",
-      "@lexical/headless": "0.35.0",
-      "@lexical/html": "0.35.0",
-      "@lexical/mark": "0.35.0"
-    }
   }
 }

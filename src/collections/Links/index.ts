@@ -20,6 +20,60 @@ const slugify = (value: string): string =>
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
 
+const MAX_SLUG_ATTEMPTS = 50
+
+async function ensureUniqueLinkSlug({
+  req,
+  baseSlug,
+  currentId,
+}: {
+  req: Parameters<CollectionBeforeValidateHook>[0]['req']
+  baseSlug: string
+  currentId?: number | string
+}) {
+  const normalizedBase = baseSlug.trim() || 'link'
+
+  for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
+    const candidateSlug = attempt === 0 ? normalizedBase : `${normalizedBase}-${attempt + 1}`
+
+    const where: Where = currentId
+      ? {
+          and: [
+            {
+              slug: {
+                equals: candidateSlug,
+              },
+            },
+            {
+              id: {
+                not_equals: currentId,
+              },
+            },
+          ],
+        }
+      : {
+          slug: {
+            equals: candidateSlug,
+          },
+        }
+
+    const existing = await req.payload.find({
+      collection: 'links',
+      where,
+      depth: 0,
+      limit: 1,
+      overrideAccess: true,
+      req,
+    })
+
+    if (existing.totalDocs === 0) {
+      return candidateSlug
+    }
+  }
+
+  throw new Error('Could not generate a unique slug for this link')
+}
+
 const canEditModeration: FieldAccess = ({ req: { user } }) => canModerateCommunity(user)
 
 const readAccess: Access = ({ req: { user } }) => {
@@ -89,11 +143,21 @@ const updateAccess: Access = ({ req: { user } }) => {
   } as Where
 }
 
-const prepareLink: CollectionBeforeValidateHook = async ({ data, operation, req }) => {
+const prepareLink: CollectionBeforeValidateHook = async ({ data, operation, req, originalDoc }) => {
   const nextData = { ...data }
 
   if (typeof nextData?.title === 'string' && nextData.title.length > 0) {
-    nextData.slug = nextData.slug || slugify(nextData.title)
+    const preferredSlugSource =
+      typeof nextData.slug === 'string' && nextData.slug.trim().length > 0
+        ? nextData.slug
+        : nextData.title
+
+    const preferredSlug = slugify(preferredSlugSource) || 'link'
+    nextData.slug = await ensureUniqueLinkSlug({
+      req,
+      baseSlug: preferredSlug,
+      currentId: originalDoc?.id,
+    })
   }
 
   if (nextData?.subfeed && nextData.feed !== 'subfeed') {

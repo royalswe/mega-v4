@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { assertSafeUrl, fetchWithSafeRedirects } from '@/app/api/_utils/safe-fetch'
+import { fetchProviderPreview, getEmbedType } from '@/lib/media'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,6 +78,36 @@ export async function GET(request: Request) {
     const parsedUrl = new URL(url)
     await assertSafeUrl(parsedUrl)
 
+    const resolution = getEmbedType(parsedUrl.toString())
+    if (resolution.type === 'youtube' || resolution.type === 'vimeo') {
+      const preview = await fetchProviderPreview(parsedUrl.toString())
+      if (!preview) {
+        throw new Error('Unable to load provider metadata')
+      }
+
+      return NextResponse.json(
+        {
+          embeddable: false,
+          xFrameOptions: 'provider-metadata',
+          csp: '',
+          title: preview.title,
+          description: preview.description || '',
+          image: preview.image || preview.thumbnailUrl || '',
+          thumbnailUrl: preview.thumbnailUrl || preview.image || '',
+          readerText: '',
+          provider: preview.provider,
+          providerName: preview.providerName,
+          authorName: preview.authorName,
+          canonicalUrl: preview.canonicalUrl,
+        },
+        {
+          headers: {
+            'Cache-Control': 'public, max-age=3600',
+          },
+        },
+      )
+    }
+
     const controller = new AbortController()
     const id = setTimeout(() => controller.abort(), 4000) // 4s timeout
 
@@ -140,6 +171,7 @@ export async function GET(request: Request) {
       title: fallbackTitle,
       description: 'Click below to open this website directly.',
       image: '',
+      thumbnailUrl: '',
       readerText: '',
     })
   }

@@ -3,11 +3,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import * as z from 'zod'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Modal, ModalContent, ModalTitle, ModalDescription } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
-import { getEmbedType } from '@/components/links/LinkPreviewModal'
+import { getEmbedType } from '@/lib/media'
 import { cn } from '@/lib/utils'
 import { AlertTriangle, Check } from 'lucide-react'
 
@@ -40,6 +40,27 @@ interface SubfeedOption {
   name: string
 }
 
+interface MediaSuggestion {
+  url: string
+  title?: string
+  description?: string
+  thumbnailUrl?: string
+  provider?: 'youtube' | 'vimeo' | 'image'
+}
+
+interface LinkPreviewData {
+  title?: string
+  description?: string
+  image?: string
+  thumbnailUrl?: string
+  provider?: 'youtube' | 'vimeo'
+  providerName?: string
+  authorName?: string
+  readerText?: string
+  embeddable?: boolean
+  kind: ReturnType<typeof getEmbedType>['type']
+}
+
 export function LinkSubmitForm({
   dict,
   subfeeds,
@@ -58,6 +79,7 @@ export function LinkSubmitForm({
   onCancel?: () => void
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
 
   const formSchema = z
     .object({
@@ -97,16 +119,112 @@ export function LinkSubmitForm({
   })
 
   const selectedFeed = form.watch('feed')
+  const lastPreviewedUrlRef = useRef('')
 
   const [isCheckingMedia, setIsCheckingMedia] = useState(false)
   const [suggestionState, setSuggestionState] = useState<{
     type: 'video' | 'image'
     originalUrl: string
-    suggestedUrls: string[]
+    suggestedUrls: MediaSuggestion[]
   } | null>(null)
   const [selectedSuggestion, setSelectedSuggestion] = useState<string>('')
+  const [linkPreview, setLinkPreview] = useState<LinkPreviewData | null>(null)
   const isSuggestionOpen = suggestionState !== null
   const isFormBusy = isSubmitting || isCheckingMedia || isSuggestionOpen
+
+  function applyPreviewToFields(preview: LinkPreviewData, previewUrl: string) {
+    if (form.getValues('url').trim() !== previewUrl) {
+      return
+    }
+
+    setLinkPreview(preview)
+
+    const titleValue = form.getValues('title') ?? ''
+    const descriptionValue = form.getValues('description') ?? ''
+    const typeValue = form.getValues('type') ?? 'article'
+
+    if (preview.title && !form.getFieldState('title').isDirty && !titleValue.trim()) {
+      form.setValue('title', preview.title, { shouldDirty: false, shouldTouch: false })
+    }
+
+    if (
+      preview.description &&
+      !form.getFieldState('description').isDirty &&
+      !descriptionValue.trim()
+    ) {
+      form.setValue('description', preview.description, { shouldDirty: false, shouldTouch: false })
+    }
+
+    const resolvedType =
+      preview.provider || preview.kind === 'video'
+        ? 'video'
+        : preview.kind === 'image'
+          ? 'image'
+          : preview.kind === 'audio'
+            ? 'audio'
+            : null
+
+    if (resolvedType && !form.getFieldState('type').isDirty && typeValue === 'article') {
+      form.setValue('type', resolvedType, { shouldDirty: false, shouldTouch: false })
+    }
+  }
+
+  async function loadLinkPreview(url: string, options?: { force?: boolean }) {
+    const normalizedUrl = url.trim()
+    if (!normalizedUrl) {
+      setLinkPreview(null)
+      return null
+    }
+
+    if (!options?.force && lastPreviewedUrlRef.current === normalizedUrl && linkPreview) {
+      return linkPreview
+    }
+
+    let embedInfo
+    try {
+      embedInfo = getEmbedType(normalizedUrl)
+    } catch {
+      return null
+    }
+
+    if (embedInfo.type === 'image' || embedInfo.type === 'video' || embedInfo.type === 'audio') {
+      const preview = {
+        kind: embedInfo.type,
+        embeddable: true,
+      } satisfies LinkPreviewData
+
+      lastPreviewedUrlRef.current = normalizedUrl
+      applyPreviewToFields(preview, normalizedUrl)
+      return preview
+    }
+
+    setIsLoadingPreview(true)
+    try {
+      const res = await fetch(`/api/check-embed?url=${encodeURIComponent(normalizedUrl)}`)
+      const data = await res.json()
+      const preview: LinkPreviewData = {
+        title: data.title,
+        description: data.description,
+        image: data.image,
+        thumbnailUrl: data.thumbnailUrl,
+        provider: data.provider,
+        providerName: data.providerName,
+        authorName: data.authorName,
+        readerText: data.readerText,
+        embeddable: data.embeddable,
+        kind: embedInfo.type,
+      }
+
+      lastPreviewedUrlRef.current = normalizedUrl
+      applyPreviewToFields(preview, normalizedUrl)
+      return preview
+    } catch (error) {
+      console.error('Failed to load link preview', error)
+      return null
+    } finally {
+      setIsLoadingPreview(false)
+    }
+  }
 
   async function proceedSubmit(values: FormSchema) {
     setIsSubmitting(true)
@@ -130,6 +248,8 @@ export function LinkSubmitForm({
         feed: defaultFeed ?? 'main',
         subfeedId: defaultSubfeedId ? String(defaultSubfeedId) : '',
       })
+      setLinkPreview(null)
+      lastPreviewedUrlRef.current = ''
       onSuccess?.()
     } catch (error) {
       console.error(error)
@@ -144,21 +264,25 @@ export function LinkSubmitForm({
       return
     }
 
-    const isVideo = values.type === 'video'
-    const isImage = values.type === 'image'
+    await loadLinkPreview(values.url, { force: true })
+    const latestValues = form.getValues()
+    const latestUrl = latestValues.url.trim()
+
+    const isVideo = latestValues.type === 'video'
+    const isImage = latestValues.type === 'image'
 
     if (!isVideo && !isImage) {
-      await proceedSubmit(values)
+      await proceedSubmit(latestValues)
       return
     }
 
     // Check if the current URL is directly previewable
-    const embedInfo = getEmbedType(values.url)
+    const embedInfo = getEmbedType(latestUrl)
     const isValidVideo = isVideo && embedInfo.type !== 'iframe'
     const isValidImage = isImage && embedInfo.type === 'image'
 
     if (isValidVideo || isValidImage) {
-      await proceedSubmit(values)
+      await proceedSubmit(latestValues)
       return
     }
 
@@ -170,21 +294,25 @@ export function LinkSubmitForm({
       )
       const data = await res.json()
 
-      if (data.success && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
+      if (
+        data.success &&
+        Array.isArray(data.suggestionDetails) &&
+        data.suggestionDetails.length > 0
+      ) {
         setSuggestionState({
-          type: values.type as 'video' | 'image',
-          originalUrl: values.url,
-          suggestedUrls: data.suggestions,
+          type: latestValues.type as 'video' | 'image',
+          originalUrl: latestUrl,
+          suggestedUrls: data.suggestionDetails,
         })
-        setSelectedSuggestion(data.suggestions[0])
+        setSelectedSuggestion(data.suggestionDetails[0].url)
       } else {
         // No direct media links found, proceed submitting the original URL
-        await proceedSubmit(values)
+        await proceedSubmit(latestValues)
       }
     } catch (err) {
       console.error('Failed to verify media link', err)
       // Scraping failed, proceed submitting the original URL as fallback
-      await proceedSubmit(values)
+      await proceedSubmit(latestValues)
     } finally {
       setIsCheckingMedia(false)
     }
@@ -201,6 +329,79 @@ export function LinkSubmitForm({
             <fieldset disabled={isFormBusy} className="space-y-8">
               <FormField
                 control={form.control}
+                name="url"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{dict.linkForm.urlLabel}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={dict.linkForm.urlPlaceholder}
+                        {...field}
+                        onBlur={async (event) => {
+                          field.onBlur()
+                          await loadLinkPreview(event.target.value)
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>{dict.linkForm.urlDesc}</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {(linkPreview || isLoadingPreview) && (
+                <div className="rounded-xl border bg-muted/20 p-3">
+                  {isLoadingPreview ? (
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      <div className="h-10 w-10 animate-pulse rounded-md bg-muted" />
+                      <div className="space-y-1">
+                        <p className="font-medium text-foreground">Loading link preview</p>
+                        <p>Checking the URL and preparing autofill suggestions.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
+                        {linkPreview?.image ? (
+                          <img
+                            src={linkPreview.image}
+                            alt={linkPreview.title || 'Link preview'}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="px-2 text-center text-xs text-muted-foreground">
+                            No thumbnail available
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          {linkPreview?.providerName ||
+                            (linkPreview?.provider === 'youtube'
+                              ? 'YouTube'
+                              : linkPreview?.provider === 'vimeo'
+                                ? 'Vimeo'
+                                : 'Preview')}
+                        </div>
+                        <p className="truncate font-medium">
+                          {linkPreview?.title || 'Preview ready'}
+                        </p>
+                        {linkPreview?.description && (
+                          <p className="line-clamp-2 text-sm text-muted-foreground">
+                            {linkPreview.description}
+                          </p>
+                        )}
+                        {linkPreview?.authorName && (
+                          <p className="text-xs text-muted-foreground">
+                            By {linkPreview.authorName}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              <FormField
+                control={form.control}
                 name="title"
                 render={({ field }) => (
                   <FormItem>
@@ -209,20 +410,6 @@ export function LinkSubmitForm({
                       <Input placeholder={dict.linkForm.titlePlaceholder} {...field} />
                     </FormControl>
                     <FormDescription>{dict.linkForm.titleDesc}</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="url"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{dict.linkForm.urlLabel}</FormLabel>
-                    <FormControl>
-                      <Input placeholder={dict.linkForm.urlPlaceholder} {...field} />
-                    </FormControl>
-                    <FormDescription>{dict.linkForm.urlDesc}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -244,14 +431,11 @@ export function LinkSubmitForm({
               <FormField
                 control={form.control}
                 name="type"
-                render={() => (
+                render={({ field }) => (
                   <FormItem>
                     <FormLabel>{dict.linkForm.typeLabel}</FormLabel>
                     <FormControl>
-                      <Select
-                        onValueChange={form.setValue.bind(null, 'type')}
-                        defaultValue={form.getValues().type}
-                      >
+                      <Select value={field.value} onValueChange={field.onChange}>
                         <SelectTrigger className="w-100">
                           <SelectValue placeholder={dict.linkForm.typePlaceholder} />
                         </SelectTrigger>
@@ -342,22 +526,42 @@ export function LinkSubmitForm({
             </ModalDescription>
 
             <div className="flex flex-col gap-2 max-h-48 overflow-y-auto border rounded-lg p-2 bg-muted/20">
-              {suggestionState.suggestedUrls.map((url, idx) => (
+              {suggestionState.suggestedUrls.map((suggestion, idx) => (
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => setSelectedSuggestion(url)}
+                  onClick={() => setSelectedSuggestion(suggestion.url)}
                   className={cn(
-                    'w-full text-left px-3 py-2 rounded-md border text-xs font-mono break-all flex items-center justify-between transition-colors',
-                    selectedSuggestion === url
+                    'w-full text-left px-3 py-2 rounded-md border text-xs transition-colors',
+                    selectedSuggestion === suggestion.url
                       ? 'bg-primary/10 border-primary text-foreground font-semibold'
                       : 'bg-background hover:bg-muted border-input text-muted-foreground',
                   )}
                 >
-                  <span className="truncate max-w-[90%]">{url}</span>
-                  {selectedSuggestion === url && (
-                    <Check className="h-4 w-4 shrink-0 text-primary" />
-                  )}
+                  <div className="flex items-center gap-3">
+                    <div className="h-14 w-24 shrink-0 overflow-hidden rounded-md border bg-muted/40">
+                      {suggestion.thumbnailUrl ? (
+                        <img
+                          src={suggestion.thumbnailUrl}
+                          alt={suggestion.title || suggestion.url}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center px-2 text-center text-[10px] text-muted-foreground">
+                          No thumbnail
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-foreground">
+                        {suggestion.title || suggestion.url}
+                      </p>
+                      <p className="truncate text-[11px] text-muted-foreground">{suggestion.url}</p>
+                    </div>
+                    {selectedSuggestion === suggestion.url && (
+                      <Check className="h-4 w-4 shrink-0 text-primary" />
+                    )}
+                  </div>
                 </button>
               ))}
             </div>
@@ -366,12 +570,12 @@ export function LinkSubmitForm({
               <Button
                 type="button"
                 disabled={!selectedSuggestion}
-                onClick={() => {
-                  const latestValues = form.getValues()
-                  const updatedValues = { ...latestValues, url: selectedSuggestion }
+                onClick={async () => {
+                  await loadLinkPreview(selectedSuggestion, { force: true })
+                  const updatedValues = { ...form.getValues(), url: selectedSuggestion }
                   setSuggestionState(null)
                   setSelectedSuggestion('')
-                  proceedSubmit(updatedValues)
+                  await proceedSubmit(updatedValues)
                 }}
                 className="w-full"
               >
@@ -381,8 +585,9 @@ export function LinkSubmitForm({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    proceedSubmit(form.getValues())
+                  onClick={async () => {
+                    await loadLinkPreview(form.getValues('url'), { force: true })
+                    await proceedSubmit(form.getValues())
                     setSuggestionState(null)
                     setSelectedSuggestion('')
                   }}

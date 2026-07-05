@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { trackClick } from '@/app/actions/trackClick'
-import { LinkPreviewModal, getEmbedType } from '@/components/links/LinkPreviewModal'
+import { LinkPreviewModal } from '@/components/links/LinkPreviewModal'
+import { getEmbedType } from '@/lib/media'
 
 interface TrackedLinkProps {
   url: string
@@ -22,6 +23,10 @@ export function TrackedLink({ url, title, linkId, type, className }: TrackedLink
     title?: string
     description?: string
     image?: string
+    thumbnailUrl?: string
+    provider?: 'youtube' | 'vimeo'
+    providerName?: string
+    authorName?: string
     readerText?: string
     loading: boolean
   } | null>(null)
@@ -55,21 +60,29 @@ export function TrackedLink({ url, title, linkId, type, className }: TrackedLink
   // ---------------------------------------------------------------------------
 
   const checkEmbeddability = async () => {
-    if (embedCheck) return
+    if (embedCheck && !embedCheck.loading) return embedCheck
     setEmbedCheck({ embeddable: true, loading: true })
     try {
       const res = await fetch(`/api/check-embed?url=${encodeURIComponent(url)}`)
       const data = await res.json()
-      setEmbedCheck({
+      const next = {
         embeddable: data.embeddable,
         title: data.title,
         description: data.description,
         image: data.image,
+        thumbnailUrl: data.thumbnailUrl,
+        provider: data.provider,
+        providerName: data.providerName,
+        authorName: data.authorName,
         readerText: data.readerText,
         loading: false,
-      })
+      }
+      setEmbedCheck(next)
+      return next
     } catch {
-      setEmbedCheck({ embeddable: false, loading: false })
+      const fallback = { embeddable: false, loading: false }
+      setEmbedCheck(fallback)
+      return fallback
     }
   }
 
@@ -114,8 +127,8 @@ export function TrackedLink({ url, title, linkId, type, className }: TrackedLink
       setShouldLoad(false)
     }, 3000)
 
-    if (embedInfo.type === 'iframe') {
-      checkEmbeddability()
+    if (embedInfo.type === 'iframe' || embedInfo.type === 'youtube' || embedInfo.type === 'vimeo') {
+      void checkEmbeddability()
       // For video/image links that aren't directly embeddable, warm the scrape
       // cache on hover so the click feels instant.
       if (type === 'video' || type === 'image') {
@@ -177,6 +190,10 @@ export function TrackedLink({ url, title, linkId, type, className }: TrackedLink
       // No embeddable media found → open the original URL in a new tab
       window.open(url, '_blank', 'noopener,noreferrer')
       return
+    }
+
+    if (embedInfo.type === 'youtube' || embedInfo.type === 'vimeo') {
+      void checkEmbeddability()
     }
 
     // Standard modal flow

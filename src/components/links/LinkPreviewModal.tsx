@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { ExternalLink, X, FileText, Globe, Loader2, Volume2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getEmbedType } from '@/lib/media'
 
 interface LinkPreviewModalProps {
   url: string
@@ -23,91 +24,13 @@ interface LinkPreviewModalProps {
     title?: string
     description?: string
     image?: string
+    thumbnailUrl?: string
+    provider?: 'youtube' | 'vimeo'
+    providerName?: string
+    authorName?: string
     readerText?: string
     loading: boolean
   } | null
-}
-
-export function getEmbedType(url: string) {
-  // Use the URL API for reliable parsing instead of fragile regexes.
-  try {
-    const parsed = new URL(url)
-    const host = parsed.hostname.replace(/^www\./, '')
-
-    // --- YouTube ---
-    if (host === 'youtube.com' || host === 'm.youtube.com') {
-      // Standard watch URL: youtube.com/watch?v=ID
-      const watchId = parsed.searchParams.get('v')
-      if (watchId && watchId.length === 11) {
-        return {
-          type: 'youtube' as const,
-          embedUrl: `https://www.youtube.com/embed/${watchId}`,
-        }
-      }
-      // Embed/short URL paths: /embed/ID, /v/ID, /e/ID
-      const pathMatch = parsed.pathname.match(/^\/(?:embed|v|e)\/([A-Za-z0-9_-]{11})/)
-      if (pathMatch) {
-        return {
-          type: 'youtube' as const,
-          embedUrl: `https://www.youtube.com/embed/${pathMatch[1]}`,
-        }
-      }
-      // Shorts: /shorts/ID
-      const shortsMatch = parsed.pathname.match(/^\/shorts\/([A-Za-z0-9_-]{11})/)
-      if (shortsMatch) {
-        return {
-          type: 'youtube' as const,
-          embedUrl: `https://www.youtube.com/embed/${shortsMatch[1]}`,
-        }
-      }
-    }
-
-    if (host === 'youtu.be') {
-      // youtu.be/ID
-      const id = parsed.pathname.slice(1)
-      if (id.length >= 11) {
-        return {
-          type: 'youtube' as const,
-          embedUrl: `https://www.youtube.com/embed/${id.slice(0, 11)}`,
-        }
-      }
-    }
-
-    // --- Vimeo ---
-    if (host === 'vimeo.com' || host === 'player.vimeo.com') {
-      const vimeoMatch = parsed.pathname.match(/\/(?:video\/)?([0-9]+)/)
-      if (vimeoMatch) {
-        return {
-          type: 'vimeo' as const,
-          embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}`,
-        }
-      }
-    }
-  } catch {
-    // Malformed URL — fall through to extension checks below
-  }
-
-  // --- Direct file extension checks ---
-
-  // Image
-  const imgRegex = /\.(jpeg|jpg|gif|png|webp|svg|bmp)(?:\?.*)?$/i
-  if (imgRegex.test(url)) {
-    return { type: 'image' as const }
-  }
-
-  // Video file
-  const videoRegex = /\.(mp4|webm|ogg|ogv|mov)(?:\?.*)?$/i
-  if (videoRegex.test(url)) {
-    return { type: 'video' as const }
-  }
-
-  // Audio file
-  const audioRegex = /\.(mp3|wav|ogg|aac|flac|m4a)(?:\?.*)?$/i
-  if (audioRegex.test(url)) {
-    return { type: 'audio' as const }
-  }
-
-  return { type: 'iframe' as const }
 }
 
 export function LinkPreviewModal({
@@ -118,6 +41,12 @@ export function LinkPreviewModal({
   embedCheck,
 }: LinkPreviewModalProps) {
   const embedInfo = getEmbedType(url)
+  const providerPlayerUrl =
+    embedInfo.type === 'youtube' && embedInfo.videoId
+      ? `https://www.youtube.com/embed/${embedInfo.videoId}`
+      : embedInfo.type === 'vimeo' && embedInfo.videoId
+        ? `https://player.vimeo.com/video/${embedInfo.videoId}`
+        : null
   const isMedia = ['youtube', 'vimeo', 'image', 'video', 'audio'].includes(embedInfo.type)
 
   // Determine starting tab
@@ -204,30 +133,29 @@ export function LinkPreviewModal({
         </div>
 
         {/* Content Body */}
-        <div className="flex-grow min-h-0 bg-muted/10 overflow-y-auto">
-          {/* YouTube Embed */}
-          {embedInfo.type === 'youtube' && (
-            <div className="w-full h-full aspect-video bg-black flex items-center justify-center">
-              <iframe
-                src={embedInfo.embedUrl}
-                title={title}
-                className="w-full h-full border-0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            </div>
-          )}
-
-          {/* Vimeo Embed */}
-          {embedInfo.type === 'vimeo' && (
-            <div className="w-full h-full aspect-video bg-black flex items-center justify-center">
-              <iframe
-                src={embedInfo.embedUrl}
-                title={title}
-                className="w-full h-full border-0"
-                allow="autoplay; fullscreen; picture-in-picture"
-                allowFullScreen
-              />
+        <div className="grow min-h-0 bg-muted/10 overflow-y-auto">
+          {(embedInfo.type === 'youtube' || embedInfo.type === 'vimeo') && (
+            <div className="w-full">
+              <div className="w-full aspect-video bg-black">
+                {providerPlayerUrl ? (
+                  <iframe
+                    src={providerPlayerUrl}
+                    title={embedCheck?.title || title}
+                    className="w-full h-full border-0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center p-8 text-center text-white/80">
+                    <div className="max-w-md space-y-2">
+                      <p className="text-lg font-semibold text-white">Video player unavailable</p>
+                      <p className="text-sm text-white/70">
+                        We could not build an embedded player URL for this video.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -240,7 +168,7 @@ export function LinkPreviewModal({
 
           {/* Direct Image File */}
           {embedInfo.type === 'image' && (
-            <div className="w-full h-full min-h-[300px] flex items-center justify-center p-4 bg-muted/40">
+            <div className="w-full h-full min-h-75 flex items-center justify-center p-4 bg-muted/40">
               <img
                 src={url}
                 alt={title}
@@ -252,7 +180,7 @@ export function LinkPreviewModal({
 
           {/* Direct Audio File */}
           {embedInfo.type === 'audio' && (
-            <div className="w-full p-8 flex flex-col items-center justify-center gap-6 bg-muted/20 min-h-[300px]">
+            <div className="w-full p-8 flex flex-col items-center justify-center gap-6 bg-muted/20 min-h-75">
               <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                 <Volume2 className="h-8 w-8 animate-pulse" />
               </div>
@@ -332,7 +260,7 @@ export function LinkPreviewModal({
                   ) : (
                     <article className="prose dark:prose-invert">
                       {embedCheck?.image && (
-                        <div className="relative mb-6 rounded-lg overflow-hidden border max-h-[300px]">
+                        <div className="relative mb-6 rounded-lg overflow-hidden border max-h-75">
                           <img
                             src={embedCheck.image}
                             alt={embedCheck.title || title}
