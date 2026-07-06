@@ -55,6 +55,7 @@ async function resolveVideoSuggestion(candidateUrl: string): Promise<MediaSugges
 }
 
 async function findVideoUrls(html: string): Promise<MediaSuggestion[]> {
+  const candidateUrls = new Set<string>()
   const suggestions = new Map<string, MediaSuggestion>()
   const htmlToScan = html.slice(0, MAX_SCAN_BYTES)
 
@@ -62,10 +63,7 @@ async function findVideoUrls(html: string): Promise<MediaSuggestion[]> {
   const ogVideoKeys = ['og:video', 'og:video:url', 'og:video:secure_url']
   for (const key of ogVideoKeys) {
     for (const url of getMetaAll(html, key)) {
-      const resolved = await resolveVideoSuggestion(url)
-      if (resolved) {
-        suggestions.set(resolved.url, resolved)
-      }
+      if (url) candidateUrls.add(url)
     }
   }
 
@@ -80,20 +78,12 @@ async function findVideoUrls(html: string): Promise<MediaSuggestion[]> {
         /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i,
       )
       if (ytMatch) {
-        const resolved = await resolveVideoSuggestion(
-          `https://www.youtube.com/watch?v=${ytMatch[1]}`,
-        )
-        if (resolved) {
-          suggestions.set(resolved.url, resolved)
-        }
+        candidateUrls.add(`https://www.youtube.com/watch?v=${ytMatch[1]}`)
       }
       // Check Vimeo pattern
       const vimeoMatch = linkUrl.match(/vimeo\.com\/(?:video\/)?([0-9]+)/i)
       if (vimeoMatch) {
-        const resolved = await resolveVideoSuggestion(`https://vimeo.com/${vimeoMatch[1]}`)
-        if (resolved) {
-          suggestions.set(resolved.url, resolved)
-        }
+        candidateUrls.add(`https://vimeo.com/${vimeoMatch[1]}`)
       }
     }
   }
@@ -104,10 +94,14 @@ async function findVideoUrls(html: string): Promise<MediaSuggestion[]> {
   let matchFallback
   while ((matchFallback = ytRegexFallback.exec(htmlToScan)) !== null) {
     if (matchFallback[0]) {
-      const resolved = await resolveVideoSuggestion(matchFallback[0].replace(/&amp;/g, '&'))
-      if (resolved) {
-        suggestions.set(resolved.url, resolved)
-      }
+      candidateUrls.add(matchFallback[0].replace(/&amp;/g, '&'))
+    }
+  }
+
+  for (const candidateUrl of candidateUrls) {
+    const resolved = await resolveVideoSuggestion(candidateUrl)
+    if (resolved) {
+      suggestions.set(resolved.url, resolved)
     }
   }
 
@@ -115,14 +109,15 @@ async function findVideoUrls(html: string): Promise<MediaSuggestion[]> {
 }
 
 function findImageUrls(html: string, baseUrl: string): MediaSuggestion[] {
-  const suggestions = new Set<string>()
+  const providerDeclaredImages = new Set<string>()
+  const domImages = new Set<string>()
   const htmlToScan = html.slice(0, MAX_SCAN_BYTES)
 
   // 1. OG / Twitter Image tags
   const ogImgKeys = ['og:image', 'twitter:image']
   for (const key of ogImgKeys) {
     getMetaAll(html, key).forEach((url) => {
-      if (url) suggestions.add(url)
+      if (url) providerDeclaredImages.add(url)
     })
   }
 
@@ -133,26 +128,67 @@ function findImageUrls(html: string, baseUrl: string): MediaSuggestion[] {
     const imgSrc = match[1]
     if (imgSrc) {
       if (imgSrc.startsWith('http')) {
-        suggestions.add(imgSrc)
+        domImages.add(imgSrc)
       } else if (imgSrc.startsWith('/')) {
         try {
           const origin = new URL(baseUrl).origin
-          suggestions.add(origin + imgSrc)
+          domImages.add(origin + imgSrc)
         } catch {}
       }
     }
   }
 
-  // Filter to keep urls with actual image file extensions
-  const validImages = Array.from(suggestions).filter((url) =>
-    /\.(jpeg|jpg|gif|png|webp|svg)/i.test(url),
-  )
+  // Keep provider-declared images as-is, but extension-filter DOM-scraped <img> sources.
+  const validImages = new Set<string>(providerDeclaredImages)
+  for (const url of domImages) {
+    if (/\.(jpeg|jpg|gif|png|webp|svg)/i.test(url)) {
+      validImages.add(url)
+    }
+  }
 
-  return validImages.slice(0, 5).map((url) => ({
-    url,
-    thumbnailUrl: url,
-    provider: 'image',
-  }))
+  return Array.from(validImages)
+    .slice(0, 5)
+    .map((url) => ({
+      url,
+      thumbnailUrl: url,
+      provider: 'image',
+    }))
+}
+
+async function readResponseTextCapped(response: Response, maxBytes: number): Promise<string> {
+  const contentLengthHeader = response.headers.get('content-length')
+  if (contentLengthHeader) {
+    const contentLength = Number.parseInt(contentLengthHeader, 10)
+    if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+      throw new Error(`Response body exceeds max scan size (${maxBytes} bytes)`)
+    }
+  }
+
+  if (!response.body) {
+    return ''
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let bytesRead = 0
+  let text = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (!value) continue
+
+    bytesRead += value.byteLength
+    if (bytesRead > maxBytes) {
+      await reader.cancel()
+      throw new Error(`Response body exceeds max scan size (${maxBytes} bytes)`)
+    }
+
+    text += decoder.decode(value, { stream: true })
+  }
+
+  text += decoder.decode()
+  return text
 }
 
 export async function scrapeMedia(url: string, type: 'video' | 'image') {
@@ -207,7 +243,7 @@ export async function scrapeMedia(url: string, type: 'video' | 'image') {
       throw new Error(`Failed to fetch page status ${response.status}`)
     }
 
-    const html = await response.text()
+    const html = await readResponseTextCapped(response, MAX_SCAN_BYTES)
     const suggestions =
       type === 'video' ? await findVideoUrls(html) : findImageUrls(html, currentUrl.toString())
 

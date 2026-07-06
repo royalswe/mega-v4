@@ -1,5 +1,6 @@
 import { type Payload, getPayload } from 'payload'
 import configPromise from '@payload-config'
+import { getEmbedType } from '../lib/media'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -250,15 +251,16 @@ async function main() {
 
       const originalUrl = item.url
       const yid = extractYoutubeId(originalUrl)
+      const normalizedUrl = yid ? `https://www.youtube.com/watch?v=${yid}` : originalUrl
 
       // De-duplication
-      if (historicalUrls.has(originalUrl)) continue
+      if (historicalUrls.has(normalizedUrl)) continue
       if (yid && historicalYoutubeIds.has(yid)) continue
 
       const { totalDocs: existingCount } = await payload.count({
         collection: 'links',
         where: {
-          or: [{ url: { equals: originalUrl } }, ...(yid ? [{ url: { equals: yid } }] : [])],
+          or: [{ url: { equals: normalizedUrl } }, ...(yid ? [{ url: { equals: yid } }] : [])],
         },
       })
 
@@ -269,16 +271,18 @@ async function main() {
         let finalTitle = `${source.prefix || ''}${cleanedTitle}`
         if (finalTitle.length > 100) finalTitle = finalTitle.substring(0, 97) + '...'
 
+        let finalUrl = normalizedUrl
+        const embedType = getEmbedType(originalUrl)
         let linkType: 'video' | 'image' | 'article' = 'article'
-        let finalUrl = originalUrl
+
+        if (['youtube', 'vimeo', 'video'].includes(embedType.type)) {
+          linkType = 'video'
+        } else if (embedType.type === 'image') {
+          linkType = 'image'
+        }
 
         if (yid) {
           linkType = 'video'
-          finalUrl = `https://www.youtube.com/watch?v=${yid}`
-        } else if (originalUrl.match(/\.(mp4|webm|mov)$/i)) {
-          linkType = 'video'
-        } else if (originalUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-          linkType = 'image'
         }
 
         await payload.create({
