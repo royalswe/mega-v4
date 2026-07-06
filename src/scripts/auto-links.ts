@@ -274,7 +274,7 @@ async function main() {
 
         if (yid) {
           linkType = 'video'
-          finalUrl = yid // Store only ID for YouTube
+          finalUrl = `https://www.youtube.com/watch?v=${yid}`
         } else if (originalUrl.match(/\.(mp4|webm|mov)$/i)) {
           linkType = 'video'
         } else if (originalUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
