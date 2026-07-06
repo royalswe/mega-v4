@@ -45,7 +45,8 @@ interface MediaSuggestion {
   title?: string
   description?: string
   thumbnailUrl?: string
-  provider?: 'youtube' | 'vimeo' | 'image'
+  provider?: 'youtube' | 'vimeo' | 'reddit' | 'image'
+  embedHtml?: string
 }
 
 interface LinkPreviewData {
@@ -53,9 +54,11 @@ interface LinkPreviewData {
   description?: string
   image?: string
   thumbnailUrl?: string
-  provider?: 'youtube' | 'vimeo'
+  provider?: 'youtube' | 'vimeo' | 'reddit'
   providerName?: string
   authorName?: string
+  canonicalUrl?: string
+  embedHtml?: string
   readerText?: string
   embeddable?: boolean
   kind: ReturnType<typeof getEmbedType>['type']
@@ -210,6 +213,8 @@ export function LinkSubmitForm({
         provider: data.provider,
         providerName: data.providerName,
         authorName: data.authorName,
+        canonicalUrl: data.canonicalUrl,
+        embedHtml: data.embedHtml,
         readerText: data.readerText,
         embeddable: data.embeddable,
         kind: embedInfo.type,
