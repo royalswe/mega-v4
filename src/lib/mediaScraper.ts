@@ -247,8 +247,6 @@ export async function scrapeMedia(url: string, type: 'video' | 'image') {
       throw new Error('Too many redirects')
     }
 
-    clearTimeout(id)
-
     if (!response.ok) {
       throw new Error(`Failed to fetch page status ${response.status}`)
     }
@@ -263,7 +261,6 @@ export async function scrapeMedia(url: string, type: 'video' | 'image') {
       suggestionDetails: suggestions,
     }
   } catch (err: unknown) {
-    clearTimeout(id)
     console.error('Error scraping media for url:', url, err)
     return {
       success: false,
@@ -271,5 +268,7 @@ export async function scrapeMedia(url: string, type: 'video' | 'image') {
       suggestions: [] as string[],
       suggestionDetails: [] as MediaSuggestion[],
     }
+  } finally {
+    clearTimeout(id)
   }
 }

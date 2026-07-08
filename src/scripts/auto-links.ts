@@ -260,7 +260,7 @@ async function main() {
       const { totalDocs: existingCount } = await payload.count({
         collection: 'links',
         where: {
-          or: [{ url: { equals: normalizedUrl } }, ...(yid ? [{ url: { equals: yid } }] : [])],
+          or: [{ url: { equals: normalizedUrl } }],
         },
       })
 

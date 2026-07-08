@@ -84,9 +84,12 @@ export async function discoverLinks() {
       let finalType = item.type
       let finalYoutubeId = item.youtubeId
 
-      const isDirectMedia = /\.(jpeg|jpg|gif|png|webp|svg|mp4|webm|ogg|ogv|mov)(?:\?.*)?$/i.test(item.url)
+      const isDirectMedia = /\.(jpeg|jpg|gif|png|webp|svg|mp4|webm|ogg|ogv|mov)(?:\?.*)?$/i.test(
+        item.url,
+      )
       const embedInfoOriginal = getEmbedType(item.url)
-      const isYoutubeOrVimeo = embedInfoOriginal.type === 'youtube' || embedInfoOriginal.type === 'vimeo'
+      const isYoutubeOrVimeo =
+        embedInfoOriginal.type === 'youtube' || embedInfoOriginal.type === 'vimeo'
 
       if (!isDirectMedia && !isYoutubeOrVimeo) {
         console.log(`Scraping media for candidate page: ${item.url}`)
@@ -94,10 +97,10 @@ export async function discoverLinks() {
         if (scrapeResult.success && scrapeResult.suggestions.length > 0) {
           const resolvedVideoUrl = scrapeResult.suggestions[0]
           console.log(`Resolved video URL: ${resolvedVideoUrl} for page ${item.url}`)
-          
+
           finalUrl = resolvedVideoUrl
           finalType = 'video'
-          
+
           const embedInfoResolved = getEmbedType(resolvedVideoUrl)
           if (embedInfoResolved.type === 'youtube' && embedInfoResolved.videoId) {
             finalYoutubeId = embedInfoResolved.videoId
@@ -116,10 +119,13 @@ export async function discoverLinks() {
       }
 
       // Check for duplicates in Payload database
-      const queryConditions: any[] = [{ url: { equals: finalUrl } }]
+      const queryConditions: { url?: { equals: string }; youtubeId?: { equals: string } }[] = [
+        { url: { equals: finalUrl } },
+      ]
       if (finalYoutubeId) {
-        queryConditions.push({ url: { equals: finalYoutubeId } })
+        queryConditions.push({ youtubeId: { equals: finalYoutubeId } })
       }
+
       const existing = await payload.find({
         collection: 'links',
         where: {
