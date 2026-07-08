@@ -1,7 +1,7 @@
 import { assertSafeUrl } from '@/app/api/_utils/safe-fetch'
 import { fetchProviderPreview, getEmbedType } from '@/lib/media'
 
-const MAX_SCAN_BYTES = 300_000
+const MAX_SCAN_BYTES = 10_000_000
 
 export type MediaSuggestion = {
   url: string
@@ -159,8 +159,8 @@ async function readResponseTextCapped(response: Response, maxBytes: number): Pro
   const contentLengthHeader = response.headers.get('content-length')
   if (contentLengthHeader) {
     const contentLength = Number.parseInt(contentLengthHeader, 10)
-    if (Number.isFinite(contentLength) && contentLength > maxBytes) {
-      throw new Error(`Response body exceeds max scan size (${maxBytes} bytes)`)
+    if (Number.isFinite(contentLength) && contentLength <= 0) {
+      return ''
     }
   }
 
@@ -178,13 +178,23 @@ async function readResponseTextCapped(response: Response, maxBytes: number): Pro
     if (done) break
     if (!value) continue
 
-    bytesRead += value.byteLength
-    if (bytesRead > maxBytes) {
+    const remaining = maxBytes - bytesRead
+    if (remaining <= 0) {
       await reader.cancel()
-      throw new Error(`Response body exceeds max scan size (${maxBytes} bytes)`)
+      break
     }
 
-    text += decoder.decode(value, { stream: true })
+    if (value.byteLength <= remaining) {
+      text += decoder.decode(value, { stream: true })
+      bytesRead += value.byteLength
+      continue
+    }
+
+    // Keep a safe partial read budget and stop once reached.
+    text += decoder.decode(value.subarray(0, remaining), { stream: true })
+    bytesRead += remaining
+    await reader.cancel()
+    break
   }
 
   text += decoder.decode()
