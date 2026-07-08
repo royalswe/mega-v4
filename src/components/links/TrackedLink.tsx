@@ -24,11 +24,9 @@ export function TrackedLink({ url, title, linkId, type, className }: TrackedLink
     description?: string
     image?: string
     thumbnailUrl?: string
-    provider?: 'youtube' | 'vimeo' | 'reddit'
+    provider?: 'youtube' | 'vimeo'
     providerName?: string
     authorName?: string
-    canonicalUrl?: string
-    embedHtml?: string
     readerText?: string
     loading: boolean
   } | null>(null)
@@ -76,8 +74,6 @@ export function TrackedLink({ url, title, linkId, type, className }: TrackedLink
         provider: data.provider,
         providerName: data.providerName,
         authorName: data.authorName,
-        canonicalUrl: data.canonicalUrl,
-        embedHtml: data.embedHtml,
         readerText: data.readerText,
         loading: false,
       }
@@ -196,7 +192,7 @@ export function TrackedLink({ url, title, linkId, type, className }: TrackedLink
       return
     }
 
-    if (embedInfo.type === 'youtube' || embedInfo.type === 'vimeo' || embedInfo.type === 'reddit') {
+    if (embedInfo.type === 'youtube' || embedInfo.type === 'vimeo') {
       void checkEmbeddability()
     }
 

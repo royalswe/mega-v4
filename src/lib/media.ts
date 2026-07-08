@@ -1,14 +1,14 @@
-export type MediaKind = 'youtube' | 'vimeo' | 'reddit' | 'image' | 'video' | 'audio' | 'iframe'
+export type MediaKind = 'youtube' | 'vimeo' | 'image' | 'video' | 'audio' | 'iframe'
 
 export interface MediaResolution {
   type: MediaKind
-  provider?: 'youtube' | 'vimeo' | 'reddit'
+  provider?: 'youtube' | 'vimeo'
   videoId?: string
   canonicalUrl?: string
 }
 
 export interface ProviderPreview {
-  provider: 'youtube' | 'vimeo' | 'reddit'
+  provider: 'youtube' | 'vimeo'
   providerName?: string
   authorName?: string
   canonicalUrl: string
@@ -16,131 +16,12 @@ export interface ProviderPreview {
   description?: string
   thumbnailUrl?: string
   image?: string
-  embedHtml?: string
-}
-
-type RedditOEmbedResponse = {
-  title?: string
-  author_name?: string
-  provider_name?: string
-  html?: string
-  thumbnail_url?: string
-}
-
-type RedditInfoResponse = {
-  data?: {
-    children?: Array<{
-      data?: {
-        permalink?: string
-      }
-    }>
-  }
-}
-
-function normalizeRedditCommentsPath(pathname: string): string | null {
-  const subredditMatch = pathname.match(/^\/r\/([^/]+)\/comments\/([^/]+)(?:\/([^/]+))?\/?/i)
-  if (subredditMatch) {
-    const subreddit = subredditMatch[1]
-    const postId = subredditMatch[2]
-    const slug = subredditMatch[3]
-    return slug
-      ? `/r/${subreddit}/comments/${postId}/${slug}/`
-      : `/r/${subreddit}/comments/${postId}/`
-  }
-
-  const commentsMatch = pathname.match(/^\/comments\/([^/]+)(?:\/([^/]+))?\/?/i)
-  if (commentsMatch) {
-    const postId = commentsMatch[1]
-    const slug = commentsMatch[2]
-    return slug ? `/comments/${postId}/${slug}/` : `/comments/${postId}/`
-  }
-
-  return null
-}
-
-async function resolveVRedditPermalink(url: URL): Promise<string | null> {
-  const mediaId = url.pathname.replace(/^\//, '').split('/')[0]
-  if (!mediaId) {
-    return null
-  }
-
-  const infoEndpoint = `https://www.reddit.com/api/info.json?url=${encodeURIComponent(`https://v.redd.it/${mediaId}`)}`
-
-  try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 4000)
-    const response = await fetch(infoEndpoint, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'existenz-bot/1.0.0',
-      },
-      signal: controller.signal,
-    })
-    clearTimeout(timeout)
-
-    if (!response.ok) {
-      return null
-    }
-
-    const contentType = response.headers.get('content-type') || ''
-    if (!contentType.toLowerCase().includes('application/json')) {
-      return null
-    }
-
-    const data = (await response.json()) as RedditInfoResponse
-    const permalink = data?.data?.children?.[0]?.data?.permalink
-    if (!permalink) {
-      return null
-    }
-
-    return new URL(permalink, 'https://www.reddit.com').toString()
-  } catch {
-    return null
-  }
-}
-
-async function resolveRedditPermalinkForEmbed(rawUrl: string): Promise<string | null> {
-  let parsed: URL
-  try {
-    parsed = new URL(rawUrl)
-  } catch {
-    return null
-  }
-
-  const host = parsed.hostname.replace(/^www\./, '').toLowerCase()
-
-  if (host === 'redd.it') {
-    const shortId = parsed.pathname.replace(/^\//, '').split('/')[0]
-    if (!shortId) {
-      return null
-    }
-    return `https://www.reddit.com/comments/${shortId}/`
-  }
-
-  if (host === 'v.redd.it') {
-    const resolved = await resolveVRedditPermalink(parsed)
-    if (resolved) {
-      return resolved
-    }
-
-    const mediaId = parsed.pathname.replace(/^\//, '').split('/')[0]
-    return mediaId ? `https://www.reddit.com/video/${mediaId}` : null
-  }
-
-  if (host === 'reddit.com' || host === 'old.reddit.com' || host === 'np.reddit.com') {
-    const canonicalPath = normalizeRedditCommentsPath(parsed.pathname)
-    if (canonicalPath) {
-      return `https://www.reddit.com${canonicalPath}`
-    }
-  }
-
-  return null
 }
 
 export function getEmbedType(url: string): MediaResolution {
   try {
     const parsed = new URL(url)
-    const host = parsed.hostname.replace(/^www\./, '').toLowerCase()
+    const host = parsed.hostname.replace(/^www\./, '')
 
     if (host === 'youtube.com' || host === 'm.youtube.com') {
       const watchId = parsed.searchParams.get('v')
@@ -198,48 +79,6 @@ export function getEmbedType(url: string): MediaResolution {
         }
       }
     }
-
-    if (host === 'reddit.com' || host === 'old.reddit.com' || host === 'np.reddit.com') {
-      const canonicalPath = normalizeRedditCommentsPath(parsed.pathname)
-      if (canonicalPath) {
-        return {
-          type: 'reddit',
-          provider: 'reddit',
-          canonicalUrl: `https://www.reddit.com${canonicalPath}`,
-        }
-      }
-
-      const videoMatch = parsed.pathname.match(/^\/video\/([^/]+)\/?/i)
-      if (videoMatch) {
-        return {
-          type: 'reddit',
-          provider: 'reddit',
-          canonicalUrl: `https://www.reddit.com/video/${videoMatch[1]}`,
-        }
-      }
-    }
-
-    if (host === 'redd.it') {
-      const shortId = parsed.pathname.slice(1).split('/')[0]
-      if (shortId) {
-        return {
-          type: 'reddit',
-          provider: 'reddit',
-          canonicalUrl: `https://www.reddit.com/comments/${shortId}/`,
-        }
-      }
-    }
-
-    if (host === 'v.redd.it') {
-      const mediaId = parsed.pathname.slice(1).split('/')[0]
-      if (mediaId) {
-        return {
-          type: 'reddit',
-          provider: 'reddit',
-          canonicalUrl: `https://www.reddit.com/video/${mediaId}`,
-        }
-      }
-    }
   } catch {
     // Malformed URL — fall through to extension checks below.
   }
@@ -268,29 +107,12 @@ function getOEmbedEndpoint(resolution: MediaResolution): string | null {
     return `https://www.youtube.com/oembed?url=${encodeURIComponent(resolution.canonicalUrl)}&format=json`
   }
 
-  if (resolution.provider === 'reddit') {
-    return `https://www.reddit.com/oembed?url=${encodeURIComponent(resolution.canonicalUrl)}&format=json`
-  }
-
   return `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(resolution.canonicalUrl)}`
 }
 
 export async function fetchProviderPreview(url: string): Promise<ProviderPreview | null> {
-  let targetUrl = url
-  const initialResolution = getEmbedType(url)
-  if (initialResolution.type === 'reddit') {
-    const redditPermalink = await resolveRedditPermalinkForEmbed(url)
-    if (redditPermalink) {
-      targetUrl = redditPermalink
-    }
-  }
-
-  const resolution = getEmbedType(targetUrl)
-  if (
-    resolution.type !== 'youtube' &&
-    resolution.type !== 'vimeo' &&
-    resolution.type !== 'reddit'
-  ) {
+  const resolution = getEmbedType(url)
+  if (resolution.type !== 'youtube' && resolution.type !== 'vimeo') {
     return null
   }
 
@@ -318,24 +140,6 @@ export async function fetchProviderPreview(url: string): Promise<ProviderPreview
 
     if (!response.ok) {
       return null
-    }
-
-    if (resolution.provider === 'reddit') {
-      const data = (await response.json()) as RedditOEmbedResponse
-      if (!data.title || !data.html) {
-        return null
-      }
-
-      return {
-        provider,
-        providerName: data.provider_name,
-        authorName: data.author_name,
-        canonicalUrl,
-        title: data.title,
-        thumbnailUrl: data.thumbnail_url,
-        image: data.thumbnail_url,
-        embedHtml: data.html,
-      }
     }
 
     const data = (await response.json()) as {

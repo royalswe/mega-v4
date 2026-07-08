@@ -79,11 +79,7 @@ export async function GET(request: Request) {
     await assertSafeUrl(parsedUrl)
 
     const resolution = getEmbedType(parsedUrl.toString())
-    if (
-      resolution.type === 'youtube' ||
-      resolution.type === 'vimeo' ||
-      resolution.type === 'reddit'
-    ) {
+    if (resolution.type === 'youtube' || resolution.type === 'vimeo') {
       const preview = await fetchProviderPreview(parsedUrl.toString())
       if (!preview) {
         throw new Error('Unable to load provider metadata')
@@ -103,7 +99,6 @@ export async function GET(request: Request) {
           providerName: preview.providerName,
           authorName: preview.authorName,
           canonicalUrl: preview.canonicalUrl,
-          embedHtml: preview.embedHtml || '',
         },
         {
           headers: {

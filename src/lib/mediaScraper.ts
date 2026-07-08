@@ -8,8 +8,7 @@ export type MediaSuggestion = {
   title?: string
   description?: string
   thumbnailUrl?: string
-  provider?: 'youtube' | 'vimeo' | 'reddit' | 'image'
-  embedHtml?: string
+  provider?: 'youtube' | 'vimeo' | 'image'
 }
 
 function getMetaAll(html: string, nameOrProperty: string): string[] {
@@ -37,7 +36,7 @@ function getMetaAll(html: string, nameOrProperty: string): string[] {
 
 async function resolveVideoSuggestion(candidateUrl: string): Promise<MediaSuggestion | null> {
   const embedInfo = getEmbedType(candidateUrl)
-  if (embedInfo.type !== 'youtube' && embedInfo.type !== 'vimeo' && embedInfo.type !== 'reddit') {
+  if (embedInfo.type !== 'youtube' && embedInfo.type !== 'vimeo') {
     return null
   }
 
@@ -52,7 +51,6 @@ async function resolveVideoSuggestion(candidateUrl: string): Promise<MediaSugges
     description: preview.description,
     thumbnailUrl: preview.thumbnailUrl || preview.image,
     provider: preview.provider,
-    embedHtml: preview.embedHtml,
   }
 }
 
@@ -69,7 +67,7 @@ async function findVideoUrls(html: string): Promise<MediaSuggestion[]> {
     }
   }
 
-  // 2. Scan all href/src attributes in the HTML for YouTube/Vimeo/Reddit links
+  // 2. Scan all href/src attributes in the HTML for YouTube/Vimeo links
   const hrefSrcRegex = /(?:href|src)=["']([^"']+)["']/gi
   let match
   while ((match = hrefSrcRegex.exec(htmlToScan)) !== null) {
@@ -86,18 +84,6 @@ async function findVideoUrls(html: string): Promise<MediaSuggestion[]> {
       const vimeoMatch = linkUrl.match(/vimeo\.com\/(?:video\/)?([0-9]+)/i)
       if (vimeoMatch) {
         candidateUrls.add(`https://vimeo.com/${vimeoMatch[1]}`)
-      }
-
-      const redditCommentsMatch = linkUrl.match(
-        /https?:\/\/(?:www\.)?reddit\.com\/(?:r\/[^/]+\/)?comments\/[^"'\s<]+/i,
-      )
-      if (redditCommentsMatch) {
-        candidateUrls.add(redditCommentsMatch[0].replace(/&amp;/g, '&'))
-      }
-
-      const vRedditMatch = linkUrl.match(/https?:\/\/v\.redd\.it\/[A-Za-z0-9]+/i)
-      if (vRedditMatch) {
-        candidateUrls.add(vRedditMatch[0])
       }
     }
   }

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Script from 'next/script'
 import {
   Modal,
   ModalContent,
@@ -26,11 +25,9 @@ interface LinkPreviewModalProps {
     description?: string
     image?: string
     thumbnailUrl?: string
-    provider?: 'youtube' | 'vimeo' | 'reddit'
+    provider?: 'youtube' | 'vimeo'
     providerName?: string
     authorName?: string
-    canonicalUrl?: string
-    embedHtml?: string
     readerText?: string
     loading: boolean
   } | null
@@ -50,7 +47,7 @@ export function LinkPreviewModal({
       : embedInfo.type === 'vimeo' && embedInfo.videoId
         ? `https://player.vimeo.com/video/${embedInfo.videoId}`
         : null
-  const isMedia = ['youtube', 'vimeo', 'reddit', 'image', 'video', 'audio'].includes(embedInfo.type)
+  const isMedia = ['youtube', 'vimeo', 'image', 'video', 'audio'].includes(embedInfo.type)
 
   // Determine starting tab
   const [activeTab, setActiveTab] = useState<'preview' | 'reader'>('preview')
@@ -159,27 +156,6 @@ export function LinkPreviewModal({
                   </div>
                 )}
               </div>
-            </div>
-          )}
-
-          {embedInfo.type === 'reddit' && (
-            <div className="w-full p-4 md:p-6 bg-background">
-              <div className="mx-auto max-w-3xl rounded-lg border bg-background p-3 md:p-4">
-                {embedCheck?.embedHtml ? (
-                  <div
-                    className="reddit-embed-container"
-                    dangerouslySetInnerHTML={{ __html: embedCheck.embedHtml }}
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center p-8 text-center">
-                    <p className="text-base font-semibold">Reddit embed unavailable</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      We could not load Reddit's official embed snippet for this post.
-                    </p>
-                  </div>
-                )}
-              </div>
-              <Script src="https://embed.reddit.com/widgets.js" strategy="afterInteractive" />
             </div>
           )}
 
