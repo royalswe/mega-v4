@@ -5,6 +5,8 @@ import configPromise from '@payload-config'
 import { collectCandidates } from '../lib/sources'
 import { filterDuplicates } from '../lib/deduplication'
 import { rankCandidates } from '../lib/ai'
+import { scrapeMedia } from '../lib/mediaScraper'
+import { getEmbedType } from '../lib/media'
 
 const AGENT_EMAIL = 'agent@existenz.se'
 const AGENT_USERNAME = 'auto-agent'
@@ -66,22 +68,87 @@ export async function discoverLinks() {
   const ranked = await rankCandidates(uniqueCandidates)
   console.log(`${ranked.length} candidates passed AI ranking (score >= 8).`)
 
-  // 4. Take top 10
-  const topTake = ranked.slice(0, 10)
-
-  // 5. Save to Payload as drafts
-  console.log(`Saving ${topTake.length} links to Payload as drafts...`)
+  // 4. Save to Payload as drafts (taking top 10 unique, non-duplicate resolved links)
+  console.log(`Processing and saving links to Payload as drafts...`)
   let addedCount = 0
-  for (const item of topTake) {
+  const savedUrls = new Set<string>()
+  const savedYoutubeIds = new Set<string>()
+
+  for (const item of ranked) {
+    if (addedCount >= 10) {
+      break
+    }
+
     try {
+      let finalUrl = item.url
+      let finalType = item.type
+      let finalYoutubeId = item.youtubeId
+
+      const isDirectMedia = /\.(jpeg|jpg|gif|png|webp|svg|mp4|webm|ogg|ogv|mov)(?:\?.*)?$/i.test(
+        item.url,
+      )
+      const embedInfoOriginal = getEmbedType(item.url)
+      const isYoutubeOrVimeo =
+        embedInfoOriginal.type === 'youtube' || embedInfoOriginal.type === 'vimeo'
+
+      if (!isDirectMedia && !isYoutubeOrVimeo) {
+        console.log(`Scraping media for candidate page: ${item.url}`)
+        const scrapeResult = await scrapeMedia(item.url, 'video')
+        if (scrapeResult.success && scrapeResult.suggestions.length > 0) {
+          const resolvedVideoUrl = scrapeResult.suggestions[0]
+          console.log(`Resolved video URL: ${resolvedVideoUrl} for page ${item.url}`)
+
+          finalUrl = resolvedVideoUrl
+          finalType = 'video'
+
+          const embedInfoResolved = getEmbedType(resolvedVideoUrl)
+          if (embedInfoResolved.type === 'youtube' && embedInfoResolved.videoId) {
+            finalYoutubeId = embedInfoResolved.videoId
+          }
+        }
+      }
+
+      // Check for duplicates in current batch
+      if (savedUrls.has(finalUrl)) {
+        console.log(`Skipping duplicate URL in current batch: ${finalUrl}`)
+        continue
+      }
+      if (finalYoutubeId && savedYoutubeIds.has(finalYoutubeId)) {
+        console.log(`Skipping duplicate YouTube ID in current batch: ${finalYoutubeId}`)
+        continue
+      }
+
+      // Check for duplicates in Payload database
+      const queryConditions: { url?: { equals: string }; youtubeId?: { equals: string } }[] = [
+        { url: { equals: finalUrl } },
+      ]
+      if (finalYoutubeId) {
+        queryConditions.push({ youtubeId: { equals: finalYoutubeId } })
+      }
+
+      const existing = await payload.find({
+        collection: 'links',
+        where: {
+          or: queryConditions,
+        },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      })
+
+      if (existing.totalDocs > 0) {
+        console.log(`Skipping duplicate found in database: ${finalUrl}`)
+        continue
+      }
+
       await payload.create({
         collection: 'links',
         data: {
           title: item.aiTitle,
-          url: item.url,
+          url: finalUrl,
           description: item.description || '',
           nsfw: item.nsfw,
-          type: item.type,
+          type: finalType,
           feed: 'main',
           user: agentUser.id,
           _status: 'draft',
@@ -91,7 +158,13 @@ export async function discoverLinks() {
         },
         overrideAccess: true,
       })
-      console.log(`[ADDED DRAFT] ${item.aiTitle} (Score: ${item.score})`)
+
+      savedUrls.add(finalUrl)
+      if (finalYoutubeId) {
+        savedYoutubeIds.add(finalYoutubeId)
+      }
+
+      console.log(`[ADDED DRAFT] ${item.aiTitle} (Score: ${item.score}, Type: ${finalType})`)
       addedCount++
     } catch (error) {
       console.error(`Failed to add link ${item.url}:`, error)

@@ -73,7 +73,7 @@ async function fetchRss(url: string, sourceName: string): Promise<Candidate[]> {
 
         candidates.push({
           title,
-          url: yid || contentUrl,
+          url: yid ? `https://www.youtube.com/watch?v=${yid}` : contentUrl,
           source: sourceName,
           nsfw: xml.includes('nsfw') || title.toLowerCase().includes('nsfw'),
           type: yid
@@ -97,7 +97,7 @@ async function fetchRss(url: string, sourceName: string): Promise<Candidate[]> {
 
         candidates.push({
           title,
-          url: yid || url,
+          url: yid ? `https://www.youtube.com/watch?v=${yid}` : url,
           source: sourceName,
           nsfw: title.toLowerCase().includes('nsfw'),
           type: yid ? 'video' : 'article',
