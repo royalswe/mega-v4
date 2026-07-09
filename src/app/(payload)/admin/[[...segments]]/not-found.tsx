@@ -14,8 +14,8 @@ type Args = {
     [key: string]: string | string[]
   }>
 }
-
-const generateMetadata = ({ params, searchParams }: Args): Promise<Metadata> =>
+// generateMetadata is a reserved Next.js App Router segment export
+export const generateMetadata = ({ params, searchParams }: Args): Promise<Metadata> =>
   generatePageMetadata({ config, params, searchParams })
 
 const NotFound = ({ params, searchParams }: Args) =>

@@ -213,7 +213,11 @@ async function fetchSource(source: Source) {
     } else {
       // Generic RSS (item tags instead of entry)
       entries.push(
-        ...parseBasicBlocks(getXmlBlocks(xml, 'item'), /<title>(.*?)<\/title>/, /<link>(.*?)<\/link>/),
+        ...parseBasicBlocks(
+          getXmlBlocks(xml, 'item'),
+          /<title>(.*?)<\/title>/,
+          /<link>(.*?)<\/link>/,
+        ),
       )
 
       // If no items, try standard Atom <entry>
