@@ -6,11 +6,11 @@ Project-specific guidance for AI coding agents (GitHub Copilot, etc.). For gener
 
 - **Framework**: Next.js 16 (App Router) + React 19
 - **CMS**: Payload 3.85 with `@payloadcms/db-postgres`
-- **Editor**: Lexical 0.35 (pinned via override — do not bump without bumping Payload)
+- **Editor**: Lexical 0.46 (pinned via override — do not bump without bumping Payload)
 - **Styling**: Tailwind v4 + Radix UI primitives + shadcn-style components in `src/components/ui/`
 - **Tests**: Vitest (integration, `tests/vitest/int/`) + Playwright (e2e, `tests/playwright/e2e/`)
 - **Package manager**: pnpm (always)
-- **TypeScript**: 5.x — TS 6 caused side-effect CSS import errors with `@payloadcms/next/css`; do not upgrade
+- **TypeScript**: 7.x
 
 ## Product
 
