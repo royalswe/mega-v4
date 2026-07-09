@@ -151,6 +151,27 @@ function decodeHtml(html: string): string {
     .replace(/&#39;/g, "'")
 }
 
+function getXmlBlocks(xml: string, tag: 'entry' | 'item'): string[] {
+  const blockRegex = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'g')
+  return Array.from(xml.matchAll(blockRegex), (match) => match[1] || '')
+}
+
+function parseBasicBlocks(
+  blocks: string[],
+  titleRegex: RegExp,
+  urlRegex: RegExp,
+): { title: string; url: string; nsfw: false }[] {
+  const entries: { title: string; url: string; nsfw: false }[] = []
+
+  for (const content of blocks) {
+    const title = decodeHtml(content.match(titleRegex)?.[1] || '')
+    const url = content.match(urlRegex)?.[1] || ''
+    entries.push({ title, url, nsfw: false })
+  }
+
+  return entries
+}
+
 async function fetchSource(source: Source) {
   try {
     const response = await fetch(source.url, {
@@ -166,9 +187,8 @@ async function fetchSource(source: Source) {
     const entries: { title: string; url: string; nsfw: boolean }[] = []
 
     if (source.type === 'reddit') {
-      const entryMatches = xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)
-      for (const match of entryMatches) {
-        const content = match[1]
+      const entryBlocks = getXmlBlocks(xml, 'entry')
+      for (const content of entryBlocks) {
         const title = decodeHtml(content.match(/<title>(.*?)<\/title>/)?.[1] || '')
         const permalink = content.match(/<link href="(.*?)"/)?.[1] || ''
         const contentHtml = decodeHtml(
@@ -183,31 +203,28 @@ async function fetchSource(source: Source) {
         })
       }
     } else if (source.type === 'youtube') {
-      const entryMatches = xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)
-      for (const match of entryMatches) {
-        const content = match[1]
-        const title = decodeHtml(content.match(/<title>(.*?)<\/title>/)?.[1] || '')
-        const url = content.match(/<link rel="alternate" href="(.*?)"/)?.[1] || ''
-        entries.push({ title, url, nsfw: false })
-      }
+      entries.push(
+        ...parseBasicBlocks(
+          getXmlBlocks(xml, 'entry'),
+          /<title>(.*?)<\/title>/,
+          /<link rel="alternate" href="(.*?)"/,
+        ),
+      )
     } else {
       // Generic RSS (item tags instead of entry)
-      const itemMatches = xml.matchAll(/<item>([\s\S]*?)<\/item>/g)
-      for (const match of itemMatches) {
-        const content = match[1]
-        const title = decodeHtml(content.match(/<title>(.*?)<\/title>/)?.[1] || '')
-        const url = content.match(/<link>(.*?)<\/link>/)?.[1] || ''
-        entries.push({ title, url, nsfw: false })
-      }
+      entries.push(
+        ...parseBasicBlocks(getXmlBlocks(xml, 'item'), /<title>(.*?)<\/title>/, /<link>(.*?)<\/link>/),
+      )
+
       // If no items, try standard Atom <entry>
       if (entries.length === 0) {
-        const entryMatches = xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)
-        for (const match of entryMatches) {
-          const content = match[1]
-          const title = decodeHtml(content.match(/<title.*?>(.*?)<\/title>/)?.[1] || '')
-          const url = content.match(/<link.*?href="(.*?)"/)?.[1] || ''
-          entries.push({ title, url, nsfw: false })
-        }
+        entries.push(
+          ...parseBasicBlocks(
+            getXmlBlocks(xml, 'entry'),
+            /<title.*?>(.*?)<\/title>/,
+            /<link.*?href="(.*?)"/,
+          ),
+        )
       }
     }
     return entries

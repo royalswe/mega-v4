@@ -9,6 +9,7 @@ import type {
 } from 'payload'
 
 import { calculateRanking } from '@/lib/community/ranking'
+import { getNumericFieldValue } from '@/lib/community/signalFields'
 import { canModerateCommunity, isSubfeedMemberOrModerator } from '@/lib/community/subfeeds'
 import { resolveID } from '@/lib/community/userSignals'
 
@@ -199,48 +200,13 @@ const prepareLink: CollectionBeforeValidateHook = async ({ data, operation, req,
 }
 
 const syncDerivedSignals: CollectionBeforeChangeHook = ({ data, originalDoc }) => {
-  const upvotes =
-    typeof data?.upvotes === 'number'
-      ? data.upvotes
-      : typeof originalDoc?.upvotes === 'number'
-        ? originalDoc.upvotes
-        : 0
-  const downvotes =
-    typeof data?.downvotes === 'number'
-      ? data.downvotes
-      : typeof originalDoc?.downvotes === 'number'
-        ? originalDoc.downvotes
-        : 0
-  const commentsCount =
-    typeof data?.commentsCount === 'number'
-      ? data.commentsCount
-      : typeof originalDoc?.commentsCount === 'number'
-        ? originalDoc.commentsCount
-        : 0
-  const sharesCount =
-    typeof data?.sharesCount === 'number'
-      ? data.sharesCount
-      : typeof originalDoc?.sharesCount === 'number'
-        ? originalDoc.sharesCount
-        : 0
-  const uniqueCommenters =
-    typeof data?.uniqueCommenters === 'number'
-      ? data.uniqueCommenters
-      : typeof originalDoc?.uniqueCommenters === 'number'
-        ? originalDoc.uniqueCommenters
-        : 0
-  const trustedInteractions =
-    typeof data?.trustedInteractions === 'number'
-      ? data.trustedInteractions
-      : typeof originalDoc?.trustedInteractions === 'number'
-        ? originalDoc.trustedInteractions
-        : 0
-  const clickCount =
-    typeof data?.clickCount === 'number'
-      ? data.clickCount
-      : typeof originalDoc?.clickCount === 'number'
-        ? originalDoc.clickCount
-        : 0
+  const upvotes = getNumericFieldValue(data, originalDoc, 'upvotes')
+  const downvotes = getNumericFieldValue(data, originalDoc, 'downvotes')
+  const commentsCount = getNumericFieldValue(data, originalDoc, 'commentsCount')
+  const sharesCount = getNumericFieldValue(data, originalDoc, 'sharesCount')
+  const uniqueCommenters = getNumericFieldValue(data, originalDoc, 'uniqueCommenters')
+  const trustedInteractions = getNumericFieldValue(data, originalDoc, 'trustedInteractions')
+  const clickCount = getNumericFieldValue(data, originalDoc, 'clickCount')
 
   const ranking = calculateRanking({
     createdAt: originalDoc?.createdAt || new Date().toISOString(),

@@ -52,3 +52,4 @@ node_modules/
 
 # Vitest
 /tests/vitest/report/**/*
+.fallow/

@@ -10,6 +10,7 @@ import type {
 import { checkRole } from '@/access/checkRole'
 import { recalculateTargetSignals } from '@/lib/community/contentSignals'
 import { calculateControversyScore } from '@/lib/community/ranking'
+import { getNumericFieldValue } from '@/lib/community/signalFields'
 import { bumpUserSignals, resolveID } from '@/lib/community/userSignals'
 
 const canModerate = (user: unknown): boolean => {
@@ -77,18 +78,8 @@ const updateAccess: Access = ({ req: { user } }) => {
 }
 
 const syncCommentScore: CollectionBeforeChangeHook = ({ data, originalDoc }) => {
-  const upvotes =
-    typeof data?.upvotes === 'number'
-      ? data.upvotes
-      : typeof originalDoc?.upvotes === 'number'
-        ? originalDoc.upvotes
-        : 0
-  const downvotes =
-    typeof data?.downvotes === 'number'
-      ? data.downvotes
-      : typeof originalDoc?.downvotes === 'number'
-        ? originalDoc.downvotes
-        : 0
+  const upvotes = getNumericFieldValue(data, originalDoc, 'upvotes')
+  const downvotes = getNumericFieldValue(data, originalDoc, 'downvotes')
 
   return {
     ...data,
