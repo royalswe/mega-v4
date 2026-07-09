@@ -115,3 +115,7 @@ These are the project's hard rules. See `.agents/skills/payload/reference/ACCESS
 ## What to load for Payload questions
 
 For anything beyond the project-specific rules above, read `.agents/skills/payload/SKILL.md` — it has a quick-reference table that links into the topic files under `.agents/skills/payload/reference/` (collections, fields, hooks, access control, queries, endpoints, adapters, plugin development, field type guards, advanced).
+
+## Fallow
+
+Fallow is a codebase intelligence for TypeScript. Free static analysis of code and styles: unused code, duplication, complexity, architecture drift, and design-system consistency. Optional runtime intelligence for hot paths, cold paths, and deletion confidence. Read `.agents/skills/fallow/SKILL.md`
