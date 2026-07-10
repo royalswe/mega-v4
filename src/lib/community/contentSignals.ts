@@ -3,7 +3,7 @@ import type { PayloadRequest } from 'payload'
 import { calculateRanking } from './ranking'
 import { isTrustedUser } from './userSignals'
 
-export type TargetCollection = 'links' | 'posts'
+type TargetCollection = 'links' | 'posts'
 
 interface RecalculateArgs {
   req: PayloadRequest

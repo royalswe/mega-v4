@@ -3,7 +3,7 @@ import { fetchProviderPreview, getEmbedType } from '@/lib/media'
 
 const MAX_SCAN_BYTES = 10_000_000
 
-export type MediaSuggestion = {
+type MediaSuggestion = {
   url: string
   title?: string
   description?: string

@@ -52,7 +52,7 @@ const clamp = (value: number, min = 0, max = 999_999): number => {
   return Math.max(min, Math.min(max, value))
 }
 
-export const calculateHiddenReputation = (signals: ReputationSignals): number => {
+const calculateHiddenReputation = (signals: ReputationSignals): number => {
   const discovery = signals.discoveryScore ?? 0
   const contribution = signals.contributionScore ?? 0
   const interaction = signals.interactionScore ?? 0
@@ -66,7 +66,7 @@ export const calculateHiddenReputation = (signals: ReputationSignals): number =>
   return clamp(Math.round(weighted + security * 0.4))
 }
 
-export const getTrustFromReputation = (score: number): TrustProfile => {
+const getTrustFromReputation = (score: number): TrustProfile => {
   const safeScore = clamp(score)
 
   let selected = TRUST_LEVEL_THRESHOLDS[0]

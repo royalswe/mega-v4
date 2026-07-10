@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": ["src/index.{ts,tsx,js,jsx}", "src/main.{ts,tsx,js,jsx}"],
+  "duplicates": {
+    "minOccurrences": 3,
+    "ignore": ["src/migrations/**", "src/payload-types.ts"]
+  },
+  "rules": {
+    "unused-dependencies": "warn"
+  },
+  "ignoreExports": [
+    {
+      "file": "src/migrations/**",
+      "exports": ["*"]
+    },
+    {
+      "file": "src/payload-types.ts",
+      "exports": ["SupportedTimezones", "Auth", "GeneratedTypes"]
+    }
+  ],
+  "ignoreUnresolvedImports": ["tailwindcss"]
+}
