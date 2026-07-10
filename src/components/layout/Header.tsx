@@ -43,13 +43,6 @@ export async function Header() {
                       <Link href="/">{dict.menu.home}</Link>
                     </Button>
                   </li>
-                  {canViewSubmitted ? (
-                    <li>
-                      <Button variant="ghost" asChild className="w-full justify-start">
-                        <Link href="/submitted">{dict.menu.submitted}</Link>
-                      </Button>
-                    </li>
-                  ) : null}
                   <li>
                     <Button variant="ghost" asChild className="w-full justify-start">
                       <Link href="/subfeeds">{dict.menu.subfeeds || 'SubFeeds'}</Link>
@@ -60,18 +53,33 @@ export async function Header() {
                       <Link href="/wall">Wall</Link>
                     </Button>
                   </li>
-                  {canModerate ? (
-                    <li>
-                      <Button variant="ghost" asChild className="w-full justify-start">
-                        <Link href="/moderation">{dict.menu.moderation || 'Moderation'}</Link>
-                      </Button>
-                    </li>
-                  ) : null}
                   <li>
                     <Button variant="ghost" asChild className="w-full justify-start">
                       <Link href="/new-link">{dict.menu.newLink}</Link>
                     </Button>
                   </li>
+                  {canViewSubmitted ? (
+                    <li>
+                      <Button
+                        variant="ghost"
+                        asChild
+                        className="w-full justify-start text-violet-500"
+                      >
+                        <Link href="/submitted">{dict.menu.submitted}</Link>
+                      </Button>
+                    </li>
+                  ) : null}
+                  {canModerate ? (
+                    <li>
+                      <Button
+                        variant="ghost"
+                        asChild
+                        className="w-full justify-start text-violet-500"
+                      >
+                        <Link href="/moderation">{dict.menu.moderation || 'Moderation'}</Link>
+                      </Button>
+                    </li>
+                  ) : null}
                 </ul>
 
                 <div className="mt-3 border-t pt-3">
@@ -109,13 +117,6 @@ export async function Header() {
                 <Link href="/">{dict.menu.home}</Link>
               </Button>
             </li>
-            {canViewSubmitted ? (
-              <li>
-                <Button variant="ghost" asChild>
-                  <Link href="/submitted">{dict.menu.submitted}</Link>
-                </Button>
-              </li>
-            ) : null}
             <li>
               <Button variant="ghost" asChild>
                 <Link href="/subfeeds">{dict.menu.subfeeds || 'SubFeeds'}</Link>
@@ -126,18 +127,25 @@ export async function Header() {
                 <Link href="/wall">Wall</Link>
               </Button>
             </li>
-            {canModerate ? (
-              <li>
-                <Button variant="ghost" asChild>
-                  <Link href="/moderation">{dict.menu.moderation || 'Moderation'}</Link>
-                </Button>
-              </li>
-            ) : null}
             <li>
               <Button variant="ghost" asChild>
                 <Link href="/new-link">{dict.menu.newLink}</Link>
               </Button>
             </li>
+            {canViewSubmitted ? (
+              <li>
+                <Button variant="ghost" className="text-violet-500" asChild>
+                  <Link href="/submitted">{dict.menu.submitted}</Link>
+                </Button>
+              </li>
+            ) : null}
+            {canModerate ? (
+              <li>
+                <Button variant="ghost" className="text-violet-500" asChild>
+                  <Link href="/moderation">{dict.menu.moderation || 'Moderation'}</Link>
+                </Button>
+              </li>
+            ) : null}
           </ul>
 
           <div className="flex items-center gap-2">
