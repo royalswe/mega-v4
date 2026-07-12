@@ -33,6 +33,12 @@ const dictionaries = {
       bookmarksOnly: 'Show Bookmarks Only',
       mixSubfeeds: 'Mix in my SubFeeds',
       mainFeedOnly: 'Main feed only',
+      subfeedStrip: {
+        title: 'SubFeeds',
+        trendingTab: 'Trending',
+        joinedTab: 'My SubFeeds',
+        browseAll: 'Browse all',
+      },
       modeLabel: 'Feed mode',
       modes: {
         best: 'Best',
@@ -344,6 +350,12 @@ const dictionaries = {
       bookmarksOnly: 'Visa endast bokmärken',
       mixSubfeeds: 'Blanda in mina delflöden',
       mainFeedOnly: 'Endast huvudflöde',
+      subfeedStrip: {
+        title: 'Delflöden',
+        trendingTab: 'Trendande',
+        joinedTab: 'Mina delflöden',
+        browseAll: 'Visa alla',
+      },
       modeLabel: 'Flödesläge',
       modes: {
         best: 'Bäst',

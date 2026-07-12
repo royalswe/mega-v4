@@ -527,7 +527,7 @@ export default async function SubfeedsPage({
                       />
                     ) : (
                       <Button asChild variant="outline" className="w-full sm:w-auto">
-                        <Link href="/login">{dict.subfeeds?.loginToJoin || 'Log in to join'}</Link>
+                        <Link href="/login">{dict.subfeeds?.joinButton?.join || 'Join'}</Link>
                       </Button>
                     )}
                   </div>
