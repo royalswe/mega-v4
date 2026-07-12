@@ -23,7 +23,7 @@ export async function Header() {
       <div className="mx-auto flex w-full max-w-245 items-center justify-between gap-3">
         <h1 className="min-w-0 text-xl font-bold sm:text-2xl">
           <Link href="/" className="inline-block truncate">
-            Existenz <i>V4🔥</i>
+            MEGA <i>V4🔥</i>
           </Link>
         </h1>
 

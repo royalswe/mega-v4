@@ -29,7 +29,6 @@ const dictionaries = {
       userMenu: 'User menu',
     },
     pages: {
-      title: 'Approved Links',
       bookmarksOnly: 'Show Bookmarks Only',
       mixSubfeeds: 'Mix in my SubFeeds',
       mainFeedOnly: 'Main feed only',
@@ -346,7 +345,6 @@ const dictionaries = {
       userMenu: 'Användarmeny',
     },
     pages: {
-      title: 'Godkända Länkar',
       bookmarksOnly: 'Visa endast bokmärken',
       mixSubfeeds: 'Blanda in mina delflöden',
       mainFeedOnly: 'Endast huvudflöde',

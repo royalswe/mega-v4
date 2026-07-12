@@ -872,7 +872,6 @@ export default async function HomePage({
       <div>
         <div className="mb-4 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div className="min-w-0 space-y-2">
-            <h2 className="text-xl font-semibold">{dict.pages.title}</h2>
             <div className="inline-flex flex-wrap items-center gap-1 rounded-md border bg-muted/40 p-1 text-xs">
               <span className="px-2 text-muted-foreground">{dict.pages.modeLabel}</span>
               <Link
