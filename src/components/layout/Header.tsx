@@ -63,7 +63,7 @@ export async function Header() {
                       <Button
                         variant="ghost"
                         asChild
-                        className="w-full justify-start text-violet-500"
+                        className="w-full justify-start text-orange-400"
                       >
                         <Link href="/submitted">{dict.menu.submitted}</Link>
                       </Button>
@@ -74,7 +74,7 @@ export async function Header() {
                       <Button
                         variant="ghost"
                         asChild
-                        className="w-full justify-start text-violet-500"
+                        className="w-full justify-start text-orange-400"
                       >
                         <Link href="/moderation">{dict.menu.moderation || 'Moderation'}</Link>
                       </Button>
@@ -134,14 +134,14 @@ export async function Header() {
             </li>
             {canViewSubmitted ? (
               <li>
-                <Button variant="ghost" className="text-violet-500" asChild>
+                <Button variant="ghost" className="text-orange-400" asChild>
                   <Link href="/submitted">{dict.menu.submitted}</Link>
                 </Button>
               </li>
             ) : null}
             {canModerate ? (
               <li>
-                <Button variant="ghost" className="text-violet-500" asChild>
+                <Button variant="ghost" className="text-orange-400" asChild>
                   <Link href="/moderation">{dict.menu.moderation || 'Moderation'}</Link>
                 </Button>
               </li>
