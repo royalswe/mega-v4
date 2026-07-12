@@ -10,6 +10,7 @@ import { PostCard } from '@/components/posts/PostCard'
 import { SubfeedAvatar } from '@/components/subfeeds/SubfeedAvatar'
 import { JoinSubfeedButton } from '@/components/subfeeds/JoinSubfeedButton'
 import { SubfeedCreatePanel } from '@/components/subfeeds/SubfeedCreatePanel'
+import { SubfeedEditPanel } from '@/components/subfeeds/SubfeedEditPanel'
 import { SubfeedPulseHeader } from '@/components/subfeeds/SubfeedPulseHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -180,8 +181,11 @@ export default async function SubfeedDetailsPage({
   const subfeed = subfeeds[0]
 
   const memberIds = readRelationshipIds(subfeed.members)
+  const moderatorIds = readRelationshipIds(subfeed.moderators)
+  const canEditSubfeed = user ? canModerateCommunity(user) || moderatorIds.includes(user.id) : false
   const isMember = user ? memberIds.includes(user.id) : false
   const canCreate = user ? isMember || canModerateCommunity(user) : false
+  const avatarMedia = typeof subfeed.avatar === 'object' && subfeed.avatar ? subfeed.avatar : null
 
   const now = Date.now()
   const windowMs = (selectedWindow === '24h' ? 24 : 7 * 24) * 60 * 60 * 1000
@@ -512,17 +516,33 @@ export default async function SubfeedDetailsPage({
               {dict.subfeeds?.reputationLabel || 'Reputation'} {subfeed.reputation ?? 0}
             </p>
           </div>
-          {user ? (
-            <JoinSubfeedButton
-              subfeedId={subfeed.id}
-              isMember={isMember}
-              labels={dict.subfeeds?.joinButton}
-            />
-          ) : (
-            <Button asChild variant="outline">
-              <Link href="/login">{dict.subfeeds?.loginToJoin || 'Log in to join'}</Link>
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {canEditSubfeed ? (
+              <SubfeedEditPanel
+                dict={dict}
+                subfeed={{
+                  id: subfeed.id,
+                  slug: subfeed.slug,
+                  name: subfeed.name,
+                  description: subfeed.description,
+                  rules: subfeed.rules,
+                  theme: subfeed.theme,
+                  avatarUrl: avatarMedia?.url,
+                }}
+              />
+            ) : null}
+            {user ? (
+              <JoinSubfeedButton
+                subfeedId={subfeed.id}
+                isMember={isMember}
+                labels={dict.subfeeds?.joinButton}
+              />
+            ) : (
+              <Button asChild variant="outline">
+                <Link href="/login">{dict.subfeeds?.loginToJoin || 'Log in to join'}</Link>
+              </Button>
+            )}
+          </div>
         </div>
 
         {subfeed.rules ? (
