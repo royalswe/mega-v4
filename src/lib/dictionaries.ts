@@ -268,8 +268,8 @@ const dictionaries = {
       joinToPost: 'Join this subfeed to submit links and posts.',
       loginRequiredToCreate: 'You must be logged in to create a subfeed',
       joinButton: {
-        join: 'Join SubFeed',
-        leave: 'Leave SubFeed',
+        join: 'Join',
+        leave: 'Leave',
         updating: 'Updating...',
         joinedToast: 'Joined subfeed',
         leftToast: 'Left subfeed',
