@@ -45,6 +45,10 @@ export async function createSubfeed(values: {
   }
 
   const slug = slugify(name)
+
+  if (!slug) {
+    throw new Error('Subfeed slug name is invalid.')
+  }
   const withAccess = {
     user,
     overrideAccess: false as const,
@@ -73,8 +77,8 @@ export async function createSubfeed(values: {
       slug,
       description,
       avatar: avatarId,
-      rules: rules || undefined,
-      theme: theme || undefined,
+      rules,
+      theme,
       moderators: [user.id],
       members: [user.id],
     },
