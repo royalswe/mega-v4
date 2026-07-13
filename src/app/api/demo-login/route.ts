@@ -33,6 +33,14 @@ function sanitizeNextPath(nextParam: string | null): string {
   return nextParam
 }
 
+function appendAgentToken(nextPath: string, token: string): string {
+  const url = new URL(nextPath, 'https://local.invalid')
+  url.searchParams.set('agentToken', token)
+
+  const query = url.searchParams.toString()
+  return query ? `${url.pathname}?${query}` : url.pathname
+}
+
 function getDemoLoginIdentity() {
   const email = process.env.DEMO_LOGIN_EMAIL?.trim()
   const username = process.env.DEMO_LOGIN_USERNAME?.trim()
@@ -65,6 +73,7 @@ export async function GET(request: Request) {
   const nextPath = sanitizeNextPath(searchParams.get('next'))
   const expiresRaw = searchParams.get('expires')
   const signature = searchParams.get('sig')
+  const mode = searchParams.get('mode')
 
   if (!expiresRaw || !signature) {
     return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 })
@@ -111,12 +120,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Login token was not returned' }, { status: 500 })
   }
 
+  const location = mode === 'agent' ? appendAgentToken(nextPath, loginResult.token) : nextPath
+
   const response = new NextResponse(null, {
     status: 303,
     headers: {
-      Location: nextPath,
+      Location: location,
     },
   })
+
+  if (mode === 'agent') {
+    return response
+  }
 
   response.cookies.set('payload-token', loginResult.token, {
     httpOnly: true,
