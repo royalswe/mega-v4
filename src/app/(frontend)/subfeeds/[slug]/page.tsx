@@ -53,6 +53,12 @@ const parsePulseWindow = (value: string | string[] | undefined): '24h' | '7d' =>
   return '24h'
 }
 
+const parseContentFilter = (value: string | string[] | undefined): 'all' | 'links' | 'posts' => {
+  const normalized = Array.isArray(value) ? value[0] : value
+  if (normalized === 'links' || normalized === 'posts') return normalized
+  return 'all'
+}
+
 const toSearchParams = (params: Record<string, string | string[] | undefined>) => {
   const query = new URLSearchParams()
 
@@ -82,6 +88,23 @@ const buildWindowHref = (
   const query = toSearchParams(params)
   query.set('window', window)
   return `/subfeeds/${slug}?${query.toString()}`
+}
+
+const buildContentFilterHref = (
+  slug: string,
+  params: Record<string, string | string[] | undefined>,
+  filter: 'all' | 'links' | 'posts',
+) => {
+  const query = toSearchParams(params)
+
+  if (filter === 'all') {
+    query.delete('type')
+  } else {
+    query.set('type', filter)
+  }
+
+  const queryString = query.toString()
+  return queryString.length > 0 ? `/subfeeds/${slug}?${queryString}` : `/subfeeds/${slug}`
 }
 
 const toIntlLocale = (lang: 'en' | 'sv') => {
@@ -152,6 +175,7 @@ export default async function SubfeedDetailsPage({
   const { user, payload } = await getAuthenticatedUser()
   const { dict, lang } = await getDictionary()
   const selectedWindow = parsePulseWindow(resolvedSearchParams.window)
+  const selectedContentFilter = parseContentFilter(resolvedSearchParams.type)
 
   const withAccess = user
     ? {
@@ -497,6 +521,46 @@ export default async function SubfeedDetailsPage({
     { votes: postVotes, bookmarks: postBookmarks },
   ] = await Promise.all([getUserInteractions(user, linkIds), getPostInteractions(user, postIds)])
 
+  const mixedItems = [
+    ...links.map((link) => ({
+      type: 'link' as const,
+      id: link.id,
+      rankingScore: link.rankingScore ?? 0,
+      createdAt: Date.parse(link.createdAt),
+      link,
+    })),
+    ...posts.map((post) => ({
+      type: 'post' as const,
+      id: post.id,
+      rankingScore: post.rankingScore ?? 0,
+      createdAt: Date.parse(post.createdAt),
+      post,
+    })),
+  ]
+    .sort((a, b) => {
+      if (b.rankingScore !== a.rankingScore) {
+        return b.rankingScore - a.rankingScore
+      }
+
+      return (
+        (Number.isNaN(b.createdAt) ? 0 : b.createdAt) -
+        (Number.isNaN(a.createdAt) ? 0 : a.createdAt)
+      )
+    })
+    .slice(0, 50)
+
+  const filteredItems = mixedItems.filter((item) => {
+    if (selectedContentFilter === 'all') return true
+    if (selectedContentFilter === 'links') return item.type === 'link'
+    return item.type === 'post'
+  })
+
+  const filterLabels = {
+    all: 'All',
+    links: 'Links',
+    posts: 'Posts',
+  }
+
   return (
     <div className="space-y-6">
       <section className="rounded-xl border p-6">
@@ -572,69 +636,83 @@ export default async function SubfeedDetailsPage({
       />
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">{dict.subfeeds?.topLinksTitle || 'Top Links'}</h2>
-          {canCreate ? (
-            <SubfeedCreatePanel
-              subfeedId={subfeed.id}
-              subfeedName={subfeed.name}
-              mode="link"
-              dict={dict}
-            />
-          ) : null}
-        </div>
-        {links.length > 0 ? (
-          <div className="flex flex-col gap-4">
-            {links.map((link) => (
-              <LinkCard
-                key={link.id}
-                link={link}
-                userId={user?.id}
-                userVote={linkVotes[link.id]}
-                isBookmarked={linkBookmarks[link.id]}
-                className={link.nsfw ? 'nsfw-text' : ''}
-              />
-            ))}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold">Top Content</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            {canCreate ? (
+              <>
+                <SubfeedCreatePanel
+                  subfeedId={subfeed.id}
+                  subfeedName={subfeed.name}
+                  mode="link"
+                  dict={dict}
+                />
+                <SubfeedCreatePanel
+                  subfeedId={subfeed.id}
+                  subfeedName={subfeed.name}
+                  mode="post"
+                  dict={dict}
+                />
+              </>
+            ) : null}
+            <div className="flex items-center gap-1 rounded-lg border bg-muted/30 p-1">
+              {(
+                [
+                  ['all', filterLabels.all],
+                  ['links', filterLabels.links],
+                  ['posts', filterLabels.posts],
+                ] as const
+              ).map(([value, label]) => {
+                const isActive = selectedContentFilter === value
+                return (
+                  <Button key={value} asChild size="sm" variant={isActive ? 'default' : 'ghost'}>
+                    <Link href={buildContentFilterHref(slug, resolvedSearchParams, value)}>
+                      {label}
+                    </Link>
+                  </Button>
+                )
+              })}
+            </div>
           </div>
-        ) : (
-          <Card>
-            <CardContent className="pt-6 text-sm text-muted-foreground">
-              {dict.subfeeds?.noLinksYet || 'No links have been submitted to this subfeed yet.'}
-            </CardContent>
-          </Card>
-        )}
-      </section>
+        </div>
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">{dict.subfeeds?.topPostsTitle || 'Top Posts'}</h2>
-          {canCreate ? (
-            <SubfeedCreatePanel
-              subfeedId={subfeed.id}
-              subfeedName={subfeed.name}
-              mode="post"
-              dict={dict}
-            />
-          ) : null}
-        </div>
-        {posts.length > 0 ? (
+        {filteredItems.length > 0 ? (
           <div className="flex flex-col gap-4">
-            {posts.map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                userId={user?.id}
-                userVote={postVotes[post.id]}
-                isBookmarked={postBookmarks[post.id]}
-                className={post.nsfw ? 'nsfw-text' : ''}
-              />
-            ))}
+            {filteredItems.map((item) => {
+              if (item.type === 'link') {
+                return (
+                  <LinkCard
+                    key={`link-${item.id}`}
+                    link={item.link}
+                    userId={user?.id}
+                    userVote={linkVotes[item.id]}
+                    isBookmarked={linkBookmarks[item.id]}
+                    className={item.link.nsfw ? 'nsfw-text' : ''}
+                  />
+                )
+              }
+
+              return (
+                <PostCard
+                  key={`post-${item.id}`}
+                  post={item.post}
+                  userId={user?.id}
+                  userVote={postVotes[item.id]}
+                  isBookmarked={postBookmarks[item.id]}
+                  className={item.post.nsfw ? 'nsfw-text' : ''}
+                />
+              )
+            })}
           </div>
         ) : (
           <Card>
             <CardContent className="pt-6 text-sm text-muted-foreground">
-              {dict.subfeeds?.noPostsYet ||
-                'No posts in this subfeed yet. Be the first to start a discussion.'}
+              {selectedContentFilter === 'links'
+                ? dict.subfeeds?.noLinksYet || 'No links have been submitted to this subfeed yet.'
+                : selectedContentFilter === 'posts'
+                  ? dict.subfeeds?.noPostsYet ||
+                    'No posts in this subfeed yet. Be the first to start a discussion.'
+                  : 'No links or posts have been submitted to this subfeed yet.'}
             </CardContent>
           </Card>
         )}
