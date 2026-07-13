@@ -90,14 +90,25 @@ export async function GET(request: Request) {
 
   let loginResult: Awaited<ReturnType<typeof payload.login>>
   try {
-    loginResult = await payload.login({
-      collection: 'users',
-      data: identity.email
-        ? { email: identity.email, password: identity.password }
-        : { username: identity.username, password: identity.password },
-    })
+    if (identity.email) {
+      loginResult = await payload.login({
+        collection: 'users',
+        data: { email: identity.email, password: identity.password },
+      })
+    } else if (identity.username) {
+      loginResult = await payload.login({
+        collection: 'users',
+        data: { username: identity.username, password: identity.password },
+      })
+    } else {
+      return NextResponse.json({ error: 'Demo login is not configured' }, { status: 500 })
+    }
   } catch {
     return NextResponse.json({ error: 'Demo login credentials are invalid' }, { status: 401 })
+  }
+
+  if (!loginResult.token) {
+    return NextResponse.json({ error: 'Login token was not returned' }, { status: 500 })
   }
 
   const redirectUrl = new URL(nextPath, request.url)
