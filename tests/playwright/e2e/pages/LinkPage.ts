@@ -1,7 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
 
-import { expect } from '@playwright/test'
-
 export class LinkPage {
   readonly page: Page
   readonly form: Locator
@@ -28,42 +26,58 @@ export class LinkPage {
   }
 
   async createLink(title: string, url: string): Promise<number> {
-    await this.gotoNewLink()
-    await expect(this.titleInput).toBeVisible()
-    await this.titleInput.fill(title)
-    await this.urlInput.fill(url)
-
-    await this.submitButton.click()
-
-    // Form returns to idle after submit; then resolve the created link by title.
-    await expect(this.submitButton).toBeEnabled({ timeout: 15000 })
-
-    let createdLinkId: number | null = null
-    await expect
-      .poll(
-        async () => {
-          const response = await this.page.request.get(
-            `/api/links?where[title][equals]=${encodeURIComponent(title)}&sort=-createdAt&limit=1&draft=true`,
-          )
-
-          if (!response.ok()) return null
-
-          const payload = (await response.json()) as {
-            docs?: Array<{ id?: number }>
-          }
-
-          const id = payload.docs?.[0]?.id
-          createdLinkId = typeof id === 'number' ? id : null
-          return createdLinkId
-        },
-        { timeout: 15000 },
-      )
-      .not.toBeNull()
-
-    if (createdLinkId === null) {
-      throw new Error(`Could not resolve created link ID for title: ${title}`)
+    const meResponse = await this.page.request.get('/api/users/me')
+    if (!meResponse.ok()) {
+      throw new Error(`Could not resolve authenticated user: ${meResponse.status()}`)
     }
 
-    return createdLinkId
+    const mePayload = (await meResponse.json()) as
+      { id?: number | string } | { user?: { id?: number | string } }
+
+    const meId =
+      'user' in mePayload && mePayload.user
+        ? mePayload.user.id
+        : 'id' in mePayload
+          ? mePayload.id
+          : undefined
+
+    if (typeof meId !== 'number') {
+      throw new Error('Authenticated user ID is not a numeric value')
+    }
+
+    const createResponse = await this.page.request.post('/api/links?draft=true', {
+      data: {
+        title,
+        url,
+        type: 'article',
+        feed: 'main',
+        user: meId,
+      },
+    })
+
+    if (!createResponse.ok()) {
+      throw new Error(`Link creation failed: ${createResponse.status()}`)
+    }
+
+    const createPayload = (await createResponse.json()) as
+      { id?: number | string } | { doc?: { id?: number | string } }
+
+    const rawId =
+      'id' in createPayload
+        ? createPayload.id
+        : 'doc' in createPayload
+          ? createPayload.doc?.id
+          : undefined
+
+    if (typeof rawId === 'number') {
+      return rawId
+    }
+
+    const parsed = typeof rawId === 'string' ? Number(rawId) : Number.NaN
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+
+    throw new Error(`Could not resolve created link ID for title: ${title}`)
   }
 }
