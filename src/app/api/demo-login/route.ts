@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 import { NextResponse } from 'next/server'
+import { getPayload } from 'payload'
+import configPromise from '@payload-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,17 +31,6 @@ function sanitizeNextPath(nextParam: string | null): string {
   }
 
   return nextParam
-}
-
-function getSetCookieHeaders(headers: Headers): string[] {
-  const extendedHeaders = headers as Headers & { getSetCookie?: () => string[] }
-
-  if (typeof extendedHeaders.getSetCookie === 'function') {
-    return extendedHeaders.getSetCookie().filter(Boolean)
-  }
-
-  const single = headers.get('set-cookie')
-  return single ? [single] : []
 }
 
 function getDemoLoginIdentity() {
@@ -95,35 +86,29 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
   }
 
-  const loginUrl = new URL('/api/users/login', request.url)
-  const loginPayload = identity.email
-    ? { email: identity.email, password: identity.password }
-    : { username: identity.username, password: identity.password }
+  const payload = await getPayload({ config: configPromise })
 
-  const loginResponse = await fetch(loginUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(loginPayload),
-    cache: 'no-store',
-  })
-
-  if (!loginResponse.ok) {
+  let loginResult: Awaited<ReturnType<typeof payload.login>>
+  try {
+    loginResult = await payload.login({
+      collection: 'users',
+      data: identity.email
+        ? { email: identity.email, password: identity.password }
+        : { username: identity.username, password: identity.password },
+    })
+  } catch {
     return NextResponse.json({ error: 'Demo login credentials are invalid' }, { status: 401 })
-  }
-
-  const setCookies = getSetCookieHeaders(loginResponse.headers)
-  if (setCookies.length === 0) {
-    return NextResponse.json({ error: 'Auth cookie was not returned by login endpoint' }, { status: 500 })
   }
 
   const redirectUrl = new URL(nextPath, request.url)
   const response = NextResponse.redirect(redirectUrl, { status: 303 })
 
-  for (const setCookie of setCookies) {
-    response.headers.append('Set-Cookie', setCookie)
-  }
+  response.cookies.set('payload-token', loginResult.token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    path: '/',
+  })
 
   return response
 }
