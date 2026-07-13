@@ -111,8 +111,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Login token was not returned' }, { status: 500 })
   }
 
-  const redirectUrl = new URL(nextPath, request.url)
-  const response = NextResponse.redirect(redirectUrl, { status: 303 })
+  const response = new NextResponse(null, {
+    status: 303,
+    headers: {
+      Location: nextPath,
+    },
+  })
 
   response.cookies.set('payload-token', loginResult.token, {
     httpOnly: true,
