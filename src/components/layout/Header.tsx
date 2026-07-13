@@ -21,11 +21,25 @@ export async function Header() {
   return (
     <header className="border-b px-3 py-3 sm:px-6 sm:py-4">
       <div className="mx-auto flex w-full max-w-245 items-center justify-between gap-3">
-        <h1 className="min-w-0 text-xl font-bold sm:text-2xl">
-          <Link href="/" className="inline-block truncate">
-            MEGA <i>V4🔥</i>
-          </Link>
-        </h1>
+        <div className="flex items-center gap-4 grow min-w-0">
+          <h1 className="min-w-0 text-xl font-bold sm:text-2xl shrink-0">
+            <Link href="/" className="inline-block truncate">
+              MEGA <i>V4🔥</i>
+            </Link>
+          </h1>
+
+          {/* Desktop Global Search Bar */}
+          <form role="search" action="/search" method="get" className="hidden md:flex items-center relative max-w-xs grow">
+            <input
+              type="search"
+              name="q"
+              placeholder="Search..."
+              className="flex h-9 w-full rounded-md border border-input bg-muted/20 px-3 py-1 text-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0 focus:bg-background"
+              aria-label="Search site"
+              required
+            />
+          </form>
+        </div>
 
         <div className="flex items-center gap-2 md:hidden">
           <ThemeToggle />
@@ -37,6 +51,18 @@ export async function Header() {
             </summary>
             <div className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-md border bg-background p-3 shadow-md">
               <nav>
+                {/* Mobile Global Search Bar */}
+                <form role="search" action="/search" method="get" className="mb-3 flex items-center gap-2">
+                  <input
+                    type="search"
+                    name="q"
+                    placeholder="Search..."
+                    className="flex h-8 w-full rounded-md border border-input bg-muted/20 px-2 py-1 text-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus:bg-background"
+                    aria-label="Search site"
+                    required
+                  />
+                  <Button type="submit" size="xs">Search</Button>
+                </form>
                 <ul className="space-y-1">
                   <li>
                     <Button variant="ghost" asChild className="w-full justify-start">

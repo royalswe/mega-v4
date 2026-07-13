@@ -89,7 +89,13 @@ export async function LinkCard({
           />
           <p className="wrap-break-word">
             {dict.common.submittedBy}{' '}
-            <b>{(typeof link.user === 'object' && link.user?.username) || 'Ghost'}</b>
+            {typeof link.user === 'object' && link.user?.username ? (
+              <Link href={`/user/${link.user.username}`} className="font-bold hover:underline">
+                {link.user.username}
+              </Link>
+            ) : (
+              <b>Ghost</b>
+            )}
           </p>
         </div>
       </div>

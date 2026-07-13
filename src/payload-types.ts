@@ -78,6 +78,7 @@ export interface Config {
     discoveries: Discovery;
     'link-clicks': LinkClick;
     reports: Report;
+    'private-messages': PrivateMessage;
     'payload-kv': PayloadKv;
     'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
@@ -106,6 +107,7 @@ export interface Config {
     discoveries: DiscoveriesSelect<false> | DiscoveriesSelect<true>;
     'link-clicks': LinkClicksSelect<false> | LinkClicksSelect<true>;
     reports: ReportsSelect<false> | ReportsSelect<true>;
+    'private-messages': PrivateMessagesSelect<false> | PrivateMessagesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -485,6 +487,19 @@ export interface Report {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "private-messages".
+ */
+export interface PrivateMessage {
+  id: number;
+  sender: number | User;
+  receiver: number | User;
+  message: string;
+  isRead?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -642,6 +657,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'reports';
         value: number | Report;
+      } | null)
+    | ({
+        relationTo: 'private-messages';
+        value: number | PrivateMessage;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -934,6 +953,18 @@ export interface ReportsSelect<T extends boolean = true> {
   status?: T;
   reviewedBy?: T;
   fastTracked?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "private-messages_select".
+ */
+export interface PrivateMessagesSelect<T extends boolean = true> {
+  sender?: T;
+  receiver?: T;
+  message?: T;
+  isRead?: T;
   updatedAt?: T;
   createdAt?: T;
 }

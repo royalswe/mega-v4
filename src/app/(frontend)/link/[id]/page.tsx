@@ -112,7 +112,13 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
           </div>
           <p className="text-muted-foreground mb-4">
             {dict.common.submittedBy}{' '}
-            {(typeof link.user === 'object' && link.user?.username) || 'Ghost'}
+            {typeof link.user === 'object' && link.user?.username ? (
+              <Link href={`/user/${link.user.username}`} className="font-bold hover:underline">
+                {link.user.username}
+              </Link>
+            ) : (
+              'Ghost'
+            )}
           </p>
           <div className="flex gap-4 mb-6">
             <BookmarkButton
