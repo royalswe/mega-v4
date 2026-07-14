@@ -29,10 +29,15 @@ const dictionaries = {
       userMenu: 'User menu',
     },
     pages: {
-      title: 'Approved Links',
       bookmarksOnly: 'Show Bookmarks Only',
       mixSubfeeds: 'Mix in my SubFeeds',
       mainFeedOnly: 'Main feed only',
+      subfeedStrip: {
+        title: 'SubFeeds',
+        trendingTab: 'Trending',
+        joinedTab: 'My SubFeeds',
+        browseAll: 'Browse all',
+      },
       modeLabel: 'Feed mode',
       modes: {
         best: 'Best',
@@ -262,8 +267,8 @@ const dictionaries = {
       joinToPost: 'Join this subfeed to submit links and posts.',
       loginRequiredToCreate: 'You must be logged in to create a subfeed',
       joinButton: {
-        join: 'Join SubFeed',
-        leave: 'Leave SubFeed',
+        join: 'Join',
+        leave: 'Leave',
         updating: 'Updating...',
         joinedToast: 'Joined subfeed',
         leftToast: 'Left subfeed',
@@ -340,10 +345,15 @@ const dictionaries = {
       userMenu: 'Användarmeny',
     },
     pages: {
-      title: 'Godkända Länkar',
       bookmarksOnly: 'Visa endast bokmärken',
       mixSubfeeds: 'Blanda in mina delflöden',
       mainFeedOnly: 'Endast huvudflöde',
+      subfeedStrip: {
+        title: 'Delflöden',
+        trendingTab: 'Trendande',
+        joinedTab: 'Mina delflöden',
+        browseAll: 'Visa alla',
+      },
       modeLabel: 'Flödesläge',
       modes: {
         best: 'Bäst',

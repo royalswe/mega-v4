@@ -30,10 +30,31 @@ export function UserMenu({
   logoutLabel,
 }: UserMenuProps) {
   const [mounted, setMounted] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (!mounted) return
+
+    const fetchUnreadCount = async () => {
+      try {
+        const res = await fetch('/api/messages/unread-count')
+        if (res.ok) {
+          const data = await res.json()
+          setUnreadCount(data.count || 0)
+        }
+      } catch (err) {
+        console.error('Failed to fetch unread count:', err)
+      }
+    }
+
+    fetchUnreadCount()
+    const interval = setInterval(fetchUnreadCount, 15000)
+    return () => clearInterval(interval)
+  }, [mounted])
 
   const displayName = username || email || 'User'
   const profileHref = username ? `/user/${username}` : '/'
@@ -50,8 +71,13 @@ export function UserMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" className="relative">
           <User className="h-[1.2rem] w-[1.2rem]" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white ring-2 ring-background animate-pulse">
+              {unreadCount}
+            </span>
+          )}
           <span className="sr-only">{userMenuLabel}</span>
         </Button>
       </DropdownMenuTrigger>

@@ -19,7 +19,7 @@ setup('authenticate', async ({ page }) => {
 
   const authPage = new AuthPage(page)
   const email = process.env.EMAIL || 'admin@mail.com'
-  const password = 'password123'
+  const password = '1234'
   const username = process.env.USERNAME || 'admin'
 
   console.log(`Attempting to authenticate as ${email}...`)

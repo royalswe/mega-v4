@@ -17,6 +17,7 @@ import { SubFeeds } from './collections/SubFeeds'
 import { Discoveries } from './collections/Discoveries'
 import { LinkClicks } from './collections/LinkClicks'
 import { Reports } from './collections/Reports'
+import { PrivateMessages } from './collections/PrivateMessages'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -56,6 +57,7 @@ export default buildConfig({
     Discoveries,
     LinkClicks,
     Reports,
+    PrivateMessages,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

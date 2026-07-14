@@ -51,7 +51,13 @@ export async function PostCard({
           />
           <p>
             {dict.common.submittedBy}{' '}
-            <b>{(typeof post.user === 'object' && post.user?.username) || 'Ghost'}</b>
+            {typeof post.user === 'object' && post.user?.username ? (
+              <Link href={`/user/${post.user.username}`} className="font-bold hover:underline">
+                {post.user.username}
+              </Link>
+            ) : (
+              <b>Ghost</b>
+            )}
           </p>
           {post.updatedAt &&
             new Date(post.updatedAt).getTime() > new Date(post.createdAt).getTime() + 60000 && (

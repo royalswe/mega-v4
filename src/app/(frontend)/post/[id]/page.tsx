@@ -100,7 +100,13 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
           <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
             <span>
               {dict.common.submittedBy}{' '}
-              {(typeof post.user === 'object' && post.user?.username) || 'Ghost'}
+              {typeof post.user === 'object' && post.user?.username ? (
+                <Link href={`/user/${post.user.username}`} className="font-bold hover:underline">
+                  {post.user.username}
+                </Link>
+              ) : (
+                'Ghost'
+              )}
             </span>
             <Timestamp date={post.updatedAt} prefix="updated" />
           </div>

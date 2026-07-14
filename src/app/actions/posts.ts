@@ -156,6 +156,7 @@ export async function submitPost(values: {
       feed: values.feed,
       subfeed: subfeedId,
       type: 'discussion',
+      status: 'published',
     },
     ...withAccess,
   })

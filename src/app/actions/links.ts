@@ -26,6 +26,17 @@ export async function setMainFeedMixPreference(includeSubfeeds: boolean) {
   revalidatePath('/')
 }
 
+export async function setHomeSubfeedsViewPreference(view: 'trending' | 'joined') {
+  const cookieStore = await cookies()
+  cookieStore.set('homeSubfeedsView', view, {
+    path: '/',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 365,
+  })
+
+  revalidatePath('/')
+}
+
 export async function vote(linkId: number, type: 'up' | 'down') {
   const { user, payload } = await getAuthenticatedUser()
 

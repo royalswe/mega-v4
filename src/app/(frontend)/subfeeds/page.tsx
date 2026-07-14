@@ -88,111 +88,15 @@ export default async function SubfeedsPage({
     ...withAccess,
   })
 
-  const subfeedIds = subfeeds.map((subfeed) => subfeed.id)
-  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-
-  const [recentLinks, recentPosts] =
-    subfeedIds.length > 0
-      ? await Promise.all([
-          payload.find({
-            collection: 'links',
-            where: {
-              and: [
-                {
-                  feed: {
-                    equals: 'subfeed',
-                  },
-                },
-                {
-                  subfeed: {
-                    in: subfeedIds,
-                  },
-                },
-                {
-                  _status: {
-                    equals: 'published',
-                  },
-                },
-                {
-                  softDeleted: {
-                    not_equals: true,
-                  },
-                },
-                {
-                  createdAt: {
-                    greater_than_equal: dayAgo,
-                  },
-                },
-              ],
-            },
-            sort: '-createdAt',
-            limit: 1000,
-            depth: 0,
-            select: { subfeed: true },
-            ...withAccess,
-          }),
-          payload.find({
-            collection: 'posts',
-            where: {
-              and: [
-                {
-                  feed: {
-                    equals: 'subfeed',
-                  },
-                },
-                {
-                  subfeed: {
-                    in: subfeedIds,
-                  },
-                },
-                {
-                  status: {
-                    equals: 'published',
-                  },
-                },
-                {
-                  createdAt: {
-                    greater_than_equal: dayAgo,
-                  },
-                },
-              ],
-            },
-            sort: '-createdAt',
-            limit: 1000,
-            depth: 0,
-            select: { subfeed: true },
-            ...withAccess,
-          }),
-        ])
-      : [{ docs: [] }, { docs: [] }]
-
-  const linkCountBySubfeed = new Map<number, number>()
-  for (const link of recentLinks.docs) {
-    if (typeof link.subfeed !== 'number') continue
-    linkCountBySubfeed.set(link.subfeed, (linkCountBySubfeed.get(link.subfeed) ?? 0) + 1)
-  }
-
-  const postCountBySubfeed = new Map<number, number>()
-  for (const post of recentPosts.docs) {
-    if (typeof post.subfeed !== 'number') continue
-    postCountBySubfeed.set(post.subfeed, (postCountBySubfeed.get(post.subfeed) ?? 0) + 1)
-  }
-
   const rankedSubfeeds = subfeeds
     .map((subfeed) => {
       const memberIds = readRelationshipIds(subfeed.members)
       const isMember = user ? memberIds.includes(user.id) : false
-      const linksToday = linkCountBySubfeed.get(subfeed.id) ?? 0
-      const postsToday = postCountBySubfeed.get(subfeed.id) ?? 0
-      const activityToday = linksToday + postsToday
 
       return {
         subfeed,
         memberIds,
         isMember,
-        linksToday,
-        postsToday,
-        activityToday,
       }
     })
     .filter(({ subfeed }) => {
@@ -472,70 +376,63 @@ export default async function SubfeedsPage({
         ) : null}
       </div>
 
-      <div className="grid gap-4">
-        {rankedSubfeeds.map(
-          ({ subfeed, memberIds, isMember, linksToday, postsToday, activityToday }) => {
-            return (
-              <Card key={subfeed.id}>
-                <CardHeader>
-                  <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-                    <div className="min-w-0">
-                      <CardTitle>
-                        <Link
-                          href={`/subfeeds/${subfeed.slug}`}
-                          className="inline-flex items-center gap-1.5 wrap-break-word hover:underline"
-                        >
-                          <SubfeedAvatar
-                            subfeed={subfeed}
-                            className="size-5 shrink-0 rounded-full object-cover"
-                            fallbackClassName="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold"
-                          />
-                          {subfeed.name}
-                        </Link>
-                      </CardTitle>
-                      <CardDescription className="wrap-break-word">
-                        {subfeed.description}
-                      </CardDescription>
-                    </div>
-                    {subfeed.featured ? (
-                      <span className="rounded-full border px-2 py-1 text-xs font-medium">
-                        {dict.subfeeds?.featured || 'Featured'}
-                      </span>
-                    ) : null}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {rankedSubfeeds.map(({ subfeed, memberIds, isMember }) => {
+          return (
+            <Card key={subfeed.id}>
+              <CardHeader>
+                <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                  <div className="min-w-0">
+                    <CardTitle>
+                      <Link
+                        href={`/subfeeds/${subfeed.slug}`}
+                        className="inline-flex items-center gap-1.5 wrap-break-word hover:underline"
+                      >
+                        <SubfeedAvatar
+                          subfeed={subfeed}
+                          className="size-5 shrink-0 rounded-full object-cover"
+                          fallbackClassName="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold"
+                        />
+                        {subfeed.name}
+                      </Link>
+                    </CardTitle>
+                    <CardDescription className="line-clamp-4 wrap-break-word">
+                      {subfeed.description}
+                    </CardDescription>
                   </div>
-                </CardHeader>
-                <CardContent className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-                  <div className="min-w-0 text-sm text-muted-foreground">
-                    <p>
-                      {memberIds.length} {dict.subfeeds?.membersLabel || 'members'}
-                    </p>
-                    <p>
-                      {dict.subfeeds?.reputationLabel || 'Reputation'}: {subfeed.reputation ?? 0}
-                    </p>
-                    <p>
-                      {activityToday > 0
-                        ? `${dict.subfeeds?.listControls?.activityToday || 'Active today'}: ${linksToday} ${dict.subfeeds?.listControls?.linksToday || 'links'}, ${postsToday} ${dict.subfeeds?.listControls?.postsToday || 'posts'}`
-                        : dict.subfeeds?.listControls?.quietToday || 'Quiet today'}
-                    </p>
-                  </div>
-                  <div className="w-full sm:w-auto">
-                    {user ? (
-                      <JoinSubfeedButton
-                        subfeedId={subfeed.id}
-                        isMember={isMember}
-                        labels={dict.subfeeds?.joinButton}
-                      />
-                    ) : (
-                      <Button asChild variant="outline" className="w-full sm:w-auto">
-                        <Link href="/login">{dict.subfeeds?.loginToJoin || 'Log in to join'}</Link>
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          },
-        )}
+                  {subfeed.featured ? (
+                    <span className="rounded-full border px-2 py-1 text-xs font-medium">
+                      {dict.subfeeds?.featured || 'Featured'}
+                    </span>
+                  ) : null}
+                </div>
+              </CardHeader>
+              <CardContent className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                <div className="min-w-0 text-sm text-muted-foreground">
+                  <p>
+                    {memberIds.length} {dict.subfeeds?.membersLabel || 'members'}
+                  </p>
+                  <p>
+                    {dict.subfeeds?.reputationLabel || 'Reputation'}: {subfeed.reputation ?? 0}
+                  </p>
+                </div>
+                <div className="w-full sm:w-auto">
+                  {user ? (
+                    <JoinSubfeedButton
+                      subfeedId={subfeed.id}
+                      isMember={isMember}
+                      labels={dict.subfeeds?.joinButton}
+                    />
+                  ) : (
+                    <Button asChild variant="outline" className="w-full sm:w-auto">
+                      <Link href="/login">{dict.subfeeds?.joinButton?.join || 'Join'}</Link>
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
 
         {rankedSubfeeds.length === 0 ? (
           <Card>

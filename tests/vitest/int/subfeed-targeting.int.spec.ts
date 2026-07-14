@@ -194,4 +194,44 @@ describe('SubFeed Targeting Integration', () => {
       }),
     ).rejects.toThrow('You must join this subfeed before posting')
   })
+
+  it('allows subfeed moderator to edit subfeed profile fields', async () => {
+    const owner = await getTestUser()
+    const subfeed = await createTestSubfeed(owner.id)
+    const unique = faker.string.alphanumeric(6).toLowerCase()
+
+    const updated = await payload.update({
+      collection: 'subfeeds',
+      id: subfeed.id,
+      data: {
+        name: `Updated SubFeed ${unique}`,
+        description: `Updated description for subfeed ${unique} with enough text`,
+      },
+      user: owner,
+      overrideAccess: false,
+      depth: 0,
+    })
+
+    expect(updated.name).toContain('Updated SubFeed')
+    expect(updated.description).toContain('Updated description')
+  })
+
+  it('rejects subfeed profile edits by non-moderators', async () => {
+    const owner = await getTestUser()
+    const outsider = await createTestUser(payload)
+    const subfeed = await createTestSubfeed(owner.id)
+
+    await expect(
+      payload.update({
+        collection: 'subfeeds',
+        id: subfeed.id,
+        data: {
+          description: `Outsider edit ${faker.string.alphanumeric(8).toLowerCase()}`,
+        },
+        user: outsider,
+        overrideAccess: false,
+        depth: 0,
+      }),
+    ).rejects.toThrow()
+  })
 })

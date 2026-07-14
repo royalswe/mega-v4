@@ -12,6 +12,8 @@ import { BookmarksFilter } from '@/components/links/BookmarksFilter'
 import { FeedMixFilter } from '@/components/links/FeedMixFilter'
 import { MainFeedHighlights } from '@/components/links/MainFeedHighlights'
 import { ReorderAwareList } from '@/components/links/ReorderAwareList.client'
+import { SubfeedStripToggle } from '@/components/links/SubfeedStripToggle'
+import { SubfeedAvatar } from '@/components/subfeeds/SubfeedAvatar'
 import { readRelationshipIds } from '@/lib/community/subfeeds'
 
 const SUBFEED_PROMOTION_THRESHOLD = {
@@ -22,6 +24,7 @@ const SUBFEED_PROMOTION_THRESHOLD = {
 
 type FeedSignal = 'trending' | 'subfeeds' | 'discussions'
 type FeedMode = 'best' | 'new' | 'rising'
+type HomeSubfeedsView = 'trending' | 'joined'
 
 const parseSignal = (value: string | undefined): FeedSignal | null => {
   if (value === 'trending' || value === 'subfeeds' || value === 'discussions') return value
@@ -31,6 +34,11 @@ const parseSignal = (value: string | undefined): FeedSignal | null => {
 const parseMode = (value: string | undefined): FeedMode => {
   if (value === 'new' || value === 'rising') return value
   return 'best'
+}
+
+const parseHomeSubfeedsView = (value: string | undefined): HomeSubfeedsView => {
+  if (value === 'joined') return 'joined'
+  return 'trending'
 }
 
 const toQuery = (params: {
@@ -71,6 +79,9 @@ export default async function HomePage({
   const showNSFW = user?.settings?.nsfw === true
   const showBookmarksOnly = resolvedSearchParams?.bookmarks === 'true'
   const persistedMixSubfeeds = cookieStore.get('mixSubfeeds')?.value === 'true'
+  const persistedHomeSubfeedsView = parseHomeSubfeedsView(
+    cookieStore.get('homeSubfeedsView')?.value,
+  )
   const mixSubfeedsParam = resolvedSearchParams?.mixSubfeeds
   const includeSubfeeds = Boolean(
     user &&
@@ -347,14 +358,260 @@ export default async function HomePage({
     and: andFilters,
   }
 
+  const withAccess = user
+    ? {
+        user,
+        overrideAccess: false as const,
+      }
+    : {
+        overrideAccess: false as const,
+      }
+
   const { docs: links } = await payload.find({
     collection: 'links',
     where,
     sort: modeSortBy[mode],
     limit: 100,
-    user: user || undefined,
-    overrideAccess: false,
+    ...withAccess,
   })
+
+  const { docs: discoverSubfeeds } = await payload.find({
+    collection: 'subfeeds',
+    sort: '-reputation',
+    limit: 12,
+    depth: 1,
+    ...withAccess,
+  })
+
+  const discoverSubfeedIds = discoverSubfeeds.map((subfeed) => subfeed.id)
+
+  const [discoverLinks, discoverPosts] =
+    discoverSubfeedIds.length > 0
+      ? await Promise.all([
+          payload.find({
+            collection: 'links',
+            where: {
+              and: [
+                {
+                  feed: {
+                    equals: 'subfeed',
+                  },
+                },
+                {
+                  subfeed: {
+                    in: discoverSubfeedIds,
+                  },
+                },
+                {
+                  _status: {
+                    equals: 'published',
+                  },
+                },
+                {
+                  softDeleted: {
+                    not_equals: true,
+                  },
+                },
+                {
+                  createdAt: {
+                    greater_than_equal: dayAgo,
+                  },
+                },
+              ],
+            },
+            limit: 1000,
+            depth: 0,
+            select: { subfeed: true },
+            ...withAccess,
+          }),
+          payload.find({
+            collection: 'posts',
+            where: {
+              and: [
+                {
+                  feed: {
+                    equals: 'subfeed',
+                  },
+                },
+                {
+                  subfeed: {
+                    in: discoverSubfeedIds,
+                  },
+                },
+                {
+                  status: {
+                    equals: 'published',
+                  },
+                },
+                {
+                  createdAt: {
+                    greater_than_equal: dayAgo,
+                  },
+                },
+              ],
+            },
+            limit: 1000,
+            depth: 0,
+            select: { subfeed: true },
+            ...withAccess,
+          }),
+        ])
+      : [{ docs: [] }, { docs: [] }]
+
+  const discoverLinkCounts = new Map<number, number>()
+  for (const link of discoverLinks.docs) {
+    if (typeof link.subfeed !== 'number') continue
+    discoverLinkCounts.set(link.subfeed, (discoverLinkCounts.get(link.subfeed) ?? 0) + 1)
+  }
+
+  const discoverPostCounts = new Map<number, number>()
+  for (const post of discoverPosts.docs) {
+    if (typeof post.subfeed !== 'number') continue
+    discoverPostCounts.set(post.subfeed, (discoverPostCounts.get(post.subfeed) ?? 0) + 1)
+  }
+
+  const trendingSubfeeds = discoverSubfeeds
+    .map((subfeed) => {
+      const linksToday = discoverLinkCounts.get(subfeed.id) ?? 0
+      const postsToday = discoverPostCounts.get(subfeed.id) ?? 0
+
+      return {
+        subfeed,
+        activityToday: linksToday + postsToday,
+      }
+    })
+    .sort((a, b) => {
+      if (a.subfeed.featured !== b.subfeed.featured) {
+        return a.subfeed.featured ? -1 : 1
+      }
+
+      if (a.activityToday !== b.activityToday) {
+        return b.activityToday - a.activityToday
+      }
+
+      return (b.subfeed.reputation ?? 0) - (a.subfeed.reputation ?? 0)
+    })
+
+  const { docs: joinedSubfeeds } =
+    user && joinedSubfeedIds.length > 0
+      ? await payload.find({
+          collection: 'subfeeds',
+          where: {
+            id: {
+              in: joinedSubfeedIds,
+            },
+          },
+          sort: '-reputation',
+          limit: 30,
+          depth: 1,
+          ...withAccess,
+        })
+      : { docs: [] }
+
+  const [joinedLinks, joinedPosts] =
+    joinedSubfeedIds.length > 0
+      ? await Promise.all([
+          payload.find({
+            collection: 'links',
+            where: {
+              and: [
+                {
+                  feed: {
+                    equals: 'subfeed',
+                  },
+                },
+                {
+                  subfeed: {
+                    in: joinedSubfeedIds,
+                  },
+                },
+                {
+                  _status: {
+                    equals: 'published',
+                  },
+                },
+                {
+                  softDeleted: {
+                    not_equals: true,
+                  },
+                },
+                {
+                  createdAt: {
+                    greater_than_equal: dayAgo,
+                  },
+                },
+              ],
+            },
+            limit: 1000,
+            depth: 0,
+            select: { subfeed: true },
+            ...withAccess,
+          }),
+          payload.find({
+            collection: 'posts',
+            where: {
+              and: [
+                {
+                  feed: {
+                    equals: 'subfeed',
+                  },
+                },
+                {
+                  subfeed: {
+                    in: joinedSubfeedIds,
+                  },
+                },
+                {
+                  status: {
+                    equals: 'published',
+                  },
+                },
+                {
+                  createdAt: {
+                    greater_than_equal: dayAgo,
+                  },
+                },
+              ],
+            },
+            limit: 1000,
+            depth: 0,
+            select: { subfeed: true },
+            ...withAccess,
+          }),
+        ])
+      : [{ docs: [] }, { docs: [] }]
+
+  const joinedLinkCounts = new Map<number, number>()
+  for (const link of joinedLinks.docs) {
+    if (typeof link.subfeed !== 'number') continue
+    joinedLinkCounts.set(link.subfeed, (joinedLinkCounts.get(link.subfeed) ?? 0) + 1)
+  }
+
+  const joinedPostCounts = new Map<number, number>()
+  for (const post of joinedPosts.docs) {
+    if (typeof post.subfeed !== 'number') continue
+    joinedPostCounts.set(post.subfeed, (joinedPostCounts.get(post.subfeed) ?? 0) + 1)
+  }
+
+  const joinedSubfeedsSidebar = joinedSubfeeds
+    .map((subfeed) => {
+      const linksToday = joinedLinkCounts.get(subfeed.id) ?? 0
+      const postsToday = joinedPostCounts.get(subfeed.id) ?? 0
+
+      return {
+        subfeed,
+        activityToday: linksToday + postsToday,
+      }
+    })
+    .sort((a, b) => b.activityToday - a.activityToday)
+
+  const selectedSubfeedStripView: HomeSubfeedsView =
+    persistedHomeSubfeedsView === 'joined' && joinedSubfeedsSidebar.length > 0
+      ? 'joined'
+      : 'trending'
+
+  const activeSubfeedStrip =
+    selectedSubfeedStripView === 'joined' ? joinedSubfeedsSidebar : trendingSubfeeds
 
   const trendingCurrentPromise = payload.find({
     collection: 'links',
@@ -569,75 +826,120 @@ export default async function HomePage({
         activeSignal={signal}
       />
 
-      <div className="mb-4 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div className="min-w-0 space-y-2">
-          <h2 className="text-xl font-semibold">{dict.pages.title}</h2>
-          <div className="inline-flex flex-wrap items-center gap-1 rounded-md border bg-muted/40 p-1 text-xs">
-            <span className="px-2 text-muted-foreground">{dict.pages.modeLabel}</span>
+      {activeSubfeedStrip.length > 0 ? (
+        <section className="space-y-2 rounded-xl border bg-card/70 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex items-center gap-2">
+              <h2 className="text-sm font-semibold">{dict.pages.subfeedStrip.title}</h2>
+              <SubfeedStripToggle
+                initialView={selectedSubfeedStripView}
+                hasJoinedSubfeeds={joinedSubfeedsSidebar.length > 0}
+                labels={{
+                  trending: dict.pages.subfeedStrip.trendingTab,
+                  joined: dict.pages.subfeedStrip.joinedTab,
+                }}
+              />
+            </div>
             <Link
-              href={buildModeHref('best')}
-              className={`rounded px-2 py-1 ${mode === 'best' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
+              href="/subfeeds"
+              className="shrink-0 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
             >
-              {dict.pages.modes.best}
-            </Link>
-            <Link
-              href={buildModeHref('new')}
-              className={`rounded px-2 py-1 ${mode === 'new' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              {dict.pages.modes.newest}
-            </Link>
-            <Link
-              href={buildModeHref('rising')}
-              className={`rounded px-2 py-1 ${mode === 'rising' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              {dict.pages.modes.rising}
+              {dict.pages.subfeedStrip.browseAll}
             </Link>
           </div>
-          <p className="text-xs text-muted-foreground">{modeDescriptionByKey[mode]}</p>
-          {signal ? (
-            <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-sky-300/70 bg-sky-50 px-3 py-1 text-xs text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-100">
-              <span>
-                {dict.pages.highlights.activeFilterPrefix}: {signalLabelByKey[signal]}
-              </span>
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            {activeSubfeedStrip.map(({ subfeed, activityToday }) => (
               <Link
-                href={buildSignalHref(null)}
-                className="font-medium underline decoration-sky-400/70 underline-offset-2 hover:text-sky-700 dark:hover:text-sky-200"
+                key={subfeed.id}
+                href={`/subfeeds/${subfeed.slug}`}
+                className="inline-flex shrink-0 items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-xs transition hover:border-sky-400/60"
               >
-                {dict.pages.highlights.clearFilter}
+                <SubfeedAvatar
+                  subfeed={subfeed}
+                  className="size-5 rounded-full object-cover"
+                  fallbackClassName="inline-flex size-5 items-center justify-center rounded-full bg-muted text-[10px] font-semibold"
+                />
+                <span className="max-w-40 truncate">{subfeed.name}</span>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                  {activityToday} {dict.subfeeds.listControls.activityToday}
+                </span>
               </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <div>
+        <div className="mb-4 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div className="min-w-0 space-y-2">
+            <div className="inline-flex flex-wrap items-center gap-1 rounded-md border bg-muted/40 p-1 text-xs">
+              <span className="px-2 text-muted-foreground">{dict.pages.modeLabel}</span>
+              <Link
+                href={buildModeHref('best')}
+                className={`rounded px-2 py-1 ${mode === 'best' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                {dict.pages.modes.best}
+              </Link>
+              <Link
+                href={buildModeHref('new')}
+                className={`rounded px-2 py-1 ${mode === 'new' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                {dict.pages.modes.newest}
+              </Link>
+              <Link
+                href={buildModeHref('rising')}
+                className={`rounded px-2 py-1 ${mode === 'rising' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                {dict.pages.modes.rising}
+              </Link>
+            </div>
+            <p className="text-xs text-muted-foreground">{modeDescriptionByKey[mode]}</p>
+            {signal ? (
+              <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-sky-300/70 bg-sky-50 px-3 py-1 text-xs text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-100">
+                <span>
+                  {dict.pages.highlights.activeFilterPrefix}: {signalLabelByKey[signal]}
+                </span>
+                <Link
+                  href={buildSignalHref(null)}
+                  className="font-medium underline decoration-sky-400/70 underline-offset-2 hover:text-sky-700 dark:hover:text-sky-200"
+                >
+                  {dict.pages.highlights.clearFilter}
+                </Link>
+              </div>
+            ) : null}
+          </div>
+          {user ? (
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <FeedMixFilter
+                initialValue={includeSubfeeds}
+                label={dict.pages.mixSubfeeds || 'Include links from my SubFeeds'}
+                description={dict.pages.mainFeedOnly || 'Main feed only'}
+              />
+              <BookmarksFilter label={dict.pages.bookmarksOnly} />
             </div>
           ) : null}
         </div>
-        {user ? (
-          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
-            <FeedMixFilter
-              initialValue={includeSubfeeds}
-              label={dict.pages.mixSubfeeds || 'Include links from my SubFeeds'}
-              description={dict.pages.mainFeedOnly || 'Main feed only'}
-            />
-            <BookmarksFilter label={dict.pages.bookmarksOnly} />
-          </div>
-        ) : null}
-      </div>
-      <div>
-        {links.length > 0 ? (
-          <ReorderAwareList itemIds={links.map((link) => link.id)}>
-            {links.map((link) => (
-              <LinkCard
-                key={link.id}
-                link={link}
-                userId={user?.id}
-                userVote={votes[link.id]}
-                isBookmarked={bookmarks[link.id]}
-                className={link.nsfw ? 'nsfw-text' : ''}
-              />
-            ))}
-          </ReorderAwareList>
-        ) : (
-          <p className="text-muted-foreground text-center py-8">
-            {showBookmarksOnly ? dict.pages.noBookmarks : dict.pages.noLinks}{' '}
-          </p>
-        )}
+
+        <div>
+          {links.length > 0 ? (
+            <ReorderAwareList itemIds={links.map((link) => link.id)}>
+              {links.map((link) => (
+                <LinkCard
+                  key={link.id}
+                  link={link}
+                  userId={user?.id}
+                  userVote={votes[link.id]}
+                  isBookmarked={bookmarks[link.id]}
+                  className={link.nsfw ? 'nsfw-text' : ''}
+                />
+              ))}
+            </ReorderAwareList>
+          ) : (
+            <p className="text-muted-foreground py-8 text-center">
+              {showBookmarksOnly ? dict.pages.noBookmarks : dict.pages.noLinks}{' '}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
