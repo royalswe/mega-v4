@@ -37,7 +37,7 @@ export default function HowItWorksPage() {
   return (
     <div className="space-y-8">
       <section className="space-y-2">
-        <h1 className="text-3xl font-bold">How MEGA V4 Works</h1>
+        <h1 className="text-3xl font-bold">How V4 Works</h1>
         <p className="text-muted-foreground max-w-3xl">
           This page explains how trust levels, roles, main feed ranking, and subfeeds work in the
           current platform logic.
