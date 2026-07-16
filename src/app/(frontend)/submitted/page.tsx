@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { redirect } from 'next/navigation'
 import { TrackedLink } from '@/components/links/TrackedLink'
 import { LinkIcon } from '@/components/links/LinkIcon'
+import { ReorderAwareList } from '@/components/links/ReorderAwareList.client'
 
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import {
@@ -129,7 +130,7 @@ const SubmittedLinksPage = async () => {
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">{dict.pages.submittedTitle}</h2>
-      <div className="flex flex-col gap-4">
+      <ReorderAwareList itemIds={links.map((link) => link.id)}>
         {links.map((link) => (
           <Card key={link.id} className="flex-row px-4 py-2 ">
             <div className="shrink-0">
@@ -240,7 +241,7 @@ const SubmittedLinksPage = async () => {
             </div>
           </Card>
         ))}
-      </div>
+      </ReorderAwareList>
     </div>
   )
 }

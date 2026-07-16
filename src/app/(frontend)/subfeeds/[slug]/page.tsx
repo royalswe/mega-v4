@@ -18,6 +18,7 @@ import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 import { canModerateCommunity, readRelationshipIds } from '@/lib/community/subfeeds'
 import { checkRole } from '@/access/checkRole'
+import { ReorderAwareList } from '@/components/links/ReorderAwareList.client'
 import type { Link as LinkDoc, Post as PostDoc } from '@/payload-types'
 
 const extractTrendingTopics = (items: Array<Pick<LinkDoc, 'tags'> | Pick<PostDoc, 'tags'>>) => {
@@ -696,7 +697,7 @@ export default async function SubfeedDetailsPage({
         </div>
 
         {filteredItems.length > 0 ? (
-          <div className="flex flex-col gap-4">
+          <ReorderAwareList itemIds={filteredItems.map((item) => item.id)}>
             {filteredItems.map((item) => {
               if (item.type === 'link') {
                 return (
@@ -724,7 +725,7 @@ export default async function SubfeedDetailsPage({
                 />
               )
             })}
-          </div>
+          </ReorderAwareList>
         ) : (
           <Card>
             <CardContent className="pt-6 text-sm text-muted-foreground">

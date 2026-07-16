@@ -80,8 +80,6 @@ export async function vote(linkId: number, type: 'up' | 'down') {
     })
   }
 
-  revalidatePath('/')
-  revalidatePath('/submitted')
   revalidatePath(`/link/${linkId}`)
 }
 

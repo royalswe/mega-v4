@@ -1,64 +1,48 @@
 'use client'
 
-import { Children, useEffect, useMemo, useRef, useState } from 'react'
+import { Children, type ReactNode, useEffect, useMemo, useState } from 'react'
 
 export function ReorderAwareList({
   itemIds,
   children,
+  className,
 }: {
   itemIds: number[]
-  children: React.ReactNode
+  children: ReactNode
+  className?: string
 }) {
-  const previousIdsRef = useRef<number[]>(itemIds)
-  const [movedIds, setMovedIds] = useState<Set<number>>(new Set())
-
   const childArray = useMemo(() => Children.toArray(children), [children])
+  const [stableOrder, setStableOrder] = useState<number[]>(itemIds)
 
   useEffect(() => {
-    const previousIds = previousIdsRef.current
-    if (previousIds.length === 0) {
-      previousIdsRef.current = itemIds
-      return
-    }
+    setStableOrder((previous) => {
+      if (previous.length === 0) return itemIds
 
-    const previousIndexById = new Map(previousIds.map((id, index) => [id, index]))
-    const moved = new Set<number>()
+      const nextSet = new Set(itemIds)
+      const kept = previous.filter((id) => nextSet.has(id))
+      const previousSet = new Set(previous)
+      const appended = itemIds.filter((id) => !previousSet.has(id))
 
-    itemIds.forEach((id, index) => {
-      const previousIndex = previousIndexById.get(id)
-      if (previousIndex !== undefined && previousIndex !== index) {
-        moved.add(id)
-      }
+      return [...kept, ...appended]
     })
-
-    previousIdsRef.current = itemIds
-
-    if (moved.size === 0) return
-
-    setMovedIds(moved)
-    const timeoutId = window.setTimeout(() => {
-      setMovedIds(new Set())
-    }, 900)
-
-    return () => {
-      window.clearTimeout(timeoutId)
-    }
   }, [itemIds])
 
-  return (
-    <div className="flex flex-col gap-4">
-      {childArray.map((child, index) => {
-        const id = itemIds[index]
-        const wasMoved = id !== undefined && movedIds.has(id)
+  const childById = useMemo(() => {
+    const map = new Map<number, ReactNode>()
+    itemIds.forEach((id, index) => {
+      map.set(id, childArray[index])
+    })
+    return map
+  }, [itemIds, childArray])
 
-        return (
-          <div
-            key={id ?? index}
-            className={`rounded-xl transition-colors duration-700 ${wasMoved ? 'bg-sky-100/60 ring-1 ring-sky-300/70 dark:bg-sky-950/30 dark:ring-sky-800/60' : ''}`}
-          >
-            {child}
-          </div>
-        )
+  const containerClassName = className ?? 'flex flex-col gap-4'
+
+  return (
+    <div className={containerClassName}>
+      {stableOrder.map((id) => {
+        const child = childById.get(id)
+        if (!child) return null
+        return <div key={id}>{child}</div>
       })}
     </div>
   )
