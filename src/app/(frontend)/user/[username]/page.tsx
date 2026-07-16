@@ -16,6 +16,7 @@ import { Inbox } from '@/components/users/Inbox.client'
 import { resolveID } from '@/lib/community/userSignals'
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import { getPostInteractions } from '@/app/(frontend)/data/getPostInteractions'
+import { checkRole } from '@/access/checkRole'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,7 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
   const decodedUsername = decodeURIComponent(username)
   const { user: currentUser, payload } = await getAuthenticatedUser()
   const { dict, lang } = await getDictionary()
+  const canQuickEditLinks = currentUser ? checkRole(['admin'], currentUser) : false
 
   const withAccess = currentUser
     ? {
@@ -108,6 +110,23 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
     getUserInteractions(currentUser, linkIds),
     getPostInteractions(currentUser, postIds),
   ])
+
+  let quickEditSubfeeds: Array<{ id: number; name: string }> = []
+  if (currentUser && canQuickEditLinks) {
+    const { docs: subfeedsForEdit } = await payload.find({
+      collection: 'subfeeds',
+      sort: 'name',
+      depth: 0,
+      limit: 200,
+      user: currentUser,
+      overrideAccess: false,
+    })
+
+    quickEditSubfeeds = subfeedsForEdit.map((subfeedForEdit) => ({
+      id: subfeedForEdit.id,
+      name: subfeedForEdit.name,
+    }))
+  }
 
   // Handle messages logic
   let conversations: any[] = []
@@ -328,6 +347,8 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
                       userId={currentUser?.id}
                       userVote={linkInteractions.votes[link.id]}
                       isBookmarked={linkInteractions.bookmarks[link.id]}
+                      quickEditEnabled={canQuickEditLinks}
+                      quickEditSubfeeds={quickEditSubfeeds}
                     />
                   ))}
                 </div>

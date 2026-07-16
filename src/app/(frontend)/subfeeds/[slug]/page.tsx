@@ -17,6 +17,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 import { canModerateCommunity, readRelationshipIds } from '@/lib/community/subfeeds'
+import { checkRole } from '@/access/checkRole'
 import type { Link as LinkDoc, Post as PostDoc } from '@/payload-types'
 
 const extractTrendingTopics = (items: Array<Pick<LinkDoc, 'tags'> | Pick<PostDoc, 'tags'>>) => {
@@ -174,6 +175,7 @@ export default async function SubfeedDetailsPage({
   const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
   const { user, payload } = await getAuthenticatedUser()
   const { dict, lang } = await getDictionary()
+  const canQuickEditLinks = user ? checkRole(['admin'], user) : false
   const selectedWindow = parsePulseWindow(resolvedSearchParams.window)
   const selectedContentFilter = parseContentFilter(resolvedSearchParams.type)
 
@@ -521,6 +523,23 @@ export default async function SubfeedDetailsPage({
     { votes: postVotes, bookmarks: postBookmarks },
   ] = await Promise.all([getUserInteractions(user, linkIds), getPostInteractions(user, postIds)])
 
+  let quickEditSubfeeds: Array<{ id: number; name: string }> = []
+  if (user && canQuickEditLinks) {
+    const { docs: subfeedsForEdit } = await payload.find({
+      collection: 'subfeeds',
+      sort: 'name',
+      depth: 0,
+      limit: 200,
+      user,
+      overrideAccess: false,
+    })
+
+    quickEditSubfeeds = subfeedsForEdit.map((subfeedForEdit) => ({
+      id: subfeedForEdit.id,
+      name: subfeedForEdit.name,
+    }))
+  }
+
   const mixedItems = [
     ...links.map((link) => ({
       type: 'link' as const,
@@ -687,6 +706,8 @@ export default async function SubfeedDetailsPage({
                     userId={user?.id}
                     userVote={linkVotes[item.id]}
                     isBookmarked={linkBookmarks[item.id]}
+                    quickEditEnabled={canQuickEditLinks}
+                    quickEditSubfeeds={quickEditSubfeeds}
                     className={item.link.nsfw ? 'nsfw-text' : ''}
                   />
                 )
