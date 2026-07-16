@@ -84,6 +84,5 @@ export async function trackClick(linkId: number) {
     if (isDuplicateClickError(error)) {
       return
     }
-    ;-console.error('Error tracking click:', error)
   }
 }
