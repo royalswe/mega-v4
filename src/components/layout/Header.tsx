@@ -24,12 +24,17 @@ export async function Header() {
         <div className="flex items-center gap-4 grow min-w-0">
           <h1 className="min-w-0 text-xl font-bold sm:text-2xl shrink-0">
             <Link href="/" className="inline-block truncate">
-              MEGA <i>V4🔥</i>
+              <i>V4</i>
             </Link>
           </h1>
 
           {/* Desktop Global Search Bar */}
-          <form role="search" action="/search" method="get" className="hidden md:flex items-center relative max-w-xs grow">
+          <form
+            role="search"
+            action="/search"
+            method="get"
+            className="hidden md:flex items-center relative max-w-xs grow"
+          >
             <input
               type="search"
               name="q"
@@ -52,7 +57,12 @@ export async function Header() {
             <div className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-md border bg-background p-3 shadow-md">
               <nav>
                 {/* Mobile Global Search Bar */}
-                <form role="search" action="/search" method="get" className="mb-3 flex items-center gap-2">
+                <form
+                  role="search"
+                  action="/search"
+                  method="get"
+                  className="mb-3 flex items-center gap-2"
+                >
                   <input
                     type="search"
                     name="q"
@@ -61,7 +71,9 @@ export async function Header() {
                     aria-label="Search site"
                     required
                   />
-                  <Button type="submit" size="xs">Search</Button>
+                  <Button type="submit" size="xs">
+                    Search
+                  </Button>
                 </form>
                 <ul className="space-y-1">
                   <li>

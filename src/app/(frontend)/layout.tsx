@@ -7,7 +7,7 @@ import { Header } from '@/components/layout/Header'
 import { Toaster } from '@/components/ui/sonner'
 
 export const metadata: Metadata = {
-  title: 'MEGA V4',
+  title: 'V4',
   description: 'A place to share and discover links.',
 }
 
@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </main>
             <footer className="py-4 px-3 sm:px-6 border-t text-sm text-muted-foreground">
               <div className="w-full max-w-245 mx-auto flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
-                <p>&copy; MEGA V4. All rights reserved.</p>
+                <p>&copy;V4 All rights reserved.</p>
                 <Link href="/how-it-works" className="underline hover:text-foreground">
                   How it works
                 </Link>

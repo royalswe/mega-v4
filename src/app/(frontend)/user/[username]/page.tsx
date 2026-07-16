@@ -16,6 +16,7 @@ import { Inbox } from '@/components/users/Inbox.client'
 import { resolveID } from '@/lib/community/userSignals'
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import { getPostInteractions } from '@/app/(frontend)/data/getPostInteractions'
+import { checkRole } from '@/access/checkRole'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,7 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
   const decodedUsername = decodeURIComponent(username)
   const { user: currentUser, payload } = await getAuthenticatedUser()
   const { dict, lang } = await getDictionary()
+  const canQuickEditLinks = currentUser ? checkRole(['admin'], currentUser) : false
 
   const withAccess = currentUser
     ? {
@@ -109,6 +111,23 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
     getPostInteractions(currentUser, postIds),
   ])
 
+  let quickEditSubfeeds: Array<{ id: number; name: string }> = []
+  if (currentUser && canQuickEditLinks) {
+    const { docs: subfeedsForEdit } = await payload.find({
+      collection: 'subfeeds',
+      sort: 'name',
+      depth: 0,
+      limit: 200,
+      user: currentUser,
+      overrideAccess: false,
+    })
+
+    quickEditSubfeeds = subfeedsForEdit.map((subfeedForEdit) => ({
+      id: subfeedForEdit.id,
+      name: subfeedForEdit.name,
+    }))
+  }
+
   // Handle messages logic
   let conversations: any[] = []
   let pmHistory: any[] = []
@@ -119,10 +138,7 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
       const { docs: allMsgs } = await payload.find({
         collection: 'private-messages',
         where: {
-          or: [
-            { sender: { equals: currentUser.id } },
-            { receiver: { equals: currentUser.id } },
-          ],
+          or: [{ sender: { equals: currentUser.id } }, { receiver: { equals: currentUser.id } }],
         },
         sort: '-createdAt',
         limit: 200,
@@ -160,7 +176,8 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
       }
 
       conversations = Array.from(conversationsMap.values()).sort(
-        (a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime()
+        (a, b) =>
+          new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime(),
       )
     } else {
       // Fetch private message thread between currentUser and profileUser
@@ -330,6 +347,8 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
                       userId={currentUser?.id}
                       userVote={linkInteractions.votes[link.id]}
                       isBookmarked={linkInteractions.bookmarks[link.id]}
+                      quickEditEnabled={canQuickEditLinks}
+                      quickEditSubfeeds={quickEditSubfeeds}
                     />
                   ))}
                 </div>
@@ -370,15 +389,29 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
                   {userComments.map((comment) => {
                     const targetLink = typeof comment.link === 'object' ? comment.link : null
                     const targetPost = typeof comment.post === 'object' ? comment.post : null
-                    const targetTitle = targetLink ? targetLink.title : targetPost ? targetPost.title : 'Deleted Content'
-                    const targetHref = targetLink ? `/link/${targetLink.id}` : targetPost ? `/post/${targetPost.id}` : '#'
+                    const targetTitle = targetLink
+                      ? targetLink.title
+                      : targetPost
+                        ? targetPost.title
+                        : 'Deleted Content'
+                    const targetHref = targetLink
+                      ? `/link/${targetLink.id}`
+                      : targetPost
+                        ? `/post/${targetPost.id}`
+                        : '#'
 
                     return (
-                      <Card key={comment.id} className="border hover:border-primary/20 transition-colors">
-                        <CardContent className="p-4 space-y-3">
+                      <Card
+                        key={comment.id}
+                        className="py-0 border hover:border-primary/20 transition-colors"
+                      >
+                        <CardContent className="px-4 py-2 space-y-2">
                           <div className="text-xs text-muted-foreground">
                             Commented on{' '}
-                            <Link href={targetHref} className="font-semibold text-foreground hover:underline">
+                            <Link
+                              href={targetHref}
+                              className="font-semibold text-foreground hover:underline"
+                            >
                               {targetTitle}
                             </Link>{' '}
                             &bull; <Timestamp date={comment.createdAt} />

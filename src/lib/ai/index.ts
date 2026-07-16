@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { createHash } from 'crypto'
 import { loadHistoricalData } from '../historicalData'
 import type { Candidate } from '../sources'
 
@@ -15,6 +16,19 @@ export interface RankedCandidate extends Candidate {
   score: number
   aiTitle: string
   aiReason: string
+}
+
+interface CandidateWithId {
+  id: string
+  candidate: Candidate
+}
+
+interface ProviderRankResult {
+  id?: string
+  score?: number
+  title?: string
+  nsfw?: boolean
+  reason?: string
 }
 
 const SYSTEM_PROMPT = (
@@ -33,13 +47,24 @@ ${examples}
 
 For each item in the input list, return a JSON object inside an "items" array with:
 {
+  "id": "same id from the input item",
   "score": number (1-10),
   "title": "Generated Swedish Title",
   "nsfw": boolean,
   "reason": "short explanation in English"
 }`
 
-async function rankWithOpenAI(batch: Candidate[], examples: string): Promise<unknown[]> {
+function getCandidateStableId(candidate: Candidate): string {
+  return createHash('sha1')
+    .update(`${candidate.url}|${candidate.source}|${candidate.type}|${candidate.title}`)
+    .digest('hex')
+    .slice(0, 16)
+}
+
+async function rankWithOpenAI(
+  batch: CandidateWithId[],
+  examples: string,
+): Promise<ProviderRankResult[]> {
   if (!openai) return []
   try {
     const response = await openai.chat.completions.create({
@@ -49,48 +74,55 @@ async function rankWithOpenAI(batch: Candidate[], examples: string): Promise<unk
         {
           role: 'user',
           content: JSON.stringify(
-            batch.map((c) => ({ title: c.title, source: c.source, type: c.type })),
+            batch.map(({ id, candidate }) => ({
+              id,
+              title: candidate.title,
+              source: candidate.source,
+              type: candidate.type,
+            })),
           ),
         },
       ],
       response_format: { type: 'json_object' },
     })
     const parsed = JSON.parse(response.choices[0]?.message.content || '{"items": []}')
-    return Array.isArray(parsed.items) ? parsed.items : []
+    return Array.isArray(parsed.items) ? (parsed.items as ProviderRankResult[]) : []
   } catch (error) {
     console.error('OpenAI Error:', error)
     return []
   }
 }
 
-async function rankWithGemini(batch: Candidate[], examples: string): Promise<unknown[]> {
+function rankWithMock(batch: CandidateWithId[], reason: string): RankedCandidate[] {
+  return batch.map(({ candidate }) => ({
+    ...candidate,
+    score: 8,
+    aiTitle: candidate.title,
+    aiReason: reason,
+  }))
+}
+
+async function rankWithGemini(
+  batch: CandidateWithId[],
+  examples: string,
+): Promise<ProviderRankResult[]> {
   if (!genAI) return []
-  try {
-    const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || 'gemini-3-flash-preview',
-    })
-    const prompt = `${SYSTEM_PROMPT(examples)}\n\nInput items:\n${JSON.stringify(batch.map((c) => ({ title: c.title, source: c.source, type: c.type })))}`
 
-    const result = await model.generateContent(prompt)
-    const response = await result.response
-    const text = response.text()
+  const model = genAI.getGenerativeModel({
+    model: process.env.GEMINI_MODEL || 'gemini-3-flash-preview',
+  })
+  const prompt = `${SYSTEM_PROMPT(examples)}\n\nInput items:\n${JSON.stringify(batch.map(({ id, candidate }) => ({ id, title: candidate.title, source: candidate.source, type: candidate.type })))}`
 
-    // Gemini sometimes wraps JSON in markdown blocks
-    const jsonMatch = text.match(/\{[\s\S]*\}/)
-    const jsonString = jsonMatch ? jsonMatch[0] : text
+  const result = await model.generateContent(prompt)
+  const response = await result.response
+  const text = response.text()
 
-    const parsed = JSON.parse(jsonString)
-    return Array.isArray(parsed.items) ? parsed.items : []
-  } catch (error: any) {
-    if (error.status === 404) {
-      console.error(
-        'Gemini Error: Model not found. Try "gemini-1.5-pro" or check your API key permissions.',
-      )
-    } else {
-      console.error('Gemini Error:', error)
-    }
-    return []
-  }
+  // Gemini sometimes wraps JSON in markdown blocks
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  const jsonString = jsonMatch ? jsonMatch[0] : text
+
+  const parsed = JSON.parse(jsonString)
+  return Array.isArray(parsed.items) ? (parsed.items as ProviderRankResult[]) : []
 }
 
 export async function rankCandidates(candidates: Candidate[]): Promise<RankedCandidate[]> {
@@ -113,40 +145,77 @@ export async function rankCandidates(candidates: Candidate[]): Promise<RankedCan
 
   const ranked: RankedCandidate[] = []
   const batchSize = 10
+  let geminiEnabled = Boolean(process.env.GEMINI_API_KEY)
 
   for (let i = 0; i < candidates.length; i += batchSize) {
     const batch = candidates.slice(i, i + batchSize)
-    let results: unknown[] = []
+    const batchWithIds = batch.map((candidate) => ({
+      id: getCandidateStableId(candidate),
+      candidate,
+    }))
 
-    if (process.env.GEMINI_API_KEY) {
-      results = await rankWithGemini(batch, examples)
-    } else if (process.env.OPENAI_API_KEY) {
-      results = await rankWithOpenAI(batch, examples)
+    let results: ProviderRankResult[] = []
+
+    if (geminiEnabled) {
+      try {
+        results = await rankWithGemini(batchWithIds, examples)
+      } catch (error: any) {
+        if (error?.status === 429) {
+          console.warn(
+            'Gemini quota/rate limit reached. Disabling Gemini for this run and falling back.',
+          )
+          geminiEnabled = false
+        } else if (error?.status === 404) {
+          console.warn('Gemini model not found. Disabling Gemini for this run and falling back.')
+          geminiEnabled = false
+        } else {
+          console.error('Gemini Error:', error)
+        }
+      }
     }
 
-    if (results.length > 0) {
-      if (results.length < batch.length) {
-        console.warn(
-          `AI returned ${results.length} results for batch of ${batch.length} candidates`,
-        )
+    if (results.length === 0 && process.env.OPENAI_API_KEY) {
+      results = await rankWithOpenAI(batchWithIds, examples)
+    }
+
+    if (results.length === 0) {
+      ranked.push(
+        ...rankWithMock(batchWithIds, 'Fallback ranking (provider unavailable or rate limited)'),
+      )
+      continue
+    }
+
+    if (results.length < batchWithIds.length) {
+      console.warn(`AI returned ${results.length} results for batch of ${batch.length} candidates`)
+    }
+
+    const batchById = new Map(batchWithIds.map((item) => [item.id, item]))
+    const resolvedIds = new Set<string>()
+
+    for (const res of results) {
+      if (!res || typeof res.id !== 'string') {
+        continue
       }
-      for (let j = 0; j < Math.min(batch.length, results.length); j++) {
-        const res = results[j] as {
-          score?: number
-          title?: string
-          reason?: string
-          nsfw?: boolean
-        }
-        if (res && typeof res.score === 'number') {
-          ranked.push({
-            ...batch[j],
-            score: res.score,
-            aiTitle: res.title || batch[j].title,
-            aiReason: res.reason || '',
-            nsfw: typeof res.nsfw === 'boolean' ? res.nsfw : batch[j].nsfw,
-          })
-        }
+
+      const sourceItem = batchById.get(res.id)
+      if (!sourceItem || resolvedIds.has(res.id) || typeof res.score !== 'number') {
+        continue
       }
+
+      const candidate = sourceItem.candidate
+      ranked.push({
+        ...candidate,
+        score: res.score,
+        aiTitle: res.title || candidate.title,
+        aiReason: res.reason || '',
+        nsfw: typeof res.nsfw === 'boolean' ? res.nsfw : candidate.nsfw,
+      })
+      resolvedIds.add(res.id)
+    }
+
+    const unresolved = batchWithIds.filter((item) => !resolvedIds.has(item.id))
+    if (unresolved.length > 0) {
+      ranked.push(...rankWithMock(unresolved, 'Fallback ranking (missing/invalid AI result)'))
     }
   }
 

@@ -30,7 +30,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import { submitLink } from '@/app/actions/links'
+import { submitLink, updateLinkAsAdmin } from '@/app/actions/links'
 import type { AppDictionary } from '@/lib/dictionaries'
 import { SubmissionActionRow } from '@/components/subfeeds/SubmissionActionRow'
 import { SubmissionDestinationFields } from '@/components/subfeeds/SubmissionDestinationFields'
@@ -67,6 +67,9 @@ export function LinkSubmitForm({
   defaultSubfeedId,
   defaultFeed,
   lockDestination,
+  mode = 'create',
+  linkId,
+  initialValues,
   onSuccess,
   onCancel,
 }: {
@@ -75,6 +78,17 @@ export function LinkSubmitForm({
   defaultSubfeedId?: number
   defaultFeed?: 'main' | 'subfeed'
   lockDestination?: boolean
+  mode?: 'create' | 'edit'
+  linkId?: number
+  initialValues?: {
+    title?: string
+    url?: string
+    description?: string
+    nsfw?: boolean
+    type?: 'article' | 'video' | 'image' | 'audio' | 'game'
+    feed?: 'main' | 'subfeed'
+    subfeedId?: number
+  }
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -108,13 +122,18 @@ export function LinkSubmitForm({
   const form = useForm<FormSchema>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      title: '',
-      url: '',
-      description: '',
-      nsfw: false,
-      type: 'article',
-      feed: defaultFeed ?? 'main',
-      subfeedId: defaultSubfeedId ? String(defaultSubfeedId) : '',
+      title: initialValues?.title ?? '',
+      url: initialValues?.url ?? '',
+      description: initialValues?.description ?? '',
+      nsfw: initialValues?.nsfw ?? false,
+      type: initialValues?.type ?? 'article',
+      feed: initialValues?.feed ?? defaultFeed ?? 'main',
+      subfeedId:
+        typeof initialValues?.subfeedId === 'number'
+          ? String(initialValues.subfeedId)
+          : defaultSubfeedId
+            ? String(defaultSubfeedId)
+            : '',
     },
   })
 
@@ -129,30 +148,21 @@ export function LinkSubmitForm({
   } | null>(null)
   const [selectedSuggestion, setSelectedSuggestion] = useState<string>('')
   const [linkPreview, setLinkPreview] = useState<LinkPreviewData | null>(null)
+  const [lastMetadataUrl, setLastMetadataUrl] = useState('')
   const isSuggestionOpen = suggestionState !== null
   const isFormBusy = isSubmitting || isCheckingMedia || isSuggestionOpen
 
-  function applyPreviewToFields(preview: LinkPreviewData, previewUrl: string) {
-    if (form.getValues('url').trim() !== previewUrl) {
-      return
-    }
-
-    setLinkPreview(preview)
-
+  function applyPreviewMetadataToFields(preview: LinkPreviewData) {
     const titleValue = form.getValues('title') ?? ''
     const descriptionValue = form.getValues('description') ?? ''
     const typeValue = form.getValues('type') ?? 'article'
 
-    if (preview.title && !form.getFieldState('title').isDirty && !titleValue.trim()) {
-      form.setValue('title', preview.title, { shouldDirty: false, shouldTouch: false })
+    if (preview.title && !titleValue.trim()) {
+      form.setValue('title', preview.title, { shouldDirty: true, shouldTouch: true })
     }
 
-    if (
-      preview.description &&
-      !form.getFieldState('description').isDirty &&
-      !descriptionValue.trim()
-    ) {
-      form.setValue('description', preview.description, { shouldDirty: false, shouldTouch: false })
+    if (preview.description && !descriptionValue.trim()) {
+      form.setValue('description', preview.description, { shouldDirty: true, shouldTouch: true })
     }
 
     const resolvedType =
@@ -164,15 +174,25 @@ export function LinkSubmitForm({
             ? 'audio'
             : null
 
-    if (resolvedType && !form.getFieldState('type').isDirty && typeValue === 'article') {
-      form.setValue('type', resolvedType, { shouldDirty: false, shouldTouch: false })
+    if (resolvedType && typeValue === 'article') {
+      form.setValue('type', resolvedType, { shouldDirty: true, shouldTouch: true })
     }
+  }
+
+  function updatePreview(preview: LinkPreviewData, previewUrl: string) {
+    if (form.getValues('url').trim() !== previewUrl) {
+      return
+    }
+
+    setLinkPreview(preview)
+    setLastMetadataUrl(previewUrl)
   }
 
   async function loadLinkPreview(url: string, options?: { force?: boolean }) {
     const normalizedUrl = url.trim()
     if (!normalizedUrl) {
       setLinkPreview(null)
+      setLastMetadataUrl('')
       return null
     }
 
@@ -194,7 +214,7 @@ export function LinkSubmitForm({
       } satisfies LinkPreviewData
 
       lastPreviewedUrlRef.current = normalizedUrl
-      applyPreviewToFields(preview, normalizedUrl)
+      updatePreview(preview, normalizedUrl)
       return preview
     }
 
@@ -216,7 +236,7 @@ export function LinkSubmitForm({
       }
 
       lastPreviewedUrlRef.current = normalizedUrl
-      applyPreviewToFields(preview, normalizedUrl)
+      updatePreview(preview, normalizedUrl)
       return preview
     } catch (error) {
       console.error('Failed to load link preview', error)
@@ -229,31 +249,50 @@ export function LinkSubmitForm({
   async function proceedSubmit(values: FormSchema) {
     setIsSubmitting(true)
     try {
-      await submitLink({
-        title: values.title,
-        url: values.url,
-        description: values.description,
-        nsfw: values.nsfw,
-        type: values.type,
-        feed: values.feed,
-        subfeedId: values.subfeedId ? Number(values.subfeedId) : undefined,
-      })
-      toast.success(dict.linkForm.submitSuccess)
-      form.reset({
-        title: '',
-        url: '',
-        description: '',
-        nsfw: false,
-        type: 'article',
-        feed: defaultFeed ?? 'main',
-        subfeedId: defaultSubfeedId ? String(defaultSubfeedId) : '',
-      })
-      setLinkPreview(null)
-      lastPreviewedUrlRef.current = ''
+      if (mode === 'edit') {
+        if (typeof linkId !== 'number') {
+          throw new Error('Missing link id for edit mode')
+        }
+
+        await updateLinkAsAdmin({
+          linkId,
+          title: values.title,
+          url: values.url,
+          description: values.description,
+          nsfw: values.nsfw,
+          type: values.type,
+          feed: values.feed,
+          subfeedId: values.subfeedId ? Number(values.subfeedId) : undefined,
+        })
+        toast.success('Link updated')
+      } else {
+        await submitLink({
+          title: values.title,
+          url: values.url,
+          description: values.description,
+          nsfw: values.nsfw,
+          type: values.type,
+          feed: values.feed,
+          subfeedId: values.subfeedId ? Number(values.subfeedId) : undefined,
+        })
+        toast.success(dict.linkForm.submitSuccess)
+        form.reset({
+          title: '',
+          url: '',
+          description: '',
+          nsfw: false,
+          type: 'article',
+          feed: defaultFeed ?? 'main',
+          subfeedId: defaultSubfeedId ? String(defaultSubfeedId) : '',
+        })
+        setLinkPreview(null)
+        lastPreviewedUrlRef.current = ''
+      }
+
       onSuccess?.()
     } catch (error) {
       console.error(error)
-      toast.error(dict.linkForm.submitError)
+      toast.error(mode === 'edit' ? 'Failed to update link' : dict.linkForm.submitError)
     } finally {
       setIsSubmitting(false)
     }
@@ -321,7 +360,7 @@ export function LinkSubmitForm({
   return (
     <Card className="max-w-lg mx-auto">
       <CardHeader>
-        <CardTitle>{dict.linkForm.title}</CardTitle>
+        <CardTitle>{mode === 'edit' ? 'Edit Link' : dict.linkForm.title}</CardTitle>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -337,6 +376,10 @@ export function LinkSubmitForm({
                       <Input
                         placeholder={dict.linkForm.urlPlaceholder}
                         {...field}
+                        onChange={(event) => {
+                          field.onChange(event)
+                          setLastMetadataUrl('')
+                        }}
                         onBlur={async (event) => {
                           field.onBlur()
                           await loadLinkPreview(event.target.value)
@@ -395,6 +438,20 @@ export function LinkSubmitForm({
                             By {linkPreview.authorName}
                           </p>
                         )}
+                        <div className="pt-2">
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="outline"
+                            disabled={lastMetadataUrl !== form.getValues('url').trim()}
+                            onClick={() => {
+                              if (!linkPreview) return
+                              applyPreviewMetadataToFields(linkPreview)
+                            }}
+                          >
+                            Fetch metadata
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -493,10 +550,22 @@ export function LinkSubmitForm({
               <SubmissionActionRow
                 isSubmitting={isFormBusy}
                 submitLabel={
-                  isCheckingMedia ? dict.linkForm.checkingLink : dict.linkForm.submitButton
+                  mode === 'edit'
+                    ? isCheckingMedia
+                      ? 'Checking link...'
+                      : 'Save changes'
+                    : isCheckingMedia
+                      ? dict.linkForm.checkingLink
+                      : dict.linkForm.submitButton
                 }
                 submittingLabel={
-                  isCheckingMedia ? dict.linkForm.scanningSite : dict.linkForm.submitting
+                  mode === 'edit'
+                    ? isCheckingMedia
+                      ? 'Scanning site...'
+                      : 'Saving changes...'
+                    : isCheckingMedia
+                      ? dict.linkForm.scanningSite
+                      : dict.linkForm.submitting
                 }
                 onCancel={onCancel}
                 cancelLabel={dict.linkForm.cancelButton}

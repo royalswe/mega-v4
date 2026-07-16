@@ -15,6 +15,7 @@ import { ReorderAwareList } from '@/components/links/ReorderAwareList.client'
 import { SubfeedStripToggle } from '@/components/links/SubfeedStripToggle'
 import { SubfeedAvatar } from '@/components/subfeeds/SubfeedAvatar'
 import { readRelationshipIds } from '@/lib/community/subfeeds'
+import { checkRole } from '@/access/checkRole'
 
 const SUBFEED_PROMOTION_THRESHOLD = {
   score: 4,
@@ -82,6 +83,7 @@ export default async function HomePage({
   const persistedHomeSubfeedsView = parseHomeSubfeedsView(
     cookieStore.get('homeSubfeedsView')?.value,
   )
+  const canQuickEditLinks = user ? checkRole(['admin'], user) : false
   const mixSubfeedsParam = resolvedSearchParams?.mixSubfeeds
   const includeSubfeeds = Boolean(
     user &&
@@ -312,6 +314,22 @@ export default async function HomePage({
     }
   } else {
     andFilters.push(mainFeedFilter)
+  }
+
+  let quickEditSubfeeds: Array<{ id: number; name: string }> = []
+  if (user && canQuickEditLinks) {
+    const { docs: subfeedsForEdit } = await payload.find({
+      collection: 'subfeeds',
+      sort: 'name',
+      depth: 0,
+      limit: 200,
+      user,
+      overrideAccess: false,
+    })
+    quickEditSubfeeds = subfeedsForEdit.map((subfeed) => ({
+      id: subfeed.id,
+      name: subfeed.name,
+    }))
   }
 
   const baseAndFilters = [...andFilters]
@@ -930,6 +948,8 @@ export default async function HomePage({
                   userId={user?.id}
                   userVote={votes[link.id]}
                   isBookmarked={bookmarks[link.id]}
+                  quickEditEnabled={canQuickEditLinks}
+                  quickEditSubfeeds={quickEditSubfeeds}
                   className={link.nsfw ? 'nsfw-text' : ''}
                 />
               ))}

@@ -119,17 +119,10 @@ export async function discoverLinks() {
       }
 
       // Check for duplicates in Payload database
-      const queryConditions: { url?: { equals: string }; youtubeId?: { equals: string } }[] = [
-        { url: { equals: finalUrl } },
-      ]
-      if (finalYoutubeId) {
-        queryConditions.push({ youtubeId: { equals: finalYoutubeId } })
-      }
-
       const existing = await payload.find({
         collection: 'links',
         where: {
-          or: queryConditions,
+          url: { equals: finalUrl },
         },
         limit: 1,
         depth: 0,

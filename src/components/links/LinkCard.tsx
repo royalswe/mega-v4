@@ -6,6 +6,7 @@ import { BookmarkButton } from '@/components/links/BookmarkButton'
 import { LinkIcon } from '@/components/links/LinkIcon'
 import { TrackedLink } from '@/components/links/TrackedLink'
 import { SubfeedAvatar } from '@/components/subfeeds/SubfeedAvatar'
+import { QuickEditLinkButton } from '@/components/links/QuickEditLinkButton'
 import { getDictionary } from '@/lib/dictionaries'
 
 import type { Link as LinkType } from '@/payload-types'
@@ -19,16 +20,27 @@ export async function LinkCard({
   userId,
   userVote,
   isBookmarked,
+  quickEditEnabled,
+  quickEditSubfeeds,
   className,
 }: {
   link: LinkType
   userId?: string | number | null
   userVote?: 'up' | 'down'
   isBookmarked?: boolean
+  quickEditEnabled?: boolean
+  quickEditSubfeeds?: Array<{ id: number; name: string }>
   className?: string
 }) {
   const { dict } = await getDictionary()
   const subfeed = typeof link.subfeed === 'object' && link.subfeed ? link.subfeed : null
+  const subfeedId =
+    typeof link.subfeed === 'number'
+      ? link.subfeed
+      : typeof link.subfeed === 'object' && link.subfeed
+        ? link.subfeed.id
+        : undefined
+  const editableFeed = link.feed === 'subfeed' ? 'subfeed' : 'main'
 
   return (
     <Card className="flex flex-row items-start gap-2 px-3 py-3 sm:px-4 sm:py-2">
@@ -97,6 +109,22 @@ export async function LinkCard({
               <b>Ghost</b>
             )}
           </p>
+          {quickEditEnabled ? (
+            <QuickEditLinkButton
+              dict={dict}
+              subfeeds={quickEditSubfeeds || []}
+              link={{
+                id: link.id,
+                title: link.title,
+                url: link.url,
+                description: link.description,
+                nsfw: link.nsfw,
+                type: link.type,
+                feed: editableFeed,
+                subfeedId,
+              }}
+            />
+          ) : null}
         </div>
       </div>
     </Card>

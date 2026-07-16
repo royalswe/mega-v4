@@ -108,12 +108,16 @@ export function MainFeedHighlights({
   const activeClasses = 'ring-1 ring-sky-400/70 dark:ring-sky-600/60'
 
   return (
-    <section className="rounded-xl border bg-linear-to-r from-slate-100 via-sky-50 to-cyan-100 p-4 shadow-sm dark:border-sky-900/60 dark:bg-linear-to-r dark:from-slate-950 dark:via-sky-950 dark:to-cyan-950 dark:shadow-none">
+    <section
+      className="p-4 rounded-xl border bg-linear-to-r shadow-sm
+      from-slate-100 via-sky-50 to-cyan-50
+      dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800"
+    >
+      {' '}
       <div className="mb-3">
         <h2 className="text-base font-semibold tracking-tight">{labels.title}</h2>
         <p className="text-sm text-muted-foreground">{labels.subtitle}</p>
       </div>
-
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <Link
           href={trendingNowHref}

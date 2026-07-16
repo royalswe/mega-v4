@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { getAuthenticatedUser } from '@/lib/auth'
+import { checkRole } from '@/access/checkRole'
 import {
   canManageSubmittedLinks,
   canModerateCommunity,
@@ -344,4 +345,94 @@ export async function deleteSubmittedLink(linkId: number) {
   revalidatePath('/submitted')
   revalidatePath('/subfeeds')
   revalidatePath(`/link/${linkId}`)
+}
+
+export async function updateLinkAsAdmin(values: {
+  linkId: number
+  title: string
+  url: string
+  description?: string
+  nsfw?: boolean
+  type?: 'article' | 'video' | 'image' | 'audio' | 'game'
+  feed: 'main' | 'subfeed'
+  subfeedId?: number
+}) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user || !checkRole(['admin'], user)) {
+    throw new Error('You are not authorized to edit links')
+  }
+
+  const withAccess = {
+    user,
+    overrideAccess: false as const,
+  }
+
+  const existingLink = await payload.findByID({
+    collection: 'links',
+    id: values.linkId,
+    depth: 1,
+    draft: true,
+    ...withAccess,
+  })
+
+  if (!existingLink || existingLink.softDeleted) {
+    throw new Error('Link not found')
+  }
+
+  let nextSubfeedId: number | undefined
+  let nextSubfeedSlug: string | null = null
+
+  if (values.feed === 'subfeed') {
+    if (
+      typeof values.subfeedId !== 'number' ||
+      !Number.isInteger(values.subfeedId) ||
+      values.subfeedId <= 0
+    ) {
+      throw new Error('Please select a subfeed destination')
+    }
+
+    const subfeed = await payload.findByID({
+      collection: 'subfeeds',
+      id: values.subfeedId,
+      depth: 0,
+      ...withAccess,
+    })
+
+    nextSubfeedId = subfeed.id
+    nextSubfeedSlug = subfeed.slug
+  }
+
+  const previousSubfeedSlug =
+    existingLink.subfeed && typeof existingLink.subfeed === 'object'
+      ? existingLink.subfeed.slug || null
+      : null
+
+  await payload.update({
+    collection: 'links',
+    id: values.linkId,
+    data: {
+      title: values.title,
+      url: values.url,
+      description: values.description,
+      nsfw: values.nsfw,
+      type: values.type,
+      feed: values.feed,
+      subfeed: nextSubfeedId,
+    },
+    ...withAccess,
+  })
+
+  revalidatePath('/')
+  revalidatePath('/submitted')
+  revalidatePath('/subfeeds')
+  revalidatePath(`/link/${values.linkId}`)
+
+  if (previousSubfeedSlug) {
+    revalidatePath(`/subfeeds/${previousSubfeedSlug}`)
+  }
+
+  if (nextSubfeedSlug && nextSubfeedSlug !== previousSubfeedSlug) {
+    revalidatePath(`/subfeeds/${nextSubfeedSlug}`)
+  }
 }

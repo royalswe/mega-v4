@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { VoteButtons } from '@/components/links/VoteButtons'
 import { MessageCircle, Image, Video, FileText, Music, Gamepad2 } from 'lucide-react'
 import { BookmarkButton } from '@/components/links/BookmarkButton'
+import { QuickEditLinkButton } from '@/components/links/QuickEditLinkButton'
 import { Button } from '@/components/ui/button'
 import { redirect } from 'next/navigation'
 import { TrackedLink } from '@/components/links/TrackedLink'
@@ -19,6 +20,7 @@ import {
 import { getAuthenticatedUser } from '@/lib/auth'
 import { canManageSubmittedLinks } from '@/lib/community/subfeeds'
 import { getDictionary } from '@/lib/dictionaries'
+import { checkRole } from '@/access/checkRole'
 
 import type { Payload } from 'payload'
 import type { User } from '@/payload-types'
@@ -98,8 +100,26 @@ const SubmittedLinksPage = async () => {
   }
 
   const showNSFW = user?.settings?.nsfw === true
+  const canQuickEditLinks = checkRole(['admin'], user)
   const { dict } = await getDictionary()
   const links = await getAllLinks(payload, user, showNSFW)
+
+  let quickEditSubfeeds: Array<{ id: number; name: string }> = []
+  if (canQuickEditLinks) {
+    const { docs: subfeedsForEdit } = await payload.find({
+      collection: 'subfeeds',
+      sort: 'name',
+      depth: 0,
+      limit: 200,
+      user,
+      overrideAccess: false,
+    })
+
+    quickEditSubfeeds = subfeedsForEdit.map((subfeed) => ({
+      id: subfeed.id,
+      name: subfeed.name,
+    }))
+  }
 
   // Fetch user interactions
   const linkIds = links.map((link) => link.id)
@@ -180,6 +200,27 @@ const SubmittedLinksPage = async () => {
                   dict={dict}
                 />
                 <div className="ml-auto flex items-center gap-2">
+                  {canQuickEditLinks ? (
+                    <QuickEditLinkButton
+                      dict={dict}
+                      subfeeds={quickEditSubfeeds}
+                      link={{
+                        id: link.id,
+                        title: link.title,
+                        url: link.url,
+                        description: link.description,
+                        nsfw: link.nsfw,
+                        type: link.type,
+                        feed: link.feed === 'subfeed' ? 'subfeed' : 'main',
+                        subfeedId:
+                          typeof link.subfeed === 'number'
+                            ? link.subfeed
+                            : typeof link.subfeed === 'object' && link.subfeed
+                              ? link.subfeed.id
+                              : undefined,
+                      }}
+                    />
+                  ) : null}
                   {link.feed === 'subfeed' ? (
                     <form action={enableSubmittedLinkInMainFeed.bind(null, link.id)}>
                       <Button

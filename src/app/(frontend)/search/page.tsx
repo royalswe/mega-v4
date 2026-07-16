@@ -7,6 +7,7 @@ import { Avatar } from '@/components/users/Avatar'
 import Link from 'next/link'
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import { getPostInteractions } from '@/app/(frontend)/data/getPostInteractions'
+import { checkRole } from '@/access/checkRole'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,10 +21,11 @@ interface SearchPageProps {
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const { q, type } = await searchParams
   const query = typeof q === 'string' ? q.trim() : ''
-  const activeTab = typeof type === 'string' && ['links', 'posts', 'users'].includes(type) ? type : 'links'
+  const activeTab =
+    typeof type === 'string' && ['links', 'posts', 'users'].includes(type) ? type : 'links'
 
   const { user, payload } = await getAuthenticatedUser()
-  const { dict } = await getDictionary()
+  const canQuickEditLinks = user ? checkRole(['admin'], user) : false
 
   const withAccess = user
     ? {
@@ -53,10 +55,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       payload.find({
         collection: 'posts',
         where: {
-          or: [
-            { title: { contains: query } },
-            { slug: { contains: query } },
-          ],
+          or: [{ title: { contains: query } }, { slug: { contains: query } }],
         },
         limit: 30,
         ...withAccess,
@@ -89,16 +88,36 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     getPostInteractions(user, postIds),
   ])
 
+  let quickEditSubfeeds: Array<{ id: number; name: string }> = []
+  if (user && canQuickEditLinks) {
+    const { docs: subfeedsForEdit } = await payload.find({
+      collection: 'subfeeds',
+      sort: 'name',
+      depth: 0,
+      limit: 200,
+      user,
+      overrideAccess: false,
+    })
+
+    quickEditSubfeeds = subfeedsForEdit.map((subfeed) => ({
+      id: subfeed.id,
+      name: subfeed.name,
+    }))
+  }
+
   return (
     <div className="container max-w-4xl py-8 px-4">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Search Results</h1>
         {query ? (
           <p className="text-muted-foreground">
-            Showing results for &ldquo;<span className="font-semibold text-foreground">{query}</span>&rdquo;
+            Showing results for &ldquo;
+            <span className="font-semibold text-foreground">{query}</span>&rdquo;
           </p>
         ) : (
-          <p className="text-muted-foreground">Enter a search query to search across the platform.</p>
+          <p className="text-muted-foreground">
+            Enter a search query to search across the platform.
+          </p>
         )}
       </div>
 
@@ -162,7 +181,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             {activeTab === 'links' && (
               <>
                 {links.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">No links found matching your query.</p>
+                  <p className="text-muted-foreground text-center py-8">
+                    No links found matching your query.
+                  </p>
                 ) : (
                   <div className="flex flex-col gap-4">
                     {links.map((link) => (
@@ -172,6 +193,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                         userId={user?.id}
                         userVote={linkInteractions.votes[link.id]}
                         isBookmarked={linkInteractions.bookmarks[link.id]}
+                        quickEditEnabled={canQuickEditLinks}
+                        quickEditSubfeeds={quickEditSubfeeds}
                       />
                     ))}
                   </div>
@@ -182,7 +205,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             {activeTab === 'posts' && (
               <>
                 {posts.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">No posts found matching your query.</p>
+                  <p className="text-muted-foreground text-center py-8">
+                    No posts found matching your query.
+                  </p>
                 ) : (
                   <div className="flex flex-col gap-4">
                     {posts.map((post) => (
@@ -202,7 +227,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             {activeTab === 'users' && (
               <>
                 {users.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">No users found matching your query.</p>
+                  <p className="text-muted-foreground text-center py-8">
+                    No users found matching your query.
+                  </p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {users.map((u) => (
@@ -211,7 +238,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                           <CardContent className="p-4 flex items-center gap-4">
                             <Avatar user={u} className="h-12 w-12 text-lg shrink-0" />
                             <div>
-                              <h3 className="font-semibold text-sm hover:underline">{u.username}</h3>
+                              <h3 className="font-semibold text-sm hover:underline">
+                                {u.username}
+                              </h3>
                               <p className="text-xs text-muted-foreground">
                                 {u.reputationPublicLabel || u.trustLevel || 'Member'}
                               </p>
