@@ -80,15 +80,9 @@ export async function trackClick(linkId: number) {
       },
       overrideAccess: true,
     })
-
-    // access revalidatePath inside the function to avoid static analysis issues if any
-    const { revalidatePath } = await import('next/cache')
-    revalidatePath('/')
   } catch (error) {
     if (isDuplicateClickError(error)) {
       return
     }
-
-    console.error('Error tracking click:', error)
   }
 }

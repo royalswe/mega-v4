@@ -4,12 +4,14 @@ import type { Where } from 'payload'
 import { Card, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { VoteButtons } from '@/components/links/VoteButtons'
-import { MessageCircle, Image, Video, FileText, Music, Gamepad2 } from 'lucide-react'
+import { MessageCircle } from 'lucide-react'
 import { BookmarkButton } from '@/components/links/BookmarkButton'
 import { QuickEditLinkButton } from '@/components/links/QuickEditLinkButton'
 import { Button } from '@/components/ui/button'
 import { redirect } from 'next/navigation'
 import { TrackedLink } from '@/components/links/TrackedLink'
+import { LinkIcon } from '@/components/links/LinkIcon'
+import { ReorderAwareList } from '@/components/links/ReorderAwareList.client'
 
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import {
@@ -125,27 +127,10 @@ const SubmittedLinksPage = async () => {
   const linkIds = links.map((link) => link.id)
   const { votes, bookmarks } = await getUserInteractions(user, linkIds)
 
-  const getLinkIcon = (type: string) => {
-    switch (type) {
-      case 'article':
-        return <FileText className="w-4 h-4" />
-      case 'video':
-        return <Video className="w-4 h-4" />
-      case 'image':
-        return <Image className="w-4 h-4" />
-      case 'audio':
-        return <Music className="w-4 h-4" />
-      case 'game':
-        return <Gamepad2 className="w-4 h-4" />
-      default:
-        return <FileText className="w-4 h-4" />
-    }
-  }
-
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">{dict.pages.submittedTitle}</h2>
-      <div className="flex flex-col gap-4">
+      <ReorderAwareList itemIds={links.map((link) => link.id)}>
         {links.map((link) => (
           <Card key={link.id} className="flex-row px-4 py-2 ">
             <div className="shrink-0">
@@ -158,9 +143,9 @@ const SubmittedLinksPage = async () => {
             </div>
             <div className="grow flex flex-col justify-center">
               <div className="flex items-center space-x-2 mb-1">
-                {getLinkIcon(link.type)}
+                <LinkIcon type={link.type} className="h-6 w-6 min-w-6 shrink-0" />
                 <CardTitle
-                  className={`text-lg font-semibold leading-none ${link.nsfw ? 'nsfw-text' : ''}`}
+                  className={`min-w-0 text-lg font-semibold leading-none ${link.nsfw ? 'nsfw-text' : ''}`}
                 >
                   <TrackedLink
                     url={link.url}
@@ -256,7 +241,7 @@ const SubmittedLinksPage = async () => {
             </div>
           </Card>
         ))}
-      </div>
+      </ReorderAwareList>
     </div>
   )
 }

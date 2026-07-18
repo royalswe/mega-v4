@@ -21,5 +21,22 @@ export function LinkIcon({ type, className }: { type: LinkType; className?: stri
     }
   })()
 
-  return <Icon size={40} className={cn(className)} />
+  const colorClass = (() => {
+    switch (type) {
+      case 'article':
+        return 'text-slate-600'
+      case 'video':
+        return 'text-red-500'
+      case 'image':
+        return 'text-emerald-500'
+      case 'audio':
+        return 'text-indigo-500'
+      case 'game':
+        return 'text-amber-500'
+      default:
+        return 'text-slate-600'
+    }
+  })()
+
+  return <Icon size={40} className={cn(colorClass, className)} />
 }
