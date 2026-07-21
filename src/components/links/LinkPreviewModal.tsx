@@ -76,8 +76,8 @@ export function LinkPreviewModal({
           'flex flex-col border bg-background shadow-lg overflow-hidden duration-200',
           // Media files get a tighter container matching aspect ratio, webpage gets larger space
           isMedia
-            ? 'max-w-3xl w-[95vw] max-h-[85vh] rounded-xl'
-            : 'max-w-5xl w-[95vw] h-[85vh] rounded-xl',
+            ? 'max-w-3xl w-[95vw] max-h-[85vh] rounded-md'
+            : 'max-w-5xl w-[95vw] h-[85vh] rounded-md',
         )}
       >
         {/* Header */}

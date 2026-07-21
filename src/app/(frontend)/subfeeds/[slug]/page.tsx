@@ -583,7 +583,7 @@ export default async function SubfeedDetailsPage({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border p-6">
+      <section className="rounded-md border p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-3 text-3xl font-bold">

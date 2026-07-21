@@ -22,7 +22,7 @@ export function VoteButtons({
   userId?: string | number | null
   userVote?: 'up' | 'down' | null
 }) {
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
   const isEnabled = !!userId
 
   const [optimisticState, addOptimisticVote] = useOptimistic<VoteState, 'up' | 'down'>(
@@ -64,12 +64,12 @@ export function VoteButtons({
         size="sm"
         variant="ghost"
         aria-label="Upvote link"
-        disabled={isPending || !isEnabled}
+        disabled={!isEnabled}
         onClick={() => handleVote('up')}
         className={cn(
           optimisticState.userVote === 'up'
-            ? 'text-green-600! hover:text-green-500!'
-            : 'hover:text-green-600/70',
+            ? 'text-amber-500! hover:text-amber-400!'
+            : 'hover:text-amber-500/70',
         )}
       >
         <ArrowUp className="w-4 h-4" />
@@ -78,8 +78,8 @@ export function VoteButtons({
         data-testid={`link-vote-count-${linkId}`}
         className={cn(
           'text-sm font-bold',
-          optimisticState.userVote === 'up' && 'text-green-600!',
-          optimisticState.userVote === 'down' && 'text-orange-600!',
+          optimisticState.userVote === 'up' && 'text-amber-500!',
+          optimisticState.userVote === 'down' && 'text-red-500!',
         )}
       >
         {optimisticState.votes}
@@ -88,12 +88,12 @@ export function VoteButtons({
         size="sm"
         variant="ghost"
         aria-label="Downvote link"
-        disabled={isPending || !isEnabled}
+        disabled={!isEnabled}
         onClick={() => handleVote('down')}
         className={cn(
           optimisticState.userVote === 'down'
-            ? 'text-orange-600! hover:text-orange-500!'
-            : 'hover:text-orange-600/70',
+            ? 'text-red-500! hover:text-red-400!'
+            : 'hover:text-red-500/70',
         )}
       >
         <ArrowDown className="w-4 h-4" />

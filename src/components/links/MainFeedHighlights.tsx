@@ -109,7 +109,7 @@ export function MainFeedHighlights({
 
   return (
     <section
-      className="p-4 rounded-xl border bg-linear-to-r shadow-sm
+      className="p-4 rounded-md border bg-linear-to-r shadow-sm
       from-slate-100 via-sky-50 to-cyan-50
       dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800"
     >

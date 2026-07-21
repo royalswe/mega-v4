@@ -845,7 +845,7 @@ export default async function HomePage({
       />
 
       {activeSubfeedStrip.length > 0 ? (
-        <section className="space-y-2 rounded-xl border bg-card/70 p-3">
+        <section className="space-y-2 rounded-md border bg-card/70 p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0 flex items-center gap-2">
               <h2 className="text-sm font-semibold">{dict.pages.subfeedStrip.title}</h2>
