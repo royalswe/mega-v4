@@ -44,17 +44,6 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/*
-  Neutral hue moved from ~55 (brown) to ~255 (blue-grey/slate) — same low
-  chroma, same calm darkness, different family. Orange primary kept as-is
-  since that was the one thing you liked from the previous pass; blue-grey
-  neutrals also sit roughly opposite orange on the wheel, so the accent
-  still pops against them.
-
-  Want purple instead of blue-grey? Shift every neutral hue below from
-  255 to ~285 and leave chroma untouched — same calm feel, purple lean.
-*/
-
 :root {
   --radius: 0.375rem;
 
