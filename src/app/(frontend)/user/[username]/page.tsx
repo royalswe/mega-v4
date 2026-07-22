@@ -25,6 +25,11 @@ interface PageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
+const readVisibleScore = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  return null
+}
+
 export default async function UserProfilePage({ params, searchParams }: PageProps) {
   const { username } = await params
   const { tab } = await searchParams
@@ -62,19 +67,25 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
 
   const profileUser = users[0]
   const isOwner = currentUser?.id === profileUser.id
+  const isAdminViewer = currentUser ? checkRole(['admin'], currentUser) : false
   const publicTitles = Array.isArray(profileUser.titles)
     ? profileUser.titles.filter((title): title is string => typeof title === 'string').slice(0, 3)
     : []
+  const totalMemberValue = readVisibleScore(profileUser.totalMemberValue) ?? 0
   const pointSummary = [
-    { label: 'TMV', value: profileUser.totalMemberValue ?? 0 },
-    { label: 'Discovery', value: profileUser.discoveryScore ?? 0 },
-    { label: 'Contribution', value: profileUser.contributionScore ?? 0 },
-    { label: 'Likability', value: profileUser.likabilityScore ?? 0 },
-    { label: 'Interaction', value: profileUser.interactionScore ?? 0 },
-    { label: 'Cleaning', value: profileUser.cleaningScore ?? 0 },
-    { label: 'Recruiter', value: profileUser.recruiterScore ?? 0 },
-    { label: 'Security', value: profileUser.securityScore ?? 0 },
-  ]
+    { label: 'Discovery', value: readVisibleScore(profileUser.discoveryScore) },
+    { label: 'Contribution', value: readVisibleScore(profileUser.contributionScore) },
+    { label: 'Likability', value: readVisibleScore(profileUser.likabilityScore) },
+    { label: 'Interaction', value: readVisibleScore(profileUser.interactionScore) },
+    { label: 'Cleaning', value: readVisibleScore(profileUser.cleaningScore) },
+    { label: 'Recruiter', value: readVisibleScore(profileUser.recruiterScore) },
+    {
+      label: 'Security',
+      value: isAdminViewer ? readVisibleScore(profileUser.securityScore) : null,
+    },
+  ].filter(
+    (pointClass): pointClass is { label: string; value: number } => pointClass.value !== null,
+  )
 
   // Fetch contributions of this user
   const [linksRes, postsRes, commentsRes] = await Promise.all([
@@ -267,11 +278,11 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-baseline gap-3">
-                <span className="text-4xl font-bold">{pointSummary[0].value.toLocaleString()}</span>
+                <span className="text-4xl font-bold">{totalMemberValue.toLocaleString()}</span>
                 <span className="text-sm text-muted-foreground">TMV</span>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {pointSummary.slice(1).map((pointClass) => (
+                {pointSummary.map((pointClass) => (
                   <div key={pointClass.label} className="rounded-lg border bg-muted/20 p-3">
                     <div className="text-xs uppercase tracking-wide text-muted-foreground">
                       {pointClass.label}

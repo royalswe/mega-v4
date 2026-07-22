@@ -267,7 +267,7 @@ export const Users: CollectionConfig = {
       type: 'number',
       defaultValue: 0,
       access: {
-        read: admins,
+        read: () => true,
         create: admins,
         update: admins,
       },
@@ -277,7 +277,7 @@ export const Users: CollectionConfig = {
       type: 'number',
       defaultValue: 0,
       access: {
-        read: admins,
+        read: () => true,
         create: admins,
         update: admins,
       },
@@ -287,7 +287,7 @@ export const Users: CollectionConfig = {
       type: 'number',
       defaultValue: 0,
       access: {
-        read: admins,
+        read: () => true,
         create: admins,
         update: admins,
       },
@@ -365,7 +365,7 @@ export const Users: CollectionConfig = {
       type: 'number',
       defaultValue: 0,
       access: {
-        read: admins,
+        read: () => true,
         create: admins,
         update: admins,
       },
@@ -375,7 +375,7 @@ export const Users: CollectionConfig = {
       type: 'number',
       defaultValue: 0,
       access: {
-        read: admins,
+        read: () => true,
         create: admins,
         update: admins,
       },
@@ -385,7 +385,7 @@ export const Users: CollectionConfig = {
       type: 'number',
       defaultValue: 0,
       access: {
-        read: admins,
+        read: () => true,
         create: admins,
         update: admins,
       },
@@ -418,7 +418,7 @@ export const Users: CollectionConfig = {
         readOnly: true,
       },
       access: {
-        read: admins,
+        read: () => true,
         create: admins,
         update: admins,
       },
