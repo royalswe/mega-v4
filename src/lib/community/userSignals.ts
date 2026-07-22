@@ -4,6 +4,9 @@ export interface SignalDeltas {
   discoveryScore?: number
   contributionScore?: number
   interactionScore?: number
+  likabilityScore?: number
+  cleaningScore?: number
+  recruiterScore?: number
   moderationScore?: number
   securityScore?: number
   legacyContributionScore?: number
@@ -96,6 +99,9 @@ export const bumpUserSignals = async (
       discoveryScore: readNum(existing.discoveryScore) + readNum(deltas.discoveryScore),
       contributionScore: readNum(existing.contributionScore) + readNum(deltas.contributionScore),
       interactionScore: readNum(existing.interactionScore) + readNum(deltas.interactionScore),
+      likabilityScore: readNum(existing.likabilityScore) + readNum(deltas.likabilityScore),
+      cleaningScore: readNum(existing.cleaningScore) + readNum(deltas.cleaningScore),
+      recruiterScore: readNum(existing.recruiterScore) + readNum(deltas.recruiterScore),
       moderationScore: readNum(existing.moderationScore) + readNum(deltas.moderationScore),
       securityScore: readNum(existing.securityScore) + readNum(deltas.securityScore),
       legacyContributionScore:

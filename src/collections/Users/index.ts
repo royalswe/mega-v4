@@ -5,7 +5,12 @@ import { adminsAndUser } from '@/access/adminsAndUser'
 import { anyone } from '@/access/anyone'
 import { checkRole } from '@/access/checkRole'
 import { checkUserOrAdmin } from '@/access/checkUserOrAdmin'
-import { buildTrustProfile, deriveBehavioralTitles } from '@/lib/community/reputation'
+import {
+  buildPointClassProfile,
+  buildTrustProfile,
+  deriveAutomaticRoles,
+  deriveBehavioralTitles,
+} from '@/lib/community/reputation'
 
 const readNumber = (value: unknown): number => {
   if (typeof value === 'number' && Number.isFinite(value)) return value
@@ -18,7 +23,7 @@ const mergeScore = (incoming: unknown, existing: unknown): number => {
 }
 
 const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc }) => {
-  const roles =
+  const existingRoles =
     Array.isArray(data?.roles) && data.roles.length > 0
       ? data.roles
       : Array.isArray(originalDoc?.roles) && originalDoc.roles.length > 0
@@ -35,14 +40,48 @@ const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc })
   )
   const securityScore = mergeScore(data?.securityScore, originalDoc?.securityScore)
 
+  const likabilityScore = mergeScore(data?.likabilityScore, originalDoc?.likabilityScore)
+  const cleaningScore = mergeScore(data?.cleaningScore, originalDoc?.cleaningScore)
+  const recruiterScore = mergeScore(data?.recruiterScore, originalDoc?.recruiterScore)
+  const pointProfile = buildPointClassProfile({
+    discoveryScore,
+    contributionScore,
+    interactionScore,
+    likabilityScore,
+    cleaningScore,
+    recruiterScore,
+    moderationScore,
+    legacyContributionScore,
+    securityScore,
+  })
   const trust = buildTrustProfile({
     discoveryScore,
     contributionScore,
     interactionScore,
     moderationScore,
+    likabilityScore,
+    cleaningScore,
+    recruiterScore,
     legacyContributionScore,
     securityScore,
   })
+
+  const roles = deriveAutomaticRoles(
+    {
+      discoveryScore,
+      contributionScore,
+      interactionScore,
+      moderationScore,
+      legacyContributionScore,
+      securityScore,
+      streakDays: mergeScore(data?.streakDays, originalDoc?.streakDays),
+      lastActiveAt:
+        typeof data?.lastActiveAt === 'string' || data?.lastActiveAt instanceof Date
+          ? data.lastActiveAt
+          : originalDoc?.lastActiveAt,
+    },
+    existingRoles,
+  )
 
   const titles = deriveBehavioralTitles({
     discoveryScore,
@@ -62,9 +101,12 @@ const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc })
     isAdmin: roles.includes('admin'),
     isEditor: roles.includes('editor'),
     isModerator: roles.includes('moderator'),
+    isCleaner: roles.includes('cleaner'),
+    isRecruiter: roles.includes('recruiter'),
     isUploader: roles.includes('uploader'),
     trustLevel: trust.trustLevel,
     reputationHidden: trust.reputationHidden,
+    totalMemberValue: pointProfile.totalMemberValue,
     reputationPublicLabel: trust.reputationPublicLabel,
     titles,
     badges:
@@ -221,6 +263,36 @@ export const Users: CollectionConfig = {
       },
     },
     {
+      name: 'likabilityScore',
+      type: 'number',
+      defaultValue: 0,
+      access: {
+        read: admins,
+        create: admins,
+        update: admins,
+      },
+    },
+    {
+      name: 'cleaningScore',
+      type: 'number',
+      defaultValue: 0,
+      access: {
+        read: admins,
+        create: admins,
+        update: admins,
+      },
+    },
+    {
+      name: 'recruiterScore',
+      type: 'number',
+      defaultValue: 0,
+      access: {
+        read: admins,
+        create: admins,
+        update: admins,
+      },
+    },
+    {
       name: 'isUploader',
       type: 'checkbox',
       defaultValue: false,
@@ -238,6 +310,22 @@ export const Users: CollectionConfig = {
     },
     {
       name: 'isModerator',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'isCleaner',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'isRecruiter',
       type: 'checkbox',
       defaultValue: false,
       admin: {
@@ -323,6 +411,19 @@ export const Users: CollectionConfig = {
       },
     },
     {
+      name: 'totalMemberValue',
+      type: 'number',
+      defaultValue: 0,
+      admin: {
+        readOnly: true,
+      },
+      access: {
+        read: admins,
+        create: admins,
+        update: admins,
+      },
+    },
+    {
       name: 'resetPasswordToken',
       type: 'text',
       hidden: true,
@@ -357,8 +458,16 @@ export const Users: CollectionConfig = {
           value: 'moderator',
         },
         {
+          label: 'Cleaner',
+          value: 'cleaner',
+        },
+        {
           label: 'Uploader',
           value: 'uploader',
+        },
+        {
+          label: 'Recruiter',
+          value: 'recruiter',
         },
         {
           label: 'User',

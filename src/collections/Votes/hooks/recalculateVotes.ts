@@ -145,6 +145,7 @@ const rewardUsersForVote = async ({
   const contributionDelta = vote === 'up' ? 1.2 : -0.7
   await bumpUserSignals(req, authorId, {
     contributionScore: contributionDelta * direction,
+    likabilityScore: (vote === 'up' ? 1.1 : -0.8) * direction,
     legacyContributionScore: 0.2 * direction,
   })
 }
