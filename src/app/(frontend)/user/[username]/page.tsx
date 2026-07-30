@@ -310,7 +310,7 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
                       </span>
                       {nextLevel ? (
                         <span className="text-muted-foreground">
-                          Next: {nextLevel.label} at {nextLevel.min} TMV
+                          Next: {nextLevel.label} at {nextLevel.min.toLocaleString()} TMV
                         </span>
                       ) : (
                         <span className="text-muted-foreground">Top level reached</span>
@@ -318,6 +318,7 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
                     </div>
                     <div
                       role="progressbar"
+                      aria-label={`Progress toward ${nextLevel?.label ?? currentLevel.label}`}
                       aria-valuemin={0}
                       aria-valuemax={100}
                       aria-valuenow={Math.round(progressed * 100)}
