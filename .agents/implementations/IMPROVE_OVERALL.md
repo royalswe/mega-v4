@@ -10,13 +10,6 @@ Since Existenz V4 relies on unique mechanics (Discovery Score, Reputation, SubFe
 
 ### Key Suggestions:
 
-- **Interactive Welcome Banner**:
-  - Implement a dismissible welcome banner at the top of the homepage for guests and new accounts.
-  - _Copy example:_ `"Welcome to V4. A community-curated space for internet culture, niche subfeeds, and organic discovery. Earn Discovery Score by finding gems early."`
-  - Add primary action buttons: `[Explore SubFeeds]` and `[How it Works]`.
-- **Expose "How It Works" in Main Navigation**:
-  - Add "How It Works" to both desktop and mobile header menus (currently, it is only linked in the footer).
-  - Use a subtle indicator (e.g., a small book icon or a "Guide" badge) next to the text.
 - **Contextual Tooltips & Micro-copy**:
   - Add info-tooltips (hover triggers) next to:
     - **Feed Modes** (Best, New, Rising) explaining what signals drive them.
@@ -85,11 +78,7 @@ Address core friction points that can make the site feel laggy, incomplete, or r
 
 - **Optimistic UI for Votes & Bookmarks**:
   - Make voting up/down and bookmarking updates instantaneous on the frontend. The vote score and active state should change immediately, with background queries syncing the result and handling rollbacks gracefully in case of failures.
-- **Zero-Value Suppression**:
-  - Suppress displaying `0` value statistics.
-    - Replace `Reputation: 0` with `Reputation: New`.
-    - Hide comment count indicators on links until they have at least 1 comment (or show `Write Comment` instead of `0 comments`).
-    - Replace `0 members` or `1 members` on new subfeeds with `Just Started` or `New Community`.
+
 - **Main Content Containment**:
   - Limit the width of the main link feed container on desktop to a comfortable reading size (e.g., `max-w-3xl` or `max-w-4xl`) to improve readability and prevent excessive line lengths on wide screens.
 - **Universal Modal Overlays**:

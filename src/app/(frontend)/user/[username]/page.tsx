@@ -25,6 +25,11 @@ interface PageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
+const readVisibleScore = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  return null
+}
+
 export default async function UserProfilePage({ params, searchParams }: PageProps) {
   const { username } = await params
   const { tab } = await searchParams
@@ -62,9 +67,25 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
 
   const profileUser = users[0]
   const isOwner = currentUser?.id === profileUser.id
+  const isAdminViewer = currentUser ? checkRole(['admin'], currentUser) : false
   const publicTitles = Array.isArray(profileUser.titles)
     ? profileUser.titles.filter((title): title is string => typeof title === 'string').slice(0, 3)
     : []
+  const totalMemberValue = readVisibleScore(profileUser.totalMemberValue) ?? 0
+  const pointSummary = [
+    { label: 'Discovery', value: readVisibleScore(profileUser.discoveryScore) },
+    { label: 'Contribution', value: readVisibleScore(profileUser.contributionScore) },
+    { label: 'Likability', value: readVisibleScore(profileUser.likabilityScore) },
+    { label: 'Interaction', value: readVisibleScore(profileUser.interactionScore) },
+    { label: 'Cleaning', value: readVisibleScore(profileUser.cleaningScore) },
+    { label: 'Recruiter', value: readVisibleScore(profileUser.recruiterScore) },
+    {
+      label: 'Security',
+      value: isAdminViewer ? readVisibleScore(profileUser.securityScore) : null,
+    },
+  ].filter(
+    (pointClass): pointClass is { label: string; value: number } => pointClass.value !== null,
+  )
 
   // Fetch contributions of this user
   const [linksRes, postsRes, commentsRes] = await Promise.all([
@@ -251,6 +272,30 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
             </div>
           )}
 
+          <Card className="border-dashed">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Member Value</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-baseline gap-3">
+                <span className="text-4xl font-bold">{totalMemberValue.toLocaleString()}</span>
+                <span className="text-sm text-muted-foreground">TMV</span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {pointSummary.map((pointClass) => (
+                  <div key={pointClass.label} className="rounded-lg border bg-muted/20 p-3">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                      {pointClass.label}
+                    </div>
+                    <div className="mt-1 text-xl font-semibold">
+                      {pointClass.value.toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* User Details */}
           <div className="grid gap-4">
             <div className="flex items-center gap-2 text-muted-foreground">
@@ -279,7 +324,7 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
         <div className="flex flex-wrap border-b gap-1">
           <Link
             href={`/user/${encodeURIComponent(profileUser.username)}?tab=links`}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-[2px] transition-colors flex items-center gap-2 ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-0.5 transition-colors flex items-center gap-2 ${
               activeTab === 'links'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -290,7 +335,7 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
           </Link>
           <Link
             href={`/user/${encodeURIComponent(profileUser.username)}?tab=posts`}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-[2px] transition-colors flex items-center gap-2 ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-0.5 transition-colors flex items-center gap-2 ${
               activeTab === 'posts'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -301,7 +346,7 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
           </Link>
           <Link
             href={`/user/${encodeURIComponent(profileUser.username)}?tab=comments`}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-[2px] transition-colors flex items-center gap-2 ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-0.5 transition-colors flex items-center gap-2 ${
               activeTab === 'comments'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -313,7 +358,7 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
           {currentUser && (
             <Link
               href={`/user/${encodeURIComponent(profileUser.username)}?tab=messages`}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-[2px] transition-colors flex items-center gap-2 ${
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-0.5 transition-colors flex items-center gap-2 ${
                 activeTab === 'messages'
                   ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground'

@@ -8,6 +8,94 @@ import type {
 import { checkRole } from '@/access/checkRole'
 import { bumpUserSignals, resolveID } from '@/lib/community/userSignals'
 
+const hideTargetForReport = async ({
+  req,
+  targetType,
+  targetPostId,
+  targetCommentId,
+  targetLinkId,
+}: {
+  req: Parameters<CollectionAfterChangeHook>[0]['req']
+  targetType: 'post' | 'comment' | 'link' | 'user'
+  targetPostId: number | null
+  targetCommentId: number | null
+  targetLinkId: number | null
+}): Promise<void> => {
+  if (targetType === 'post' && targetPostId) {
+    await req.payload.update({
+      collection: 'posts',
+      id: targetPostId,
+      data: { status: 'pending' },
+      overrideAccess: true,
+      req,
+    })
+  }
+
+  if (targetType === 'comment' && targetCommentId) {
+    await req.payload.update({
+      collection: 'comments',
+      id: targetCommentId,
+      data: { moderationStatus: 'pending' },
+      overrideAccess: true,
+      req,
+    })
+  }
+
+  if (targetType === 'link' && targetLinkId) {
+    await req.payload.update({
+      collection: 'links',
+      id: targetLinkId,
+      data: { softDeleted: true },
+      overrideAccess: true,
+      req,
+    })
+  }
+}
+
+const restoreTargetForReport = async ({
+  req,
+  targetType,
+  targetPostId,
+  targetCommentId,
+  targetLinkId,
+}: {
+  req: Parameters<CollectionAfterChangeHook>[0]['req']
+  targetType: 'post' | 'comment' | 'link' | 'user'
+  targetPostId: number | null
+  targetCommentId: number | null
+  targetLinkId: number | null
+}): Promise<void> => {
+  if (targetType === 'post' && targetPostId) {
+    await req.payload.update({
+      collection: 'posts',
+      id: targetPostId,
+      data: { status: 'published' },
+      overrideAccess: true,
+      req,
+    })
+  }
+
+  if (targetType === 'comment' && targetCommentId) {
+    await req.payload.update({
+      collection: 'comments',
+      id: targetCommentId,
+      data: { moderationStatus: 'visible' },
+      overrideAccess: true,
+      req,
+    })
+  }
+
+  if (targetType === 'link' && targetLinkId) {
+    await req.payload.update({
+      collection: 'links',
+      id: targetLinkId,
+      data: { softDeleted: false },
+      overrideAccess: true,
+      req,
+    })
+  }
+}
+
 const canReview = (user: unknown): boolean => {
   return Boolean(
     user &&
@@ -69,57 +157,91 @@ const prepareReport: CollectionBeforeValidateHook = async ({ data, operation, re
 }
 
 const applyReportDecision: CollectionAfterChangeHook = async ({ doc, previousDoc, req }) => {
-  if (doc.status !== 'approved' || previousDoc?.status === 'approved') {
-    return
-  }
-
   const targetPostId = resolveID(doc.targetPost)
   const targetCommentId = resolveID(doc.targetComment)
   const targetLinkId = resolveID(doc.targetLink)
 
-  if (doc.targetType === 'post' && targetPostId) {
-    await req.payload.update({
-      collection: 'posts',
-      id: targetPostId,
-      data: {
-        status: 'removed',
-      },
-      overrideAccess: true,
+  if (doc.fastTracked && previousDoc == null) {
+    await hideTargetForReport({
       req,
+      targetType: doc.targetType,
+      targetPostId,
+      targetCommentId,
+      targetLinkId,
     })
   }
 
-  if (doc.targetType === 'comment' && targetCommentId) {
-    await req.payload.update({
-      collection: 'comments',
-      id: targetCommentId,
-      data: {
-        moderationStatus: 'removed',
-      },
-      overrideAccess: true,
-      req,
+  if (doc.status === 'approved' && previousDoc?.status !== 'approved') {
+    if (doc.targetType === 'post' && targetPostId) {
+      await req.payload.update({
+        collection: 'posts',
+        id: targetPostId,
+        data: {
+          status: 'removed',
+        },
+        overrideAccess: true,
+        req,
+      })
+    }
+
+    if (doc.targetType === 'comment' && targetCommentId) {
+      await req.payload.update({
+        collection: 'comments',
+        id: targetCommentId,
+        data: {
+          moderationStatus: 'removed',
+        },
+        overrideAccess: true,
+        req,
+      })
+    }
+
+    if (doc.targetType === 'link' && targetLinkId) {
+      await req.payload.update({
+        collection: 'links',
+        id: targetLinkId,
+        data: {
+          softDeleted: true,
+        },
+        overrideAccess: true,
+        req,
+      })
+    }
+
+    await bumpUserSignals(req, resolveID(doc.reporter), {
+      moderationScore: doc.fastTracked ? 3 : 2,
+      cleaningScore: doc.fastTracked ? 3 : 2,
     })
+
+    await bumpUserSignals(req, resolveID(doc.reviewedBy), {
+      moderationScore: 1,
+      cleaningScore: 1,
+    })
+
+    return
   }
 
-  if (doc.targetType === 'link' && targetLinkId) {
-    await req.payload.update({
-      collection: 'links',
-      id: targetLinkId,
-      data: {
-        softDeleted: true,
-      },
-      overrideAccess: true,
+  if (doc.status === 'rejected' && previousDoc?.status !== 'rejected') {
+    await restoreTargetForReport({
       req,
+      targetType: doc.targetType,
+      targetPostId,
+      targetCommentId,
+      targetLinkId,
     })
+
+    await bumpUserSignals(req, resolveID(doc.reporter), {
+      moderationScore: doc.fastTracked ? -2 : -1,
+      cleaningScore: doc.fastTracked ? -2 : -1,
+    })
+
+    await bumpUserSignals(req, resolveID(doc.reviewedBy), {
+      moderationScore: -1,
+      cleaningScore: -1,
+    })
+
+    return
   }
-
-  await bumpUserSignals(req, resolveID(doc.reporter), {
-    moderationScore: doc.fastTracked ? 3 : 2,
-  })
-
-  await bumpUserSignals(req, resolveID(doc.reviewedBy), {
-    moderationScore: 1,
-  })
 }
 
 export const Reports: CollectionConfig = {

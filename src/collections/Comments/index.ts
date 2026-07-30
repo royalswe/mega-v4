@@ -99,6 +99,25 @@ const afterCommentChange: CollectionAfterChangeHook = async ({
 
   if (targetCollection && targetId) {
     await recalculateTargetSignals({ req, targetCollection, targetId })
+
+    if (operation === 'create') {
+      const targetDoc = await req.payload.findByID({
+        collection: targetCollection,
+        id: targetId,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      })
+
+      const targetAuthorId = targetDoc ? resolveID(targetDoc.user) : null
+      const actorId = resolveID(doc.user)
+
+      if (targetAuthorId && actorId !== targetAuthorId) {
+        await bumpUserSignals(req, targetAuthorId, {
+          likabilityScore: 1,
+        })
+      }
+    }
   }
 
   const actorId = resolveID(doc.user)
@@ -122,6 +141,21 @@ const afterCommentDelete: CollectionAfterDeleteHook = async ({ doc, req }) => {
 
   if (targetCollection && targetId) {
     await recalculateTargetSignals({ req, targetCollection, targetId })
+
+    const targetDoc = await req.payload.findByID({
+      collection: targetCollection,
+      id: targetId,
+      depth: 0,
+      overrideAccess: true,
+      req,
+    })
+
+    const targetAuthorId = targetDoc ? resolveID(targetDoc.user) : null
+    if (targetAuthorId) {
+      await bumpUserSignals(req, targetAuthorId, {
+        likabilityScore: -1,
+      })
+    }
   }
 
   await bumpUserSignals(req, resolveID(doc.user), { interactionScore: -1 })

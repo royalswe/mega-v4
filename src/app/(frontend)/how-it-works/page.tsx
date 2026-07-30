@@ -1,35 +1,89 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { TRUST_LEVEL_THRESHOLDS } from '@/lib/community/reputation'
 
+const pointClassGuides = [
+  {
+    name: 'Interaction Points',
+    description:
+      'Reward daily participation, voting, commenting, sharing, and other community actions.',
+    examples: 'Logins, comments, votes, shares, and other positive interactions.',
+  },
+  {
+    name: 'Likability Points',
+    description:
+      'Reward content that the community likes, comments on, shares, and responds to positively.',
+    examples: 'Upvoted posts, well-received comments, and other appreciated contributions.',
+  },
+  {
+    name: 'Contribution Points',
+    description: 'Reward original content creation across links, posts, media, and articles.',
+    examples: 'Posts, links, videos, images, and articles that attract real engagement.',
+  },
+  {
+    name: 'Cleaning Points',
+    description: 'Reward reports and cleanup work that helps remove spam and improve site quality.',
+    examples: 'Approved reports, moderation wins, typo fixes, broken-link cleanup, and tag work.',
+  },
+  {
+    name: 'Discovery Points',
+    description: 'Reward being early to spot content that later becomes popular or influential.',
+    examples: 'Early discovery of rising links, resurrected old gems, and breakout posts.',
+  },
+  {
+    name: 'Recruiter Points',
+    description: 'Reward bringing new members into the ecosystem and growing active communities.',
+    examples: 'Subfeed growth and high-quality member acquisition.',
+  },
+  {
+    name: 'Security Points',
+    description: 'Reward stronger account security and responsible security reporting.',
+    examples: 'Verified email, safe password setup, 2FA, and security issue reporting.',
+  },
+]
+
 const roleGuides = [
   {
     role: 'User',
     description:
-      'Default account role with normal posting, voting, commenting, and bookmarking access.',
-    howToAchieve: 'Created automatically when you sign up.',
+      'Default account role with normal posting, voting, commenting, bookmarking, and reporting access.',
+    howToAchieve: 'Created automatically when you sign up and remains the baseline role.',
   },
   {
     role: 'Uploader',
-    description: 'Intended for users trusted to contribute media-focused content and uploads.',
-    howToAchieve: 'Granted manually by an Admin in the user roles settings.',
+    description: 'Can publish links, images, video, and other media directly into the main feed.',
+    howToAchieve:
+      'Derived automatically from contribution and discovery signals when activity stays strong.',
   },
   {
     role: 'Moderator',
-    description:
-      'Can moderate content workflows and is treated as trusted in community scoring and moderation logic.',
-    howToAchieve: 'Granted manually by an Admin based on trust, consistency, and behavior.',
+    description: 'Can review reports, remove content, and manage moderation workflows.',
+    howToAchieve:
+      'Derived automatically from high cleaning, security, and trust signals while activity remains recent.',
   },
   {
     role: 'Editor',
+    description: 'Can publish editorial content and announcements into the main feed.',
+    howToAchieve:
+      'Derived automatically from strong contribution and interaction signals while the account stays active.',
+  },
+  {
+    role: 'Cleaner',
     description:
-      'Editorial role with elevated oversight, included in community moderation privileges.',
-    howToAchieve: 'Granted manually by an Admin.',
+      'Can help keep the platform clean by earning trust through verified cleanup and reports.',
+    howToAchieve: 'Derived automatically from cleaning signals and trusted activity patterns.',
+  },
+  {
+    role: 'Recruiter',
+    description:
+      'Recognizes users who help grow communities and subfeeds by bringing in new members.',
+    howToAchieve:
+      'Derived automatically from recruiter signals and sustained contribution behavior.',
   },
   {
     role: 'Admin',
     description:
       'Full administrative permissions, including role management and user administration.',
-    howToAchieve: 'Granted manually by an existing Admin.',
+    howToAchieve: 'Granted manually by an existing Admin; this is not auto-derived.',
   },
 ]
 
@@ -39,9 +93,38 @@ export default function HowItWorksPage() {
       <section className="space-y-2">
         <h1 className="text-3xl font-bold">How V4 Works</h1>
         <p className="text-muted-foreground max-w-3xl">
-          This page explains how trust levels, roles, main feed ranking, and subfeeds work in the
-          current platform logic.
+          This page explains how point classes, trust levels, roles, main feed ranking, and subfeeds
+          work in the current platform logic.
         </p>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">Point Classes</h2>
+        <Card>
+          <CardHeader>
+            <CardTitle>How Points Turn Into Reputation</CardTitle>
+            <CardDescription>
+              The system tracks multiple point classes and rolls them up into hidden reputation and
+              a public trust label.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              Public-facing reputation is intentionally simplified. The internal score is a weighted
+              blend of discovery, contribution, likability, interaction, cleaning, recruiter, legacy
+              contribution, and security signals.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              {pointClassGuides.map((pointClass) => (
+                <div key={pointClass.name} className="rounded-lg border p-4 space-y-2">
+                  <h3 className="font-medium">{pointClass.name}</h3>
+                  <p className="text-muted-foreground">{pointClass.description}</p>
+                  <p>{pointClass.examples}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </section>
 
       <section className="space-y-4">
@@ -50,7 +133,7 @@ export default function HowItWorksPage() {
           <CardHeader>
             <CardTitle>How Trust Level Is Calculated</CardTitle>
             <CardDescription>
-              Trust level is derived from hidden reputation, which is a weighted sum of score
+              Trust level is derived from hidden reputation, which is a weighted sum of point class
               signals.
             </CardDescription>
           </CardHeader>
@@ -59,14 +142,14 @@ export default function HowItWorksPage() {
               Hidden reputation is calculated from these signals:
               <br />
               <span className="font-mono">
-                discovery x 1.6 + contribution x 1.35 + interaction x 0.85 + moderation x 0.55 +
-                legacyContribution x 0.35 + security x 0.4
+                discovery x 1.6 + contribution x 1.35 + likability x 1.25 + interaction x 0.85 +
+                cleaning x 0.55 + recruiter x 0.9 + legacyContribution x 0.35 + security x 0.4
               </span>
             </p>
             <p>
               The score is then mapped to a trust level threshold. Higher trust generally comes from
-              sustained quality contributions, useful interactions, and healthy account behavior
-              over time.
+              sustained quality contributions, useful interactions, successful cleanup, and healthy
+              account behavior over time.
             </p>
           </CardContent>
         </Card>
@@ -118,6 +201,25 @@ export default function HowItWorksPage() {
       </section>
 
       <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">Automatic Progression</h2>
+        <Card>
+          <CardContent className="space-y-2 py-6 text-sm">
+            <p>
+              Most elevated roles are not manually assigned. They are derived from your current
+              point classes, trust level, and recent activity.
+            </p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Activity decays into the user role if you go inactive for too long.</li>
+              <li>Admin is the exception and must still be granted manually.</li>
+              <li>
+                The public label shows your trust state instead of exposing raw internal score.
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="space-y-4">
         <h2 className="text-2xl font-semibold">Main Feed and Ranking</h2>
         <Card>
           <CardHeader>
@@ -130,7 +232,10 @@ export default function HowItWorksPage() {
               <li>Not removed by moderation</li>
               <li>Your NSFW preference (if NSFW is off, NSFW links are filtered out)</li>
             </ul>
-            <p>Links are ordered by descending ranking score.</p>
+            <p>
+              Links are ordered by descending ranking score, and promoted subfeed content can mix
+              into the main feed when it passes the promotion threshold.
+            </p>
           </CardContent>
         </Card>
 
@@ -180,6 +285,10 @@ export default function HowItWorksPage() {
               <li>
                 Inside each subfeed, links and posts are ranked by the same ranking score logic as
                 the broader feeds.
+              </li>
+              <li>
+                Successful community growth in a subfeed can feed recruiter points back to the
+                organizer.
               </li>
             </ul>
           </CardContent>

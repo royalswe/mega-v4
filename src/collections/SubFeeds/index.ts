@@ -1,11 +1,13 @@
 import type {
   Access,
+  CollectionAfterChangeHook,
   CollectionBeforeChangeHook,
   CollectionBeforeValidateHook,
   CollectionConfig,
 } from 'payload'
 
 import { checkRole } from '@/access/checkRole'
+import { bumpUserSignals } from '@/lib/community/userSignals'
 import { resolveID } from '@/lib/community/userSignals'
 
 const slugify = (value: string): string =>
@@ -127,6 +129,24 @@ const attachCreatorToCommunity: CollectionBeforeChangeHook = ({ data, operation,
   }
 }
 
+const rewardRecruitment: CollectionAfterChangeHook = async ({ doc, previousDoc, req }) => {
+  if (!req.user || !previousDoc) return
+
+  const previousMembers = new Set(normalizeIds(previousDoc.members))
+  const nextMembers = new Set(normalizeIds(doc.members))
+
+  let recruitedCount = 0
+  for (const memberId of nextMembers) {
+    if (!previousMembers.has(memberId)) recruitedCount += 1
+  }
+
+  if (recruitedCount > 0) {
+    await bumpUserSignals(req, req.user.id, {
+      recruiterScore: recruitedCount,
+    })
+  }
+}
+
 export const SubFeeds: CollectionConfig = {
   slug: 'subfeeds',
   admin: {
@@ -143,6 +163,7 @@ export const SubFeeds: CollectionConfig = {
   hooks: {
     beforeValidate: [prepareSubfeed],
     beforeChange: [attachCreatorToCommunity],
+    afterChange: [rewardRecruitment],
   },
   fields: [
     {

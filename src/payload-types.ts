@@ -180,9 +180,14 @@ export interface User {
   reputationHidden?: number | null;
   reputationPublicLabel?: string | null;
   securityScore?: number | null;
+  likabilityScore?: number | null;
+  cleaningScore?: number | null;
+  recruiterScore?: number | null;
   isUploader?: boolean | null;
   isEditor?: boolean | null;
   isModerator?: boolean | null;
+  isCleaner?: boolean | null;
+  isRecruiter?: boolean | null;
   isAdmin?: boolean | null;
   streakDays?: number | null;
   lastActiveAt?: string | null;
@@ -191,7 +196,8 @@ export interface User {
   interactionScore?: number | null;
   moderationScore?: number | null;
   legacyContributionScore?: number | null;
-  roles?: ('admin' | 'editor' | 'moderator' | 'uploader' | 'user')[] | null;
+  totalMemberValue?: number | null;
+  roles?: ('admin' | 'editor' | 'moderator' | 'cleaner' | 'uploader' | 'recruiter' | 'user')[] | null;
   settings: {
     nsfw?: boolean | null;
     language: 'en' | 'sv';
@@ -717,9 +723,14 @@ export interface UsersSelect<T extends boolean = true> {
   reputationHidden?: T;
   reputationPublicLabel?: T;
   securityScore?: T;
+  likabilityScore?: T;
+  cleaningScore?: T;
+  recruiterScore?: T;
   isUploader?: T;
   isEditor?: T;
   isModerator?: T;
+  isCleaner?: T;
+  isRecruiter?: T;
   isAdmin?: T;
   streakDays?: T;
   lastActiveAt?: T;
@@ -728,6 +739,7 @@ export interface UsersSelect<T extends boolean = true> {
   interactionScore?: T;
   moderationScore?: T;
   legacyContributionScore?: T;
+  totalMemberValue?: T;
   roles?: T;
   settings?:
     | T
