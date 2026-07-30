@@ -42,14 +42,17 @@ export function Inbox({ conversations }: InboxProps) {
 
   return (
     <div className="space-y-3">
-      {conversations.map((conv) => {
+      {conversations.map((conv, index) => {
         const partner = conv.partner
         const lastMsg = conv.lastMessage
         const date = new Date(lastMsg.createdAt)
-        const timeString = date.toLocaleDateString([], {
-          month: 'short',
-          day: 'numeric',
-        }) + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        const timeString =
+          date.toLocaleDateString([], {
+            month: 'short',
+            day: 'numeric',
+          }) +
+          ' ' +
+          date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
         return (
           <Link
@@ -59,7 +62,12 @@ export function Inbox({ conversations }: InboxProps) {
           >
             <Card className="hover:bg-muted/40 transition-colors border group-hover:border-primary/20">
               <CardContent className="p-4 flex items-center gap-4">
-                <Avatar user={partner as any} className="h-12 w-12 text-lg shrink-0" />
+                <Avatar
+                  user={partner as any}
+                  className="h-12 w-12 text-lg shrink-0"
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  sizes="48px"
+                />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <span className="font-semibold text-sm group-hover:text-primary transition-colors">
@@ -69,9 +77,7 @@ export function Inbox({ conversations }: InboxProps) {
                       {timeString}
                     </span>
                   </div>
-                  <p className="text-sm text-muted-foreground truncate pr-6">
-                    {lastMsg.message}
-                  </p>
+                  <p className="text-sm text-muted-foreground truncate pr-6">{lastMsg.message}</p>
                 </div>
                 {conv.unreadCount > 0 && (
                   <span className="flex h-5 min-w-5 px-1.5 items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white shrink-0">

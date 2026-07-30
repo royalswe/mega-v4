@@ -727,14 +727,50 @@ export default async function SubfeedDetailsPage({
             })}
           </ReorderAwareList>
         ) : (
-          <Card>
-            <CardContent className="pt-6 text-sm text-muted-foreground">
-              {selectedContentFilter === 'links'
-                ? dict.subfeeds?.noLinksYet || 'No links have been submitted to this subfeed yet.'
-                : selectedContentFilter === 'posts'
-                  ? dict.subfeeds?.noPostsYet ||
-                    'No posts in this subfeed yet. Be the first to start a discussion.'
-                  : 'No links or posts have been submitted to this subfeed yet.'}
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+              {canCreate ? (
+                <>
+                  <p className="text-lg font-semibold">{dict.subfeeds.emptyFeed.memberTitle}</p>
+                  <p className="max-w-md text-sm text-muted-foreground">
+                    {dict.subfeeds.emptyFeed.memberSubtitle}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                    <SubfeedCreatePanel
+                      subfeedId={subfeed.id}
+                      subfeedName={subfeed.name}
+                      mode="link"
+                      dict={dict}
+                    />
+                    <SubfeedCreatePanel
+                      subfeedId={subfeed.id}
+                      subfeedName={subfeed.name}
+                      mode="post"
+                      dict={dict}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-lg font-semibold">{dict.subfeeds.emptyFeed.guestTitle}</p>
+                  <p className="max-w-md text-sm text-muted-foreground">
+                    {dict.subfeeds.emptyFeed.guestSubtitle}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                    {user ? (
+                      <JoinSubfeedButton
+                        subfeedId={subfeed.id}
+                        isMember={isMember}
+                        labels={dict.subfeeds?.joinButton}
+                      />
+                    ) : (
+                      <Button asChild>
+                        <Link href="/login">{dict.subfeeds.emptyFeed.loginAction}</Link>
+                      </Button>
+                    )}
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         )}

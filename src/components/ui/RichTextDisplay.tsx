@@ -24,6 +24,23 @@ type RenderableLexicalNode = SerializedLexicalNode & {
   format?: number
 }
 
+const safeHeadingTag = (tag: unknown): 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' => {
+  const allowed: Array<'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'> = [
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+  ]
+
+  if (typeof tag === 'string' && allowed.includes(tag as (typeof allowed)[number])) {
+    return tag as (typeof allowed)[number]
+  }
+
+  return 'h2'
+}
+
 export function RichTextDisplay({ content, className = '' }: RichTextDisplayProps) {
   if (!content?.root?.children) {
     return null
@@ -41,7 +58,7 @@ export function RichTextDisplay({ content, className = '' }: RichTextDisplayProp
         )
 
       case 'heading':
-        const HeadingTag = node.tag as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
+        const HeadingTag = safeHeadingTag(node.tag)
         const headingClasses = {
           h1: 'text-2xl font-bold mb-3',
           h2: 'text-xl font-bold mb-2',
