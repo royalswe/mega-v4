@@ -14,6 +14,7 @@ import { Timestamp } from '@/components/ui/Timestamp'
 import { PrivateChat } from '@/components/users/PrivateChat.client'
 import { Inbox } from '@/components/users/Inbox.client'
 import { resolveID } from '@/lib/community/userSignals'
+import { TRUST_LEVEL_THRESHOLDS } from '@/lib/community/reputation'
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import { getPostInteractions } from '@/app/(frontend)/data/getPostInteractions'
 import { checkRole } from '@/access/checkRole'
@@ -248,7 +249,12 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
               </div>
             ) : (
               <div className="flex items-center gap-4">
-                <Avatar user={profileUser} className="h-24 w-24 text-4xl" />
+                <Avatar
+                  user={profileUser}
+                  className="h-24 w-24 text-4xl"
+                  loading="eager"
+                  sizes="96px"
+                />
                 <div>
                   <h2 className="text-2xl font-bold">{profileUser.username}</h2>
                   <p className="text-muted-foreground">
@@ -281,6 +287,59 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
                 <span className="text-4xl font-bold">{totalMemberValue.toLocaleString()}</span>
                 <span className="text-sm text-muted-foreground">TMV</span>
               </div>
+
+              {(() => {
+                const currentIndex = TRUST_LEVEL_THRESHOLDS.reduce(
+                  (acc, level, index) => (totalMemberValue >= level.min ? index : acc),
+                  0,
+                )
+                const currentLevel = TRUST_LEVEL_THRESHOLDS[currentIndex]
+                const nextLevel = TRUST_LEVEL_THRESHOLDS[currentIndex + 1] ?? null
+                const span = nextLevel ? nextLevel.min - currentLevel.min : 0
+                const progressed = nextLevel
+                  ? Math.max(0, Math.min(1, (totalMemberValue - currentLevel.min) / span))
+                  : 1
+                const remaining = nextLevel ? Math.max(0, nextLevel.min - totalMemberValue) : 0
+
+                return (
+                  <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs">
+                      <span>
+                        <span className="text-muted-foreground">Trust: </span>
+                        <span className="font-semibold">{currentLevel.label}</span>
+                      </span>
+                      {nextLevel ? (
+                        <span className="text-muted-foreground">
+                          Next: {nextLevel.label} at {nextLevel.min.toLocaleString()} TMV
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Top level reached</span>
+                      )}
+                    </div>
+                    <div
+                      role="progressbar"
+                      aria-label={`Progress toward ${nextLevel?.label ?? currentLevel.label}`}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(progressed * 100)}
+                      className="h-2 w-full overflow-hidden rounded-full bg-muted"
+                    >
+                      <div
+                        className="h-full rounded-full bg-linear-to-r from-sky-400 to-emerald-400 transition-all"
+                        style={{ width: `${Math.round(progressed * 100)}%` }}
+                      />
+                    </div>
+                    {nextLevel && remaining > 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        {isOwner
+                          ? `Earn ${remaining.toLocaleString()} more TMV to level up. Share links, post, and stay active in your SubFeeds.`
+                          : `${remaining.toLocaleString()} TMV to next level.`}
+                      </p>
+                    ) : null}
+                  </div>
+                )
+              })()}
+
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {pointSummary.map((pointClass) => (
                   <div key={pointClass.label} className="rounded-lg border bg-muted/20 p-3">

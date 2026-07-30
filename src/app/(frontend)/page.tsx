@@ -10,10 +10,9 @@ import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 import { BookmarksFilter } from '@/components/links/BookmarksFilter'
 import { FeedMixFilter } from '@/components/links/FeedMixFilter'
+import { HomeContributeCard } from '@/components/links/HomeContributeCard.client'
 import { MainFeedHighlights } from '@/components/links/MainFeedHighlights'
 import { ReorderAwareList } from '@/components/links/ReorderAwareList.client'
-import { SubfeedStripToggle } from '@/components/links/SubfeedStripToggle'
-import { SubfeedAvatar } from '@/components/subfeeds/SubfeedAvatar'
 import { readRelationshipIds } from '@/lib/community/subfeeds'
 import { checkRole } from '@/access/checkRole'
 
@@ -828,6 +827,19 @@ export default async function HomePage({
   const linkIds = links.map((link) => link.id)
   const { votes, bookmarks } = await getUserInteractions(user, linkIds)
 
+  const contributeVariant: 'member' | 'noSubfeeds' | 'guest' = !user
+    ? 'guest'
+    : joinedSubfeeds.length > 0
+      ? 'member'
+      : 'noSubfeeds'
+
+  const contributeSubfeeds = joinedSubfeeds.map((subfeed) => ({
+    id: subfeed.id,
+    name: subfeed.name,
+  }))
+
+  const contributeCardCollapsed = cookieStore.get('contributeCardCollapsed')?.value === 'true'
+
   return (
     <div className="space-y-4">
       <MainFeedHighlights
@@ -844,48 +856,15 @@ export default async function HomePage({
         activeSignal={signal}
       />
 
-      {activeSubfeedStrip.length > 0 ? (
-        <section className="space-y-2 rounded-md border bg-card/70 p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0 flex items-center gap-2">
-              <h2 className="text-sm font-semibold">{dict.pages.subfeedStrip.title}</h2>
-              <SubfeedStripToggle
-                initialView={selectedSubfeedStripView}
-                hasJoinedSubfeeds={joinedSubfeedsSidebar.length > 0}
-                labels={{
-                  trending: dict.pages.subfeedStrip.trendingTab,
-                  joined: dict.pages.subfeedStrip.joinedTab,
-                }}
-              />
-            </div>
-            <Link
-              href="/subfeeds"
-              className="shrink-0 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              {dict.pages.subfeedStrip.browseAll}
-            </Link>
-          </div>
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-            {activeSubfeedStrip.map(({ subfeed, activityToday }) => (
-              <Link
-                key={subfeed.id}
-                href={`/subfeeds/${subfeed.slug}`}
-                className="inline-flex shrink-0 items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-xs transition hover:border-sky-400/60"
-              >
-                <SubfeedAvatar
-                  subfeed={subfeed}
-                  className="size-5 rounded-full object-cover"
-                  fallbackClassName="inline-flex size-5 items-center justify-center rounded-full bg-muted text-[10px] font-semibold"
-                />
-                <span className="max-w-40 truncate">{subfeed.name}</span>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-                  {activityToday} {dict.subfeeds.listControls.activityToday}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <HomeContributeCard
+        dict={dict}
+        variant={contributeVariant}
+        joinedSubfeeds={contributeSubfeeds}
+        initialCollapsed={contributeCardCollapsed}
+        stripItems={activeSubfeedStrip}
+        stripView={selectedSubfeedStripView}
+        hasJoinedSubfeeds={joinedSubfeedsSidebar.length > 0}
+      />
 
       <div>
         <div className="mb-4 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">

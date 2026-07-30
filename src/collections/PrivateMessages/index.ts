@@ -41,7 +41,24 @@ export const PrivateMessages: CollectionConfig = {
         // Preserve admin/server-side management paths while constraining receiver updates.
         if (!req.user || isAdminUser(req.user)) return data
 
-        if ('sender' in data || 'receiver' in data || 'message' in data) {
+        const relationValueToId = (value: unknown) => {
+          if (typeof value === 'number') return value
+          if (typeof value === 'object' && value && 'id' in value) {
+            const id = (value as { id?: unknown }).id
+            return typeof id === 'number' ? id : id
+          }
+          return value
+        }
+
+        const senderChanged =
+          'sender' in data &&
+          relationValueToId(data.sender) !== relationValueToId(originalDoc?.sender)
+        const receiverChanged =
+          'receiver' in data &&
+          relationValueToId(data.receiver) !== relationValueToId(originalDoc?.receiver)
+        const messageChanged = 'message' in data && data.message !== originalDoc?.message
+
+        if (senderChanged || receiverChanged || messageChanged) {
           throw new Error('Only isRead can be updated by the receiver')
         }
 

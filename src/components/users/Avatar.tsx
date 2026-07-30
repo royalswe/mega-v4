@@ -6,9 +6,11 @@ import { cn } from '@/lib/utils'
 interface AvatarProps {
   user: User | null | undefined
   className?: string
+  loading?: 'lazy' | 'eager'
+  sizes?: string
 }
 
-export function Avatar({ user, className }: AvatarProps) {
+export function Avatar({ user, className, loading = 'lazy', sizes = '48px' }: AvatarProps) {
   const avatar = user?.avatar as Media | undefined
 
   if (avatar?.url) {
@@ -18,6 +20,8 @@ export function Avatar({ user, className }: AvatarProps) {
           src={avatar.url}
           alt={avatar.alt || user?.username || 'User Avatar'}
           fill
+          loading={loading}
+          sizes={sizes}
           className="object-cover"
         />
       </div>

@@ -89,7 +89,7 @@ export function AvatarUpload({ user, dict }: AvatarUploadProps) {
               className="h-full w-full rounded-full object-cover border-2 border-primary"
             />
           ) : (
-            <Avatar user={user} className="h-24 w-24 text-4xl" />
+            <Avatar user={user} className="h-24 w-24 text-4xl" loading="eager" sizes="96px" />
           )}
 
           {isPending && (

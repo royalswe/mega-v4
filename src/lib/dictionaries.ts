@@ -64,6 +64,27 @@ const dictionaries = {
       noBookmarks: 'No bookmarks found',
       noLinks: 'No links found',
       submittedTitle: 'All Submitted Links',
+      contribute: {
+        memberTitle: 'Share to your SubFeeds',
+        memberSubtitle:
+          'Every link you drop earns Contribution Points and pulls your subfeeds up the ranks.',
+        shareLinkAction: 'Share a link',
+        startDiscussionAction: 'Start a discussion',
+        shareLinkModalTitle: 'Share a link with your SubFeeds',
+        startDiscussionModalTitle: 'Start a discussion in your SubFeeds',
+        noSubfeedsTitle: 'Find your community',
+        noSubfeedsSubtitle:
+          'Join a SubFeed you love, then share the links and posts your community will care about.',
+        browseSubfeedsAction: 'Browse SubFeeds',
+        createSubfeedAction: 'Start a new SubFeed',
+        guestTitle: 'Welcome to V4',
+        guestSubtitle:
+          'A community feed powered by what you share. Sign up to join subfeeds, upvote what matters, and earn reputation as you go.',
+        signUpAction: 'Create account',
+        learnMoreAction: 'How it works',
+        collapseLabel: 'Hide',
+        expandLabel: 'Show',
+      },
     },
     settings: {
       profile: 'Profile',
@@ -243,6 +264,14 @@ const dictionaries = {
       topPostsTitle: 'Top Posts',
       noLinksYet: 'No links have been submitted to this subfeed yet.',
       noPostsYet: 'No posts in this subfeed yet. Be the first to start a discussion.',
+      emptyFeed: {
+        memberTitle: 'Kick this community off',
+        memberSubtitle:
+          'Nothing here yet. Drop the first link or start a discussion and earn Contribution Points while you set the tone.',
+        guestTitle: 'This community is waiting',
+        guestSubtitle: 'Join this SubFeed to share the first link or post.',
+        loginAction: 'Log in to join',
+      },
       submitLink: 'Submit Link',
       createPost: 'Create Post',
       submitLinkModalTitle: 'Submit Link',
@@ -380,6 +409,27 @@ const dictionaries = {
       noBookmarks: 'Inga bokmärken hittades',
       noLinks: 'Inga länkar hittades',
       submittedTitle: 'Alla inskickade länkar',
+      contribute: {
+        memberTitle: 'Dela till dina delflöden',
+        memberSubtitle:
+          'Varje länk du delar ger Contribution Points och lyfter dina delflöden uppåt.',
+        shareLinkAction: 'Dela en länk',
+        startDiscussionAction: 'Starta en diskussion',
+        shareLinkModalTitle: 'Dela en länk till dina delflöden',
+        startDiscussionModalTitle: 'Starta en diskussion i dina delflöden',
+        noSubfeedsTitle: 'Hitta din gemenskap',
+        noSubfeedsSubtitle:
+          'Gå med i ett delflöde du gillar och dela länkar och inlägg din gemenskap vill se.',
+        browseSubfeedsAction: 'Bläddra bland delflöden',
+        createSubfeedAction: 'Starta ett nytt delflöde',
+        guestTitle: 'Välkommen till V4',
+        guestSubtitle:
+          'Ett community-styrt flöde format av det du delar. Skapa ett konto för att gå med i delflöden, rösta på det som räknas och samla anseende.',
+        signUpAction: 'Skapa konto',
+        learnMoreAction: 'Så funkar det',
+        collapseLabel: 'Dölj',
+        expandLabel: 'Visa',
+      },
     },
     settings: {
       profile: 'Profil',
@@ -564,6 +614,15 @@ const dictionaries = {
       topPostsTitle: 'Toppinlägg',
       noLinksYet: 'Inga länkar har skickats in till detta delflöde än.',
       noPostsYet: 'Inga inlägg i detta delflöde än. Bli först med att starta en diskussion.',
+      emptyFeed: {
+        memberTitle: 'Kicka igång gemenskapen',
+        memberSubtitle:
+          'Inget här ännu. Släpp den första länken eller starta en diskussion och samla Contribution Points medan du sätter tonen.',
+        guestTitle: 'Gemenskapen väntar',
+        guestSubtitle:
+          'Gå med i delflödet för att dela den första länken eller det första inlägget.',
+        loginAction: 'Logga in för att gå med',
+      },
       submitLink: 'Skicka länk',
       createPost: 'Skapa inlägg',
       submitLinkModalTitle: 'Skicka länk',

@@ -28,6 +28,18 @@ type PrivateChatProps = {
   initialMessages: PrivateMessage[]
 }
 
+const formatMessageTime = (value: string) => {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return ''
+
+  return new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'UTC',
+  }).format(parsed)
+}
+
 export function PrivateChat({ profileUser, currentUser, initialMessages }: PrivateChatProps) {
   const [messages, setMessages] = useState<PrivateMessage[]>(initialMessages)
   const [inputText, setInputText] = useState('')
@@ -140,10 +152,7 @@ export function PrivateChat({ profileUser, currentUser, initialMessages }: Priva
                   <p className="whitespace-pre-wrap break-words">{msg.message}</p>
                 </div>
                 <span className="text-[10px] text-muted-foreground mt-1">
-                  {new Date(msg.createdAt).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
+                  {formatMessageTime(msg.createdAt)}
                 </span>
               </div>
             )

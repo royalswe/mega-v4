@@ -38,6 +38,15 @@ export async function setHomeSubfeedsViewPreference(view: 'trending' | 'joined')
   revalidatePath('/')
 }
 
+export async function setContributeCardCollapsedPreference(collapsed: boolean) {
+  const cookieStore = await cookies()
+  cookieStore.set('contributeCardCollapsed', collapsed ? 'true' : 'false', {
+    path: '/',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 365,
+  })
+}
+
 export async function vote(linkId: number, type: 'up' | 'down') {
   const { user, payload } = await getAuthenticatedUser()
 

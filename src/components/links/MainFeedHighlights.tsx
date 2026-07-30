@@ -105,15 +105,10 @@ export function MainFeedHighlights({
   freshDiscussionsTrend,
   activeSignal,
 }: MainFeedHighlightsProps) {
-  const activeClasses = 'ring-1 ring-sky-400/70 dark:ring-sky-600/60'
+  const activeClasses = 'ring-1 ring-foreground/30'
 
   return (
-    <section
-      className="p-4 rounded-md border bg-linear-to-r shadow-sm
-      from-slate-100 via-sky-50 to-cyan-50
-      dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800"
-    >
-      {' '}
+    <section className="p-4 rounded-md border bg-card shadow-sm">
       <div className="mb-3">
         <h2 className="text-base font-semibold tracking-tight">{labels.title}</h2>
         <p className="text-sm text-muted-foreground">{labels.subtitle}</p>
@@ -121,7 +116,7 @@ export function MainFeedHighlights({
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <Link
           href={trendingNowHref}
-          className={`rounded-lg border bg-background/80 p-3 backdrop-blur-sm transition hover:-translate-y-px hover:border-sky-300/60 dark:border-sky-900/50 dark:bg-slate-950/70 ${activeSignal === 'trending' ? activeClasses : ''}`}
+          className={`rounded-lg border bg-background p-3 transition hover:-translate-y-px hover:border-foreground/20 ${activeSignal === 'trending' ? activeClasses : ''}`}
         >
           <div className="mb-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-2">
@@ -137,7 +132,7 @@ export function MainFeedHighlights({
 
         <Link
           href={newInYourSubfeedsHref}
-          className={`rounded-lg border bg-background/80 p-3 backdrop-blur-sm transition hover:-translate-y-px hover:border-sky-300/60 dark:border-sky-900/50 dark:bg-slate-950/70 ${activeSignal === 'subfeeds' ? activeClasses : ''}`}
+          className={`rounded-lg border bg-background p-3 transition hover:-translate-y-px hover:border-foreground/20 ${activeSignal === 'subfeeds' ? activeClasses : ''}`}
         >
           <div className="mb-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-2">
@@ -160,7 +155,7 @@ export function MainFeedHighlights({
 
         <Link
           href={freshDiscussionsHref}
-          className={`rounded-lg border bg-background/80 p-3 backdrop-blur-sm transition hover:-translate-y-px hover:border-sky-300/60 dark:border-sky-900/50 dark:bg-slate-950/70 ${activeSignal === 'discussions' ? activeClasses : ''}`}
+          className={`rounded-lg border bg-background p-3 transition hover:-translate-y-px hover:border-foreground/20 ${activeSignal === 'discussions' ? activeClasses : ''}`}
         >
           <div className="mb-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-2">
