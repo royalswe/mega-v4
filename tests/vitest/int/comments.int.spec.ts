@@ -1,52 +1,54 @@
-import { Payload } from 'payload'
-import { getTestPayload, getTestUser } from '../utils/test-user'
-import { describe, it, beforeAll, expect } from 'vitest'
-import { faker } from '@faker-js/faker'
+import { Payload } from 'payload';
+import { getTestPayload, getTestUser } from '../utils/test-user';
+import { describe, it, beforeAll, expect } from 'vitest';
+import { faker } from '@faker-js/faker';
 
-let payload: Payload
-let testUser: any
+let payload: Payload;
+let testUser: any;
 
 describe('Comments Integration', () => {
   beforeAll(async () => {
-    payload = await getTestPayload()
+    payload = await getTestPayload();
 
     // Get Shared User
-    testUser = await getTestUser()
-  })
+    testUser = await getTestUser();
+  });
 
   it('can create a comment on a link', async () => {
-    const title = faker.lorem.words(4)
-    const url = faker.internet.url()
-    const commentText = faker.lorem.words(4)
+    const title = faker.lorem.words(4);
+    const url = faker.internet.url();
+    const commentText = faker.lorem.words(4);
     const commentJson = {
       root: {
         children: [
           {
             children: [
               {
-                detail: 0,
-                format: 0,
-                mode: 'normal',
+                detail: 0 as const,
+                format: 0 as const,
+                mode: 'normal' as const,
                 style: '',
                 text: commentText,
-                type: 'text',
-                version: 1,
+                type: 'text' as const,
+                version: 1 as const,
               },
             ],
             direction: 'ltr' as const,
             format: '' as const,
             indent: 0,
-            type: 'paragraph',
-            version: 1,
+            type: 'paragraph' as const,
+            version: 1 as const,
+            textFormat: 0 as const,
+            textStyle: '',
           },
         ],
         direction: 'ltr' as const,
         format: '' as const,
         indent: 0,
-        type: 'root',
+        type: 'root' as const,
         version: 1,
       },
-    }
+    };
 
     // 2. Create Link
     const link = await payload.create({
@@ -60,7 +62,7 @@ describe('Comments Integration', () => {
       },
       draft: false,
       overrideAccess: true,
-    })
+    });
 
     // 3. Create Comment
     const comment = await payload.create({
@@ -72,13 +74,13 @@ describe('Comments Integration', () => {
       },
       draft: false,
       overrideAccess: true,
-    })
+    });
 
-    expect(comment).toBeDefined()
-    expect(comment.comment).toEqual(commentJson)
-    expect(comment.user).toEqual(expect.objectContaining({ id: testUser.id }))
-    expect(comment.link).toEqual(expect.objectContaining({ id: link.id }))
-  })
+    expect(comment).toBeDefined();
+    expect(comment.comment).toEqual(commentJson);
+    expect(comment.user).toEqual(expect.objectContaining({ id: testUser.id }));
+    expect(comment.link).toEqual(expect.objectContaining({ id: link.id }));
+  });
 
   it('fails to create comment without required fields', async () => {
     // 2. Try to create comment without link
@@ -103,6 +105,6 @@ describe('Comments Integration', () => {
         draft: false,
         overrideAccess: true,
       }),
-    ).rejects.toThrow()
-  })
-})
+    ).rejects.toThrow();
+  });
+});

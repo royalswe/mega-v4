@@ -119,3 +119,17 @@ For anything beyond the project-specific rules above, read `.agents/skills/paylo
 ## Fallow
 
 Fallow is a codebase intelligence for TypeScript. Free static analysis of code and styles: unused code, duplication, complexity, architecture drift, and design-system consistency. Optional runtime intelligence for hot paths, cold paths, and deletion confidence. Read `.agents/skills/fallow/SKILL.md`
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues; use the `gh` CLI for tracker operations. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Use the single-context layout. See `docs/agents/domain.md`.
