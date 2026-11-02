@@ -59,6 +59,7 @@ describe('Comments Integration', () => {
         _status: 'published',
       },
       draft: false,
+      overrideAccess: true,
     })
 
     // 3. Create Comment
@@ -70,6 +71,7 @@ describe('Comments Integration', () => {
         link: link.id,
       },
       draft: false,
+      overrideAccess: true,
     })
 
     expect(comment).toBeDefined()
@@ -99,6 +101,7 @@ describe('Comments Integration', () => {
           link: undefined,
         },
         draft: false,
+        overrideAccess: true,
       }),
     ).rejects.toThrow()
   })

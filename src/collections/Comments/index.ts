@@ -286,4 +286,6 @@ export const Comments: CollectionConfig = {
     afterChange: [afterCommentChange],
     afterDelete: [afterCommentDelete],
   },
+  versions: false,
+  authorship: false,
 }

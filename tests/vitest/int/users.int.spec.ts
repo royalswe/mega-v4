@@ -23,10 +23,11 @@ describe('User Settings Integration', () => {
           nsfw: false,
         },
       },
+      overrideAccess: true,
     })
 
     // Re-fetch to confirm state (optional but good for test hygiene)
-    const freshUser = await payload.findByID({ collection: 'users', id: user.id })
+    const freshUser = await payload.findByID({ collection: 'users', id: user.id, overrideAccess: true })
     expect(freshUser.settings?.nsfw).toBe(false)
 
     // 2. Update NSFW setting
@@ -38,6 +39,7 @@ describe('User Settings Integration', () => {
           nsfw: true,
         },
       },
+      overrideAccess: true,
     })
 
     expect(updatedUser.settings?.nsfw).toBe(true)
@@ -46,6 +48,7 @@ describe('User Settings Integration', () => {
     const fetchedUser = await payload.findByID({
       collection: 'users',
       id: user.id,
+      overrideAccess: true,
     })
 
     expect(fetchedUser.settings?.nsfw).toBe(true)

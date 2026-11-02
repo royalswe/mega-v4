@@ -127,4 +127,6 @@ export const PrivateMessages: CollectionConfig = {
       },
     },
   ],
+  versions: false,
+  authorship: false,
 }

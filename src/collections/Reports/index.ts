@@ -408,4 +408,6 @@ export const Reports: CollectionConfig = {
       },
     },
   ],
+  versions: false,
+  authorship: false,
 }

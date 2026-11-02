@@ -498,4 +498,6 @@ export const Users: CollectionConfig = {
       ],
     },
   ],
+  versions: false,
+  authorship: false,
 }

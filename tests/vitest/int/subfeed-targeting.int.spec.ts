@@ -63,6 +63,7 @@ const createTestSubfeed = async (userId: number) => {
       members: [userId],
     },
     draft: false,
+    overrideAccess: true,
   })
 }
 
@@ -87,6 +88,7 @@ describe('SubFeed Targeting Integration', () => {
         _status: 'published',
       },
       draft: false,
+      overrideAccess: true,
     })
 
     expect(link.feed).toBe('subfeed')
@@ -108,6 +110,7 @@ describe('SubFeed Targeting Integration', () => {
         subfeed: subfeed.id,
       },
       draft: false,
+      overrideAccess: true,
     })
 
     expect(post.feed).toBe('subfeed')
@@ -130,6 +133,7 @@ describe('SubFeed Targeting Integration', () => {
           _status: 'published',
         },
         draft: false,
+        overrideAccess: true,
       }),
     ).rejects.toThrow('Links in subfeed feed must include a subfeed relation')
   })
@@ -148,6 +152,7 @@ describe('SubFeed Targeting Integration', () => {
           feed: 'subfeed',
         },
         draft: false,
+        overrideAccess: true,
       }),
     ).rejects.toThrow('Posts in subfeed feed must include a subfeed relation')
   })
@@ -170,6 +175,7 @@ describe('SubFeed Targeting Integration', () => {
           _status: 'published',
         },
         draft: false,
+        overrideAccess: true,
       }),
     ).rejects.toThrow('You must join this subfeed before posting')
   })
@@ -191,6 +197,7 @@ describe('SubFeed Targeting Integration', () => {
           subfeed: subfeed.id,
         },
         draft: false,
+        overrideAccess: true,
       }),
     ).rejects.toThrow('You must join this subfeed before posting')
   })

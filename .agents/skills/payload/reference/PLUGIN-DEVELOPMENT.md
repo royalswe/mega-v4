@@ -1,6 +1,6 @@
 # Payload Plugin Development
 
-Complete guide to creating Payload CMS plugins with TypeScript patterns, package structure, and best practices from the official Payload plugin template.
+Complete guide to creating Payload plugins with TypeScript patterns, package structure, and best practices from the official Payload plugin template.
 
 ## Plugin Architecture
 
@@ -95,7 +95,7 @@ plugin-<name>/
 {
   "name": "payload-plugin-example",
   "version": "1.0.0",
-  "description": "A Payload CMS plugin",
+  "description": "A Payload plugin",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -140,22 +140,22 @@ plugin-<name>/
     "@payloadcms/ui": "^3.0.0"
   },
   "devDependencies": {
-    "@payloadcms/db-postgres": "^3.0.0",
+    "@payloadcms/db-mongodb": "^3.0.0",
     "@payloadcms/next": "^3.0.0",
     "@payloadcms/richtext-lexical": "^3.0.0",
     "@playwright/test": "^1.40.0",
     "@swc/cli": "^0.1.62",
     "@swc/core": "^1.3.0",
     "copyfiles": "^2.4.1",
-    "cross-env": "^7.0.3",
+    "cross-env": "10.1.0",
     "eslint": "^9.0.0",
     "next": "^15.4.10",
     "payload": "^3.0.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "rimraf": "^5.0.0",
-    "typescript": "^5.0.0",
-    "vitest": "^3.0.0"
+    "typescript": "^6.0.0",
+    "vitest": "4.1.6"
   },
   "peerDependencies": {
     "payload": "^3.0.0"
@@ -1302,7 +1302,7 @@ Include a `dev/` directory with a complete Payload project for local development
 1. Create `dev/.env` from `.env.example`:
 
 ```bash
-DATABASE_URL=postgres://user:password@127.0.0.1:5432/plugin-dev
+DATABASE_URL=mongodb://127.0.0.1/plugin-dev
 PAYLOAD_SECRET=your-secret-here
 ```
 
@@ -1310,12 +1310,12 @@ PAYLOAD_SECRET=your-secret-here
 
 ```ts
 import { buildConfig } from 'payload'
-import { postgresAdapter } from '@payloadcms/db-postgres'
+import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { myPlugin } from '../src/index.js'
 
 export default buildConfig({
   secret: process.env.PAYLOAD_SECRET!,
-  db: postgresAdapter({ pool: { connectionString: process.env.DATABASE_URL! } }),
+  db: mongooseAdapter({ url: process.env.DATABASE_URL! }),
   plugins: [
     myPlugin({
       collections: ['posts'],
@@ -1432,5 +1432,5 @@ Provides infrastructure (database, storage, email)
 
 ## Resources
 
-- [Plugin Examples](https://github.com/payloadcms/payload/tree/3.x/packages/) - Official plugins source code, payload-\* prefix
-- [Plugin Template](https://github.com/payloadcms/payload/tree/3.x/templates/plugin) - Starter template for new plugins
+- [Plugin Examples](https://github.com/payloadcms/payload/tree/main/packages/) - Official plugins source code, payload-\* prefix
+- [Plugin Template](https://github.com/payloadcms/payload/tree/main/templates/plugin) - Starter template for new plugins

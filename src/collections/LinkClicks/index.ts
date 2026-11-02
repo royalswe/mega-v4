@@ -99,4 +99,6 @@ export const LinkClicks: CollectionConfig = {
     ],
     afterChange: [incrementLinkClickCount],
   },
+  versions: false,
+  authorship: false,
 }

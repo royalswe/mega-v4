@@ -21,6 +21,7 @@ async function getAgentUser(payload: Payload) {
       },
     },
     limit: 1,
+    overrideAccess: true,
   })
 
   if (users.length > 0) {

@@ -535,4 +535,5 @@ export const Links: CollectionConfig = {
       },
     },
   ],
+  authorship: false,
 }

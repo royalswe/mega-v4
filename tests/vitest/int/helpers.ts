@@ -19,6 +19,7 @@ export const createTestUser = async (payload: Payload) => {
       },
     },
     draft: false,
+    overrideAccess: true,
   })
 
   return user
@@ -36,5 +37,6 @@ export const createTestLink = async (payload: Payload, userId: number | string) 
       user: userId as number, // Cast to number if that's what Payload expects, or check schema
       _status: 'published',
     },
+    overrideAccess: true,
   })
 }

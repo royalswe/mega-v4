@@ -24,6 +24,7 @@ describe('Bookmarks Integration', () => {
         user: user.id,
         _status: 'published',
       },
+      overrideAccess: true,
     })
 
     // 3. Create Bookmark
@@ -33,6 +34,7 @@ describe('Bookmarks Integration', () => {
         user: user.id,
         link: link.id,
       },
+      overrideAccess: true,
     })
 
     expect(bookmark).toBeDefined()
