@@ -5,8 +5,8 @@ Project-specific guidance for AI coding agents (GitHub Copilot, etc.). For gener
 ## Stack
 
 - **Framework**: Next.js 16 (App Router) + React 19
-- **CMS**: Payload 3.85 with `@payloadcms/db-postgres`
-- **Editor**: Lexical 0.46 (pinned via override — do not bump without bumping Payload)
+- **CMS**: Payload 4.0 (beta) with `@payloadcms/db-postgres`
+- **Editor**: Lexical 0.53
 - **Styling**: Tailwind v4 + Radix UI primitives + shadcn-style components in `src/components/ui/`
 - **Tests**: Vitest (integration, `tests/vitest/int/`) + Playwright (e2e, `tests/playwright/e2e/`)
 - **Package manager**: pnpm (always)
@@ -133,3 +133,13 @@ Use the default canonical labels: `needs-triage`, `needs-info`, `ready-for-agent
 ### Domain docs
 
 Use the single-context layout. See `docs/agents/domain.md`.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

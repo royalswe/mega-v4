@@ -1,14 +1,14 @@
 # v4 — Existenz Next Community Engine
 
-Next.js 16 + Payload 3 community/link-aggregation platform (Reddit / Hacker News / old-school forums vibe).
+Next.js 16 + Payload 4 community/link-aggregation platform (Reddit / Hacker News / old-school forums vibe).
 
 See [FEATURE.md](FEATURE.md) for the product spec, [IMPROVEMENTS.md](IMPROVEMENTS.md) for the roadmap, and [AGENTS.md](AGENTS.md) for the contributor / AI-agent guide.
 
 ## Stack
 
 - Next.js 16 (App Router) + React 19
-- Payload 3.85 with `@payloadcms/db-postgres`
-- Lexical 0.35 (pinned via Payload)
+- Payload 4.0 (beta) with `@payloadcms/db-postgres`
+- Lexical 0.53
 - Tailwind v4 + Radix UI primitives
 - Vitest (integration) + Playwright (e2e)
 - pnpm

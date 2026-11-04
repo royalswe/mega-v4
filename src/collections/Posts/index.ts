@@ -80,24 +80,31 @@ const updateAccess: Access = ({ req: { user } }) => {
   } as Where
 }
 
-const preparePost: CollectionBeforeValidateHook = async ({ data, operation, req }) => {
+const preparePost: CollectionBeforeValidateHook = async ({ data, operation, req, originalDoc }) => {
+  if (req?.context?.skipHooks) return data
   const nextData = { ...data }
 
   if (typeof nextData?.title === 'string' && nextData.title.length > 0) {
     nextData.slug = nextData.slug || slugify(nextData.title)
   }
 
-  if (nextData?.subfeed && nextData.feed !== 'subfeed') {
+  const effectiveFeed = nextData?.feed ?? originalDoc?.feed
+  const effectiveSubfeed = nextData?.subfeed ?? originalDoc?.subfeed
+
+  if (nextData?.subfeed && effectiveFeed !== 'subfeed') {
     nextData.feed = 'subfeed'
   }
 
-  if (nextData?.feed === 'subfeed') {
-    const subfeedId = resolveID(nextData?.subfeed)
+  if (effectiveFeed === 'subfeed') {
+    const subfeedId = resolveID(effectiveSubfeed)
     if (!subfeedId) {
-      throw new Error('Posts in subfeed feed must include a subfeed relation')
-    }
-
-    if (operation === 'create' && !canModerateCommunity(req.user)) {
+      if (operation === 'create') {
+        throw new Error('Posts in subfeed feed must include a subfeed relation')
+      }
+      // If the referenced subfeed was cascade-deleted (ON DELETE SET NULL),
+      // demote this post to user feed rather than bricking updates
+      nextData.feed = 'user'
+    } else if (operation === 'create' && !canModerateCommunity(req.user)) {
       const authorId = resolveID(nextData?.user) ?? req.user?.id ?? null
 
       if (!authorId) {

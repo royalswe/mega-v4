@@ -24,8 +24,8 @@ export async function seedComments(payload: Payload) {
     payload.find({
       collection: 'links',
       where: {
-        moderationStatus: {
-          not_equals: 'removed',
+        _status: {
+          equals: 'published',
         },
       },
       limit: 300,

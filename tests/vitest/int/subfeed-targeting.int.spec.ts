@@ -118,6 +118,18 @@ describe('SubFeed Targeting Integration', () => {
     expect(post.feed).toBe('subfeed')
     expect(getRelationId(post.subfeed)).toBe(subfeed.id)
     expect(post.status).toBe('published')
+
+    // Verify partial update preserves subfeed relation and does not throw
+    const updatedPost = await payload.update({
+      collection: 'posts',
+      id: post.id,
+      data: {
+        rankingScore: 42,
+      },
+      overrideAccess: true,
+    })
+    expect(updatedPost.feed).toBe('subfeed')
+    expect(getRelationId(updatedPost.subfeed)).toBe(subfeed.id)
   })
 
   it('rejects creating a link in subfeed feed without subfeed relation', async () => {

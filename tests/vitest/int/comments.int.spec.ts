@@ -80,6 +80,17 @@ describe('Comments Integration', () => {
     expect(comment.comment).toEqual(commentJson);
     expect(comment.user).toEqual(expect.objectContaining({ id: testUser.id }));
     expect(comment.link).toEqual(expect.objectContaining({ id: link.id }));
+
+    // Verify partial update does not fail validation for missing link/post
+    const updated = await payload.update({
+      collection: 'comments',
+      id: comment.id,
+      data: {
+        moderationStatus: 'pending',
+      },
+      overrideAccess: true,
+    });
+    expect(updated.moderationStatus).toBe('pending');
   });
 
   it('fails to create comment without required fields', async () => {
