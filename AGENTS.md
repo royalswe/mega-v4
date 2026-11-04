@@ -120,6 +120,10 @@ For anything beyond the project-specific rules above, read `.agents/skills/paylo
 
 Fallow is a codebase intelligence for TypeScript. Free static analysis of code and styles: unused code, duplication, complexity, architecture drift, and design-system consistency. Optional runtime intelligence for hot paths, cold paths, and deletion confidence. Read `.agents/skills/fallow/SKILL.md`
 
+## Git
+
+Only use read onli commands, no commit or push etc
+
 ## Agent skills
 
 ### Issue tracker
