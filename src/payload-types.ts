@@ -356,7 +356,23 @@ export interface Link {
   featured?: boolean | null;
   breaking?: boolean | null;
   controversial?: boolean | null;
+  /**
+   * Quarantined content is excluded from Main Feed promotion regardless of score or origin.
+   */
+  quarantined?: boolean | null;
   softDeleted?: boolean | null;
+  /**
+   * Curated discovery boost into Main Feed visibility (set via the boost action).
+   */
+  discoveryBoosted?: boolean | null;
+  /**
+   * When this content was last discovery-boosted.
+   */
+  boostedAt?: string | null;
+  /**
+   * The member with Discovery standing who boosted this content.
+   */
+  boostedBy?: (number | null) | User;
   clickCount?: number | null;
   /**
    * Comments related to this link
@@ -461,6 +477,22 @@ export interface Post {
   featured?: boolean | null;
   breaking?: boolean | null;
   controversial?: boolean | null;
+  /**
+   * Quarantined content is excluded from Main Feed promotion regardless of score or origin.
+   */
+  quarantined?: boolean | null;
+  /**
+   * Curated discovery boost into Main Feed visibility (set via the boost action).
+   */
+  discoveryBoosted?: boolean | null;
+  /**
+   * When this content was last discovery-boosted.
+   */
+  boostedAt?: string | null;
+  /**
+   * The member with Discovery standing who boosted this content.
+   */
+  boostedBy?: (number | null) | User;
   status?: ('published' | 'pending' | 'removed') | null;
   /**
    * Comments related to this post
@@ -938,7 +970,11 @@ export interface LinksSelect<T extends boolean = true> {
   featured?: T;
   breaking?: T;
   controversial?: T;
+  quarantined?: T;
   softDeleted?: T;
+  discoveryBoosted?: T;
+  boostedAt?: T;
+  boostedBy?: T;
   clickCount?: T;
   relatedComments?: T;
   saves?: T;
@@ -977,6 +1013,10 @@ export interface PostsSelect<T extends boolean = true> {
   featured?: T;
   breaking?: T;
   controversial?: T;
+  quarantined?: T;
+  discoveryBoosted?: T;
+  boostedAt?: T;
+  boostedBy?: T;
   status?: T;
   relatedComments?: T;
   saves?: T;

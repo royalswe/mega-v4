@@ -16,6 +16,7 @@ import {
   canSubmitToSubfeed,
 } from '@/lib/community/subfeeds'
 import type { SubfeedRosterLike } from '@/lib/community/subfeeds'
+import { createDiscoveryBoostEnforcementHook } from '@/lib/community/discoveryBoostHook'
 import { resolveID } from '@/lib/community/userSignals'
 
 const slugify = (value: string): string =>
@@ -27,6 +28,8 @@ const slugify = (value: string): string =>
     .replace(/-+/g, '-')
 
 const canEditStatus: FieldAccess = ({ req: { user } }) => canModerateCommunity(user)
+
+const canEditModeration: FieldAccess = ({ req: { user } }) => canModerateCommunity(user)
 
 /** Loads the SubFeed a Post targets (if any) for local-role authorization checks. */
 const getPostSubfeed = async (
@@ -239,7 +242,7 @@ export const Posts: CollectionConfig = {
   },
   hooks: {
     beforeValidate: [preparePost],
-    beforeChange: [syncDerivedSignals],
+    beforeChange: [createDiscoveryBoostEnforcementHook(), syncDerivedSignals],
   },
   fields: [
     {
@@ -439,6 +442,58 @@ export const Posts: CollectionConfig = {
       name: 'controversial',
       type: 'checkbox',
       defaultValue: false,
+    },
+    {
+      name: 'quarantined',
+      type: 'checkbox',
+      defaultValue: false,
+      index: true,
+      admin: {
+        description:
+          'Quarantined content is excluded from Main Feed promotion regardless of score or origin.',
+      },
+      access: {
+        create: canEditModeration,
+        update: canEditModeration,
+      },
+    },
+    {
+      name: 'discoveryBoosted',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description:
+          'Curated discovery boost into Main Feed visibility (set via the boost action).',
+      },
+      access: {
+        create: canEditModeration,
+        update: canEditModeration,
+      },
+    },
+    {
+      name: 'boostedAt',
+      type: 'date',
+      admin: {
+        readOnly: true,
+        description: 'When this content was last discovery-boosted.',
+      },
+      access: {
+        create: canEditModeration,
+        update: canEditModeration,
+      },
+    },
+    {
+      name: 'boostedBy',
+      type: 'relationship',
+      relationTo: 'users',
+      admin: {
+        readOnly: true,
+        description: 'The member with Discovery standing who boosted this content.',
+      },
+      access: {
+        create: canEditModeration,
+        update: canEditModeration,
+      },
     },
     {
       name: 'status',

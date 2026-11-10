@@ -39,6 +39,19 @@ export async function PostCard({
           </div>
         </div>
         <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+          {post.feed === 'subfeed' && typeof post.subfeed === 'object' && post.subfeed ? (
+            <Link
+              href={`/subfeeds/${post.subfeed.slug}`}
+              className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-xs font-medium hover:underline"
+            >
+              <span className="max-w-48 truncate">{post.subfeed.name}</span>
+            </Link>
+          ) : null}
+          {post.feed === 'user' && typeof post.user === 'object' && post.user?.username ? (
+            <span className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-xs font-medium">
+              {dict.common.userFeedOrigin.replace('{username}', post.user.username)}
+            </span>
+          ) : null}
           <Link href={`/post/${post.id}`} className="flex items-center hover:underline">
             <MessageCircle className="w-4 h-4 mr-1" />
             {post.relatedComments?.docs?.length || 0} {dict.common.comments}

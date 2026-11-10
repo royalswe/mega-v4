@@ -16,6 +16,7 @@ const dictionaries = {
       commentAdded: 'Comment added!',
       failedToAddComment: 'Failed to add comment',
       loginToComment: 'Log in to comment',
+      userFeedOrigin: "From {username}'s User Feed",
     },
     menu: {
       home: 'Home',
@@ -396,6 +397,7 @@ const dictionaries = {
       commentAdded: 'Kommentar tillagd!',
       failedToAddComment: 'Kunde inte lägga till kommentar',
       loginToComment: 'Logga in för att kommentera',
+      userFeedOrigin: 'Från {username}s användarflöde',
     },
     menu: {
       home: 'Hem',

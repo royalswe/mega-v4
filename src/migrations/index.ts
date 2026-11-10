@@ -9,6 +9,7 @@ import * as migration_20260722_213519 from './20260722_213519';
 import * as migration_20261102_194709 from './20261102_194709';
 import * as migration_20261110_172217_community_standing_controls from './20261110_172217_community_standing_controls';
 import * as migration_20261110_180535_subfeed_local_roles from './20261110_180535_subfeed_local_roles';
+import * as migration_20261110_183628_main_feed_promotion from './20261110_183628_main_feed_promotion';
 
 export const migrations = [
   {
@@ -64,6 +65,11 @@ export const migrations = [
   {
     up: migration_20261110_180535_subfeed_local_roles.up,
     down: migration_20261110_180535_subfeed_local_roles.down,
-    name: '20261110_180535_subfeed_local_roles'
+    name: '20261110_180535_subfeed_local_roles',
+  },
+  {
+    up: migration_20261110_183628_main_feed_promotion.up,
+    down: migration_20261110_183628_main_feed_promotion.down,
+    name: '20261110_183628_main_feed_promotion'
   },
 ];

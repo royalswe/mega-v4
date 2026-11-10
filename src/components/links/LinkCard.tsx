@@ -106,6 +106,11 @@ export async function LinkCard({
               </span>
             )
           ) : null}
+          {link.feed === 'user' && typeof link.user === 'object' && link.user?.username ? (
+            <span className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-xs font-medium">
+              {dict.common.userFeedOrigin.replace('{username}', link.user.username)}
+            </span>
+          ) : null}
           <Link href={`/link/${link.id}`} className="flex items-center hover:underline">
             <MessageCircle className="mr-1 h-4 w-4" />
             {link.relatedComments?.docs?.length || 0} {dict.common.comments}

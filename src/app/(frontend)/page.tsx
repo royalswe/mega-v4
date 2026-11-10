@@ -15,12 +15,10 @@ import { MainFeedHighlights } from '@/components/links/MainFeedHighlights'
 import { ReorderAwareList } from '@/components/links/ReorderAwareList.client'
 import { readRelationshipIds } from '@/lib/community/subfeeds'
 import { checkRole } from '@/access/checkRole'
-
-const SUBFEED_PROMOTION_THRESHOLD = {
-  score: 4,
-  upvotes: 5,
-  rankingScore: 100,
-} as const
+import {
+  MAIN_FEED_PROMOTION_THRESHOLD,
+  buildMainFeedWhere,
+} from '@/lib/community/promotion'
 
 type FeedSignal = 'trending' | 'subfeeds' | 'discussions'
 type FeedMode = 'best' | 'new' | 'rising'
@@ -193,48 +191,7 @@ export default async function HomePage({
     }
   }
 
-  const promotedSubfeedFilter: Where = {
-    and: [
-      {
-        feed: {
-          equals: 'subfeed',
-        },
-      },
-      {
-        or: [
-          {
-            featured: {
-              equals: true,
-            },
-          },
-          {
-            and: [
-              {
-                score: {
-                  greater_than_equal: SUBFEED_PROMOTION_THRESHOLD.score,
-                },
-              },
-              {
-                upvotes: {
-                  greater_than_equal: SUBFEED_PROMOTION_THRESHOLD.upvotes,
-                },
-              },
-              {
-                rankingScore: {
-                  greater_than_equal: SUBFEED_PROMOTION_THRESHOLD.rankingScore,
-                },
-              },
-              {
-                controversial: {
-                  not_equals: true,
-                },
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  }
+  const mainFeedFilter = buildMainFeedWhere()
 
   const trendingSignalFilter: Where = {
     or: [
@@ -245,30 +202,19 @@ export default async function HomePage({
       },
       {
         score: {
-          greater_than_equal: SUBFEED_PROMOTION_THRESHOLD.score,
+          greater_than_equal: MAIN_FEED_PROMOTION_THRESHOLD.score,
         },
       },
       {
         upvotes: {
-          greater_than_equal: SUBFEED_PROMOTION_THRESHOLD.upvotes,
+          greater_than_equal: MAIN_FEED_PROMOTION_THRESHOLD.upvotes,
         },
       },
       {
         rankingScore: {
-          greater_than_equal: SUBFEED_PROMOTION_THRESHOLD.rankingScore,
+          greater_than_equal: MAIN_FEED_PROMOTION_THRESHOLD.rankingScore,
         },
       },
-    ],
-  }
-
-  const mainFeedFilter: Where = {
-    or: [
-      {
-        feed: {
-          equals: 'main',
-        },
-      },
-      promotedSubfeedFilter,
     ],
   }
 
