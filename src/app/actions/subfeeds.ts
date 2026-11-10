@@ -1,10 +1,17 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import type { Payload } from 'payload'
 
 import { getAuthenticatedUser } from '@/lib/auth'
 import { assertSubfeedCreationEligible } from '@/lib/community/subfeedEligibility'
-import { canModerateCommunity, readRelationshipIds } from '@/lib/community/subfeeds'
+import {
+  canModerateCommunity,
+  canModerateSubfeedContent,
+  readRelationshipIds,
+  resolveSubfeedOwner,
+} from '@/lib/community/subfeeds'
+import type { User } from '@/payload-types'
 
 const slugify = (value: string): string =>
   value
@@ -310,4 +317,180 @@ export async function updateSubfeed(values: {
     id: updated.id,
     slug: updated.slug,
   }
+}
+
+export type SubfeedLocalRole = 'moderator' | 'editor' | 'uploader'
+
+/**
+ * Loads a SubFeed for roster management. Reads the acting user's own view
+ * (`overrideAccess: false`) so the collection's `read` access still applies,
+ * and enforces that only the owner, a local moderator, or a site
+ * admin/moderator/editor may manage the roster.
+ */
+const loadManagedSubfeed = async (
+  payload: Payload,
+  subfeedId: number,
+  user: User,
+) => {
+  const subfeed = await payload.findByID({
+    collection: 'subfeeds',
+    id: subfeedId,
+    depth: 0,
+    user,
+    overrideAccess: false,
+  })
+
+  if (!canModerateCommunity(user) && !canModerateSubfeedContent(subfeed, user.id)) {
+    throw new Error('You are not authorized to manage this subfeed')
+  }
+
+  return subfeed
+}
+
+type ManagedSubfeed = Awaited<ReturnType<typeof loadManagedSubfeed>>
+
+const rosterIdsForRole = (subfeed: ManagedSubfeed, role: SubfeedLocalRole): number[] => {
+  switch (role) {
+    case 'moderator':
+      return readRelationshipIds(subfeed.moderators)
+    case 'editor':
+      return readRelationshipIds(subfeed.editors)
+    case 'uploader':
+      return readRelationshipIds(subfeed.uploaders)
+  }
+}
+
+/**
+ * Appoints a user to a local role (moderator/editor/uploader) within a
+ * SubFeed. Assigning a role also grants membership. Gated to the owner, a
+ * local moderator, or a site admin/moderator/editor at the collection layer.
+ */
+export async function assignSubfeedRole(subfeedId: number, userId: number, role: SubfeedLocalRole) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user) {
+    throw new Error('You must be logged in to manage roles')
+  }
+
+  if (!Number.isInteger(subfeedId) || subfeedId <= 0) {
+    throw new Error('Invalid subfeed')
+  }
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    throw new Error('Invalid member')
+  }
+
+  const subfeed = await loadManagedSubfeed(payload, subfeedId, user)
+
+  const currentIds = rosterIdsForRole(subfeed, role)
+  const nextIds = Array.from(new Set([...currentIds, userId]))
+  const nextMembers = Array.from(new Set([...readRelationshipIds(subfeed.members), userId]))
+
+  const data = {
+    members: nextMembers,
+    ...(role === 'moderator' ? { moderators: nextIds } : {}),
+    ...(role === 'editor' ? { editors: nextIds } : {}),
+    ...(role === 'uploader' ? { uploaders: nextIds } : {}),
+  }
+
+  await payload.update({
+    collection: 'subfeeds',
+    id: subfeedId,
+    data,
+    user,
+    overrideAccess: false,
+  })
+
+  revalidatePath(`/subfeeds/${subfeed.slug}`)
+}
+
+/**
+ * Revokes a local role (moderator/editor/uploader) from a user. The owner
+ * cannot be demoted from the moderators list. Membership is preserved.
+ */
+export async function removeSubfeedRole(subfeedId: number, userId: number, role: SubfeedLocalRole) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user) {
+    throw new Error('You must be logged in to manage roles')
+  }
+
+  if (!Number.isInteger(subfeedId) || subfeedId <= 0) {
+    throw new Error('Invalid subfeed')
+  }
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    throw new Error('Invalid member')
+  }
+
+  const subfeed = await loadManagedSubfeed(payload, subfeedId, user)
+
+  if (role === 'moderator' && resolveSubfeedOwner(subfeed) === userId) {
+    throw new Error('You cannot remove the owner from moderators')
+  }
+
+  const currentIds = rosterIdsForRole(subfeed, role)
+  const nextIds = currentIds.filter((id) => id !== userId)
+
+  const data = {
+    ...(role === 'moderator' ? { moderators: nextIds } : {}),
+    ...(role === 'editor' ? { editors: nextIds } : {}),
+    ...(role === 'uploader' ? { uploaders: nextIds } : {}),
+  }
+
+  await payload.update({
+    collection: 'subfeeds',
+    id: subfeedId,
+    data,
+    user,
+    overrideAccess: false,
+  })
+
+  revalidatePath(`/subfeeds/${subfeed.slug}`)
+}
+
+/**
+ * Removes a user from the SubFeed entirely — members plus every local role.
+ * The owner cannot be removed.
+ */
+export async function removeSubfeedMember(subfeedId: number, userId: number) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user) {
+    throw new Error('You must be logged in to manage members')
+  }
+
+  if (!Number.isInteger(subfeedId) || subfeedId <= 0) {
+    throw new Error('Invalid subfeed')
+  }
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    throw new Error('Invalid member')
+  }
+
+  const subfeed = await loadManagedSubfeed(payload, subfeedId, user)
+
+  if (resolveSubfeedOwner(subfeed) === userId) {
+    throw new Error('You cannot remove the owner from the subfeed')
+  }
+
+  const nextModerators = readRelationshipIds(subfeed.moderators).filter((id) => id !== userId)
+  const nextEditors = readRelationshipIds(subfeed.editors).filter((id) => id !== userId)
+  const nextUploaders = readRelationshipIds(subfeed.uploaders).filter((id) => id !== userId)
+  const nextMembers = readRelationshipIds(subfeed.members).filter((id) => id !== userId)
+
+  await payload.update({
+    collection: 'subfeeds',
+    id: subfeedId,
+    data: {
+      moderators: nextModerators,
+      editors: nextEditors,
+      uploaders: nextUploaders,
+      members: nextMembers,
+    },
+    user,
+    overrideAccess: false,
+  })
+
+  revalidatePath(`/subfeeds/${subfeed.slug}`)
 }

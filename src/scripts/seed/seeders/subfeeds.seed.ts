@@ -88,6 +88,7 @@ export async function seedSubfeeds(payload: Payload) {
         description: blueprint.description,
         rules: blueprint.rules,
         theme: blueprint.theme,
+        owner: moderator.id,
         moderators: [moderator.id],
         members: uniqueMembers,
         featured: chance(0.3),

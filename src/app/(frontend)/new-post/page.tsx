@@ -2,7 +2,7 @@ import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 import { PostSubmitForm } from '@/components/posts/PostSubmitForm'
 import { redirect } from 'next/navigation'
-import { canModerateCommunity, isSubfeedMemberOrModerator } from '@/lib/community/subfeeds'
+import { canModerateCommunity, canSubmitToSubfeed } from '@/lib/community/subfeeds'
 
 export default async function NewPostPage() {
   const { user, payload } = await getAuthenticatedUser()
@@ -23,7 +23,7 @@ export default async function NewPostPage() {
 
   const availableSubfeeds = canModerateCommunity(user)
     ? subfeeds
-    : subfeeds.filter((subfeed) => isSubfeedMemberOrModerator(subfeed, user.id))
+    : subfeeds.filter((subfeed) => canSubmitToSubfeed(subfeed, user.id))
 
   return (
     <div className="space-y-4">

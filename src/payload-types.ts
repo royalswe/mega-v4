@@ -391,7 +391,19 @@ export interface Subfeed {
   banner?: (number | null) | Media;
   rules?: string | null;
   theme?: string | null;
+  /**
+   * The SubFeed owner. Governs local roles and roster. Defaults to the creator; legacy rows fall back to the first moderator.
+   */
+  owner?: (number | null) | User;
   moderators: (number | User)[];
+  /**
+   * Local editors can curate (update) content within this SubFeed only.
+   */
+  editors?: (number | User)[] | null;
+  /**
+   * Local uploaders can submit content to this SubFeed.
+   */
+  uploaders?: (number | User)[] | null;
   members?: (number | User)[] | null;
   reputation?: number | null;
   featured?: boolean | null;
@@ -1024,7 +1036,10 @@ export interface SubfeedsSelect<T extends boolean = true> {
   banner?: T;
   rules?: T;
   theme?: T;
+  owner?: T;
   moderators?: T;
+  editors?: T;
+  uploaders?: T;
   members?: T;
   reputation?: T;
   featured?: T;

@@ -9,7 +9,13 @@ import type {
 
 import { calculateRanking } from '@/lib/community/ranking'
 import { getNumericFieldValue } from '@/lib/community/signalFields'
-import { canModerateCommunity, isSubfeedMemberOrModerator } from '@/lib/community/subfeeds'
+import {
+  canCurateSubfeedContent,
+  canModerateCommunity,
+  canModerateSubfeedContent,
+  canSubmitToSubfeed,
+} from '@/lib/community/subfeeds'
+import type { SubfeedRosterLike } from '@/lib/community/subfeeds'
 import { resolveID } from '@/lib/community/userSignals'
 
 const slugify = (value: string): string =>
@@ -21,6 +27,35 @@ const slugify = (value: string): string =>
     .replace(/-+/g, '-')
 
 const canEditStatus: FieldAccess = ({ req: { user } }) => canModerateCommunity(user)
+
+/** Loads the SubFeed a Post targets (if any) for local-role authorization checks. */
+const getPostSubfeed = async (
+  req: Parameters<Access>[0]['req'],
+  id?: number | string,
+): Promise<SubfeedRosterLike | null> => {
+  if (!id) return null
+
+  const post = await req.payload.findByID({
+    collection: 'posts',
+    id,
+    depth: 0,
+    overrideAccess: true,
+    req,
+  })
+
+  const subfeedId = post ? resolveID(post.subfeed) : null
+  if (!subfeedId) return null
+
+  const subfeed = await req.payload.findByID({
+    collection: 'subfeeds',
+    id: subfeedId,
+    depth: 0,
+    overrideAccess: true,
+    req,
+  })
+
+  return subfeed ?? null
+}
 
 const readAccess: Access = ({ req: { user } }) => {
   if (!user) {
@@ -60,9 +95,13 @@ const readAccess: Access = ({ req: { user } }) => {
   } as Where
 }
 
-const updateAccess: Access = ({ req: { user } }) => {
+const updateAccess: Access = async ({ req, id }) => {
+  const { user } = req
   if (!user) return false
   if (canModerateCommunity(user)) return true
+
+  const subfeed = await getPostSubfeed(req, id)
+  if (subfeed && canCurateSubfeedContent(subfeed, user.id)) return true
 
   return {
     and: [
@@ -78,6 +117,18 @@ const updateAccess: Access = ({ req: { user } }) => {
       },
     ],
   } as Where
+}
+
+const deleteAccess: Access = async ({ req, id }) => {
+  const { user } = req
+  if (!user) return false
+  if (canModerateCommunity(user)) return true
+
+  const subfeed = await getPostSubfeed(req, id)
+  if (subfeed && canModerateSubfeedContent(subfeed, user.id)) return true
+
+  // Posts were previously deletable only by site moderators; preserve that.
+  return false
 }
 
 const preparePost: CollectionBeforeValidateHook = async ({ data, operation, req, originalDoc }) => {
@@ -119,7 +170,7 @@ const preparePost: CollectionBeforeValidateHook = async ({ data, operation, req,
         req,
       })
 
-      if (!isSubfeedMemberOrModerator(subfeed, authorId)) {
+      if (!canSubmitToSubfeed(subfeed, authorId)) {
         throw new Error('You must join this subfeed before posting')
       }
     }
@@ -184,7 +235,7 @@ export const Posts: CollectionConfig = {
     read: readAccess,
     create: ({ req: { user } }) => Boolean(user),
     update: updateAccess,
-    delete: ({ req: { user } }) => canModerateCommunity(user),
+    delete: deleteAccess,
   },
   hooks: {
     beforeValidate: [preparePost],

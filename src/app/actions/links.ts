@@ -7,7 +7,7 @@ import { checkRole } from '@/access/checkRole'
 import {
   canManageSubmittedLinks,
   canModerateCommunity,
-  isSubfeedMemberOrModerator,
+  canSubmitToSubfeed,
 } from '@/lib/community/subfeeds'
 
 export async function setMainFeedMixPreference(includeSubfeeds: boolean) {
@@ -183,7 +183,7 @@ export async function submitLink(values: {
       ...withAccess,
     })
 
-    if (!canModerateCommunity(user) && !isSubfeedMemberOrModerator(subfeed, userId)) {
+    if (!canModerateCommunity(user) && !canSubmitToSubfeed(subfeed, userId)) {
       throw new Error('You must join this subfeed before posting')
     }
 

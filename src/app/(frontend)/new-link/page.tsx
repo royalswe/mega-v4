@@ -2,7 +2,7 @@ import { LinkSubmitForm } from '@/components/links/LinkSubmitForm'
 import { redirect } from 'next/navigation'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
-import { canModerateCommunity, isSubfeedMemberOrModerator } from '@/lib/community/subfeeds'
+import { canModerateCommunity, canSubmitToSubfeed } from '@/lib/community/subfeeds'
 
 export default async function NewLinkPage() {
   const { user, payload } = await getAuthenticatedUser()
@@ -23,7 +23,7 @@ export default async function NewLinkPage() {
 
   const availableSubfeeds = canModerateCommunity(user)
     ? subfeeds
-    : subfeeds.filter((subfeed) => isSubfeedMemberOrModerator(subfeed, user.id))
+    : subfeeds.filter((subfeed) => canSubmitToSubfeed(subfeed, user.id))
 
   return (
     <div className="py-10">

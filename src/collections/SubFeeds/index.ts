@@ -8,6 +8,7 @@ import type {
 
 import { checkRole } from '@/access/checkRole'
 import { getSubfeedEligibilityForUser } from '@/lib/community/subfeedEligibility'
+import { canModerateSubfeedContent } from '@/lib/community/subfeeds'
 import { bumpUserSignals } from '@/lib/community/userSignals'
 import { resolveID } from '@/lib/community/userSignals'
 
@@ -75,13 +76,7 @@ const canManageSubfeed: Access = async ({ id, req, data }) => {
 
   if (!subfeed) return false
 
-  const moderatorIds = Array.isArray(subfeed.moderators)
-    ? subfeed.moderators
-        .map(resolveID)
-        .filter((value): value is number => typeof value === 'number')
-    : []
-
-  if (moderatorIds.includes(user.id)) {
+  if (canModerateSubfeedContent(subfeed, user.id)) {
     return true
   }
 
@@ -138,6 +133,8 @@ const attachCreatorToCommunity: CollectionBeforeChangeHook = ({ data, operation,
 
   const creatorId = req.user.id
 
+  const owner = resolveID(data?.owner) ?? creatorId
+
   const moderators = Array.isArray(data?.moderators)
     ? Array.from(new Set([...normalizeIds(data.moderators), creatorId]))
     : [creatorId]
@@ -148,6 +145,7 @@ const attachCreatorToCommunity: CollectionBeforeChangeHook = ({ data, operation,
 
   return {
     ...data,
+    owner,
     moderators,
     members,
   }
@@ -232,11 +230,41 @@ export const SubFeeds: CollectionConfig = {
       type: 'text',
     },
     {
+      name: 'owner',
+      type: 'relationship',
+      relationTo: 'users',
+      admin: {
+        description:
+          'The SubFeed owner. Governs local roles and roster. Defaults to the creator; legacy rows fall back to the first moderator.',
+        position: 'sidebar',
+      },
+    },
+    {
       name: 'moderators',
       type: 'relationship',
       relationTo: 'users',
       hasMany: true,
       required: true,
+    },
+    {
+      name: 'editors',
+      type: 'relationship',
+      relationTo: 'users',
+      hasMany: true,
+      defaultValue: [],
+      admin: {
+        description: 'Local editors can curate (update) content within this SubFeed only.',
+      },
+    },
+    {
+      name: 'uploaders',
+      type: 'relationship',
+      relationTo: 'users',
+      hasMany: true,
+      defaultValue: [],
+      admin: {
+        description: 'Local uploaders can submit content to this SubFeed.',
+      },
     },
     {
       name: 'members',

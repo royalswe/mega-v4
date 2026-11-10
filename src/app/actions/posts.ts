@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedUser } from '@/lib/auth'
-import { canModerateCommunity, isSubfeedMemberOrModerator } from '@/lib/community/subfeeds'
+import { canModerateCommunity, canSubmitToSubfeed } from '@/lib/community/subfeeds'
 
 export async function vote(postId: number, type: 'up' | 'down') {
   const { user, payload } = await getAuthenticatedUser()
@@ -138,7 +138,7 @@ export async function submitPost(values: {
       ...withAccess,
     })
 
-    if (!canModerateCommunity(user) && !isSubfeedMemberOrModerator(subfeed, userId)) {
+    if (!canModerateCommunity(user) && !canSubmitToSubfeed(subfeed, userId)) {
       throw new Error('You must join this subfeed before posting')
     }
 

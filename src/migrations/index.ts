@@ -8,6 +8,7 @@ import * as migration_20260713_232405_add_private_messages from './20260713_2324
 import * as migration_20260722_213519 from './20260722_213519';
 import * as migration_20261102_194709 from './20261102_194709';
 import * as migration_20261110_172217_community_standing_controls from './20261110_172217_community_standing_controls';
+import * as migration_20261110_180535_subfeed_local_roles from './20261110_180535_subfeed_local_roles';
 
 export const migrations = [
   {
@@ -58,6 +59,11 @@ export const migrations = [
   {
     up: migration_20261110_172217_community_standing_controls.up,
     down: migration_20261110_172217_community_standing_controls.down,
-    name: '20261110_172217_community_standing_controls'
+    name: '20261110_172217_community_standing_controls',
+  },
+  {
+    up: migration_20261110_180535_subfeed_local_roles.up,
+    down: migration_20261110_180535_subfeed_local_roles.down,
+    name: '20261110_180535_subfeed_local_roles'
   },
 ];
