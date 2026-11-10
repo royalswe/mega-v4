@@ -1,11 +1,11 @@
 {
   "version": 1,
   "skills": {
-    "fallow": {
-      "source": "fallow-rs/fallow-skills",
+    "payload": {
+      "source": "payloadcms/skills",
       "sourceType": "github",
-      "skillPath": "fallow/skills/fallow/SKILL.md",
-      "computedHash": "9eee7ef576f4389597a6856155c0fb311f0b6a03d4b56b703962e059d2bfe43e"
+      "skillPath": "skills/payload/SKILL.md",
+      "computedHash": "4abfcc828ca2cc0d9142b2fee2456f257f73dd7a37bd1cce2d354231b08b8767"
     }
   }
 }

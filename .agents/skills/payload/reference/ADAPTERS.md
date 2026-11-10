@@ -1,10 +1,20 @@
-# Payload CMS Adapters Reference
+# Payload Adapters Reference
 
 Complete reference for database, storage, and email adapters.
 
 ## Database Adapters
 
-This project uses Postgres.
+### MongoDB
+
+```ts
+import { mongooseAdapter } from '@payloadcms/db-mongodb'
+
+export default buildConfig({
+  db: mongooseAdapter({
+    url: process.env.DATABASE_URL,
+  }),
+})
+```
 
 ### Postgres
 
@@ -18,6 +28,21 @@ export default buildConfig({
     },
     push: false, // Don't auto-push schema changes
     migrationDir: './migrations',
+  }),
+})
+```
+
+### SQLite
+
+```ts
+import { sqliteAdapter } from '@payloadcms/db-sqlite'
+
+export default buildConfig({
+  db: sqliteAdapter({
+    client: {
+      url: 'file:./payload.db',
+    },
+    transactionOptions: {}, // Enable transactions (disabled by default)
   }),
 })
 ```
@@ -59,7 +84,7 @@ try {
 }
 ```
 
-**Note**: Postgres transactions are enabled by default via the Drizzle adapter.
+**Note**: MongoDB requires replicaset for transactions. SQLite requires `transactionOptions: {}` to enable.
 
 ### Threading req Through Operations
 
@@ -109,13 +134,16 @@ const brokenHook: CollectionAfterChangeHook = async ({ collection, doc, req }) =
 
 **Why This Matters:**
 
+- **MongoDB (with replica sets)**: Creates atomic session across operations
 - **PostgreSQL**: All operations use same Drizzle transaction
+- **SQLite (with transactions enabled)**: Ensures rollback on errors
 - **Without req**: Each operation runs independently, breaking atomicity
 
 **When req is Required:**
 
 - All mutating operations in hooks (create, update, delete)
 - Operations that must succeed/fail together
+- When using MongoDB replica sets or Postgres
 - Any operation that relies on `req.context` or `req.user`
 
 **When req is Optional:**

@@ -63,4 +63,6 @@ export const Discoveries: CollectionConfig = {
       index: true,
     },
   ],
+  versions: false,
+  authorship: false,
 }

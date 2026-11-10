@@ -267,10 +267,11 @@ export const Comments: CollectionConfig = {
   hooks: {
     beforeChange: [syncCommentScore],
     beforeValidate: [
-      ({ data }) => {
+      ({ data, originalDoc, req }) => {
+        if (req?.context?.skipHooks) return data
         // Ensure either link or post is provided, but not both
-        const hasLink = !!data?.link
-        const hasPost = !!data?.post
+        const hasLink = !!(data?.link ?? originalDoc?.link)
+        const hasPost = !!(data?.post ?? originalDoc?.post)
 
         if (!hasLink && !hasPost) {
           throw new Error('Either link or post must be provided')
@@ -286,4 +287,6 @@ export const Comments: CollectionConfig = {
     afterChange: [afterCommentChange],
     afterDelete: [afterCommentDelete],
   },
+  versions: false,
+  authorship: false,
 }

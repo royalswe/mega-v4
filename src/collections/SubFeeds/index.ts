@@ -234,4 +234,6 @@ export const SubFeeds: CollectionConfig = {
       defaultValue: false,
     },
   ],
+  versions: false,
+  authorship: false,
 }

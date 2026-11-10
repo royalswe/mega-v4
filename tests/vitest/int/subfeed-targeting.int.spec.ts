@@ -26,20 +26,22 @@ const createRichText = (text: string) => ({
       {
         children: [
           {
-            detail: 0,
-            format: 0,
+            detail: 0 as const,
+            format: 0 as const,
             mode: 'normal' as const,
             style: '',
             text,
             type: 'text' as const,
-            version: 1,
+            version: 1 as const,
           },
         ],
         direction: 'ltr' as const,
         format: '' as const,
         indent: 0,
         type: 'paragraph' as const,
-        version: 1,
+        version: 1 as const,
+        textFormat: 0 as const,
+        textStyle: '',
       },
     ],
     direction: 'ltr' as const,
@@ -63,6 +65,7 @@ const createTestSubfeed = async (userId: number) => {
       members: [userId],
     },
     draft: false,
+    overrideAccess: true,
   })
 }
 
@@ -87,6 +90,7 @@ describe('SubFeed Targeting Integration', () => {
         _status: 'published',
       },
       draft: false,
+      overrideAccess: true,
     })
 
     expect(link.feed).toBe('subfeed')
@@ -108,11 +112,24 @@ describe('SubFeed Targeting Integration', () => {
         subfeed: subfeed.id,
       },
       draft: false,
+      overrideAccess: true,
     })
 
     expect(post.feed).toBe('subfeed')
     expect(getRelationId(post.subfeed)).toBe(subfeed.id)
     expect(post.status).toBe('published')
+
+    // Verify partial update preserves subfeed relation and does not throw
+    const updatedPost = await payload.update({
+      collection: 'posts',
+      id: post.id,
+      data: {
+        rankingScore: 42,
+      },
+      overrideAccess: true,
+    })
+    expect(updatedPost.feed).toBe('subfeed')
+    expect(getRelationId(updatedPost.subfeed)).toBe(subfeed.id)
   })
 
   it('rejects creating a link in subfeed feed without subfeed relation', async () => {
@@ -130,6 +147,7 @@ describe('SubFeed Targeting Integration', () => {
           _status: 'published',
         },
         draft: false,
+        overrideAccess: true,
       }),
     ).rejects.toThrow('Links in subfeed feed must include a subfeed relation')
   })
@@ -148,6 +166,7 @@ describe('SubFeed Targeting Integration', () => {
           feed: 'subfeed',
         },
         draft: false,
+        overrideAccess: true,
       }),
     ).rejects.toThrow('Posts in subfeed feed must include a subfeed relation')
   })
@@ -170,6 +189,7 @@ describe('SubFeed Targeting Integration', () => {
           _status: 'published',
         },
         draft: false,
+        overrideAccess: true,
       }),
     ).rejects.toThrow('You must join this subfeed before posting')
   })
@@ -191,6 +211,7 @@ describe('SubFeed Targeting Integration', () => {
           subfeed: subfeed.id,
         },
         draft: false,
+        overrideAccess: true,
       }),
     ).rejects.toThrow('You must join this subfeed before posting')
   })

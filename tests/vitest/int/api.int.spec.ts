@@ -16,6 +16,7 @@ describe('API', () => {
     const payload = await getTestPayload()
     const users = await payload.find({
       collection: 'users',
+      overrideAccess: true,
     })
     expect(users).toBeDefined()
     expect(users.docs.length).toBeGreaterThan(0)

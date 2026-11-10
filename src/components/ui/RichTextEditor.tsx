@@ -159,8 +159,21 @@ export function RichTextEditor({
   // Use initialValue directly if provided (Lexical accepts JSON string for editorState)
   const parsedInitialValue = initialValue || undefined
 
+  const [mounted, setMounted] = useState(false)
   const [isPreview, setIsPreview] = useState(false)
   const [jsonState, setJsonState] = useState<string | null>(initialValue || null)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <div className={`relative border rounded-md shadow-sm bg-background min-h-37.5 p-4 ${className || ''}`}>
+        <div className="text-muted-foreground opacity-50">{placeholder}</div>
+      </div>
+    )
+  }
 
   const initialConfig: InitialConfigType = {
     namespace: 'MyEditor',

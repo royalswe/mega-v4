@@ -159,4 +159,6 @@ export const Votes: CollectionConfig = {
     afterChange: [recalculateVotes], // Recalculate votes after a vote is created or updated
     afterDelete: [recalculateVotes], // Recalculate votes after a vote is deleted
   },
+  versions: false,
+  authorship: false,
 }

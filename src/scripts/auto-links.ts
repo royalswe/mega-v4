@@ -85,6 +85,7 @@ async function getAgentUser(payload: Payload) {
       },
     },
     limit: 1,
+    overrideAccess: true,
   })
 
   if (users.length > 0) {
@@ -285,6 +286,7 @@ async function main() {
             ? [{ url: { equals: normalizedUrl } }, { youtubeId: { equals: yid } }]
             : [{ url: { equals: normalizedUrl } }],
         },
+        overrideAccess: true,
       })
 
       if (existingCount > 0) continue

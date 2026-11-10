@@ -145,6 +145,7 @@ const updateAccess: Access = ({ req: { user } }) => {
 }
 
 const prepareLink: CollectionBeforeValidateHook = async ({ data, operation, req, originalDoc }) => {
+  if (req?.context?.skipHooks) return data
   const nextData = { ...data }
 
   if (typeof nextData?.title === 'string' && nextData.title.length > 0) {
@@ -161,17 +162,21 @@ const prepareLink: CollectionBeforeValidateHook = async ({ data, operation, req,
     })
   }
 
-  if (nextData?.subfeed && nextData.feed !== 'subfeed') {
+  const effectiveFeed = nextData?.feed ?? originalDoc?.feed
+  const effectiveSubfeed = nextData?.subfeed ?? originalDoc?.subfeed
+
+  if (nextData?.subfeed && effectiveFeed !== 'subfeed') {
     nextData.feed = 'subfeed'
   }
 
-  if (nextData?.feed === 'subfeed') {
-    const subfeedId = resolveID(nextData?.subfeed)
+  if (effectiveFeed === 'subfeed') {
+    const subfeedId = resolveID(effectiveSubfeed)
     if (!subfeedId) {
-      throw new Error('Links in subfeed feed must include a subfeed relation')
-    }
-
-    if (operation === 'create' && !canModerateCommunity(req.user)) {
+      if (operation === 'create') {
+        throw new Error('Links in subfeed feed must include a subfeed relation')
+      }
+      nextData.feed = 'user'
+    } else if (operation === 'create' && !canModerateCommunity(req.user)) {
       const authorId = resolveID(nextData?.user) ?? req.user?.id ?? null
 
       if (!authorId) {
@@ -535,4 +540,5 @@ export const Links: CollectionConfig = {
       },
     },
   ],
+  authorship: false,
 }

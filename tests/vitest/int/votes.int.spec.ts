@@ -25,11 +25,13 @@ describe('Votes Integration', () => {
         link: link.id,
         vote: 'up',
       },
+      overrideAccess: true,
     })
 
     const linkAfterUpvote = await payload.findByID({
       collection: 'links',
       id: link.id,
+      overrideAccess: true,
     })
     expect(linkAfterUpvote.votes).toBe(1)
 
@@ -40,11 +42,13 @@ describe('Votes Integration', () => {
       data: {
         vote: 'down',
       },
+      overrideAccess: true,
     })
 
     const linkAfterDownvote = await payload.findByID({
       collection: 'links',
       id: link.id,
+      overrideAccess: true,
     })
     expect(linkAfterDownvote.votes).toBe(-1)
 
@@ -52,11 +56,13 @@ describe('Votes Integration', () => {
     await payload.delete({
       collection: 'votes',
       id: upvote.id,
+      overrideAccess: true,
     })
 
     const linkAfterDelete = await payload.findByID({
       collection: 'links',
       id: link.id,
+      overrideAccess: true,
     })
     expect(linkAfterDelete.votes).toBe(0)
   })

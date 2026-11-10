@@ -1,4 +1,4 @@
-# Payload CMS Querying Reference
+# Payload Querying Reference
 
 Complete reference for querying data across Local API, REST, and GraphQL.
 
@@ -144,7 +144,7 @@ const afterChange: CollectionAfterChangeHook = async ({ doc, req }) => {
 }
 ```
 
-This is critical for transactional integrity on Postgres. See [ADAPTERS.md#threading-req-through-operations](ADAPTERS.md#threading-req-through-operations) for details.
+This is critical for MongoDB replica sets and Postgres. See [ADAPTERS.md#threading-req-through-operations](ADAPTERS.md#threading-req-through-operations) for details.
 
 ### Access Control in Local API
 

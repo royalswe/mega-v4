@@ -35,6 +35,7 @@ export async function filterDuplicates(
       select: {
         url: true,
       },
+      overrideAccess: true,
     })
 
     for (const doc of docs) {
