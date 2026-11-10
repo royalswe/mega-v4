@@ -7,10 +7,11 @@ import type {
   Where,
 } from 'payload'
 
-import { calculateRanking } from '@/lib/community/ranking'
+import { calculateRanking, EDITORIAL_PRIORITY_DURATION_MS } from '@/lib/community/ranking'
 import { getNumericFieldValue } from '@/lib/community/signalFields'
 import {
   canCurateSubfeedContent,
+  canManageSubmittedLinks,
   canModerateCommunity,
   canModerateSubfeedContent,
   canSubmitToSubfeed,
@@ -63,9 +64,18 @@ const getPostSubfeed = async (
 const readAccess: Access = ({ req: { user } }) => {
   if (!user) {
     return {
-      status: {
-        equals: 'published',
-      },
+      and: [
+        {
+          status: {
+            equals: 'published',
+          },
+        },
+        {
+          quarantined: {
+            not_equals: true,
+          },
+        },
+      ],
     } as Where
   }
 
@@ -74,23 +84,32 @@ const readAccess: Access = ({ req: { user } }) => {
   }
 
   return {
-    or: [
+    and: [
       {
-        status: {
-          equals: 'published',
+        quarantined: {
+          not_equals: true,
         },
       },
       {
-        and: [
+        or: [
           {
             status: {
-              equals: 'pending',
+              equals: 'published',
             },
           },
           {
-            user: {
-              equals: user.id,
-            },
+            and: [
+              {
+                status: {
+                  equals: 'pending',
+                },
+              },
+              {
+                user: {
+                  equals: user.id,
+                },
+              },
+            ],
           },
         ],
       },
@@ -179,17 +198,89 @@ const preparePost: CollectionBeforeValidateHook = async ({ data, operation, req,
     }
   }
 
+  const authorId = resolveID(nextData?.user) ?? resolveID(originalDoc?.user) ?? req.user?.id ?? null
+  let hasEditorialRole = false
+
+  if (req.user && req.user.id === authorId) {
+    hasEditorialRole = canManageSubmittedLinks(req.user)
+  } else if (authorId) {
+    const author = await req.payload.findByID({
+      collection: 'users',
+      id: authorId,
+      depth: 0,
+      overrideAccess: true,
+      req,
+    })
+    hasEditorialRole = Boolean(author && canManageSubmittedLinks(author))
+  }
+
   if (operation === 'create') {
     const isSubfeedPost = nextData?.feed === 'subfeed'
 
-    if (!canModerateCommunity(req.user)) {
+    if (hasEditorialRole) {
+      // Editorial publishers (admin/moderator/editor/uploader) publish
+      // directly. `status` carries its `pending` defaultValue by the time
+      // hooks run, so an explicit `removed` is the only choice we keep.
+      if (nextData?.status !== 'removed') {
+        nextData.status = 'published'
+      }
+    } else {
       nextData.status = isSubfeedPost ? 'published' : 'pending'
-    } else if (!nextData?.status) {
-      nextData.status = 'published'
     }
   }
 
   return nextData
+}
+
+/**
+ * Grants a time-bounded editorial priority window to direct Main Feed
+ * publications by recognized editorial publishers (ticket #19).
+ *
+ * This MUST be a `beforeChange` hook (running after field validation), not a
+ * `beforeValidate` hook: the `editorialPriority` fields have moderator-only
+ * field-level access, so values written during `beforeValidate` are stripped
+ * during validation for non-moderator actors. Values written by `beforeChange`
+ * hooks are persisted — the same sanctioned pattern the discovery-boost hook
+ * uses for its server-derived fields.
+ */
+const grantEditorialPriority: CollectionBeforeChangeHook = async ({
+  data,
+  originalDoc,
+  operation,
+  req,
+}) => {
+  if (req?.context?.skipHooks) return data
+  if (!data) return data
+
+  const feed = data.feed ?? originalDoc?.feed
+  if (feed !== 'main') return data
+  if (operation !== 'create' && originalDoc?.feed === 'main') return data
+
+  const authorId = resolveID(data.user) ?? resolveID(originalDoc?.user) ?? req.user?.id ?? null
+  let hasEditorialRole = false
+
+  if (req.user && req.user.id === authorId) {
+    hasEditorialRole = canManageSubmittedLinks(req.user)
+  } else if (authorId) {
+    const author = await req.payload.findByID({
+      collection: 'users',
+      id: authorId,
+      depth: 0,
+      overrideAccess: true,
+      req,
+    })
+    hasEditorialRole = Boolean(author && canManageSubmittedLinks(author))
+  }
+
+  if (!hasEditorialRole) return data
+
+  return {
+    ...data,
+    editorialPriority: true,
+    editorialPriorityUntil: new Date(
+      Date.now() + EDITORIAL_PRIORITY_DURATION_MS,
+    ).toISOString(),
+  }
 }
 
 const syncDerivedSignals: CollectionBeforeChangeHook = ({ data, originalDoc }) => {
@@ -201,6 +292,15 @@ const syncDerivedSignals: CollectionBeforeChangeHook = ({ data, originalDoc }) =
   const trustedInteractions = getNumericFieldValue(data, originalDoc, 'trustedInteractions')
   const discoveryMomentum = getNumericFieldValue(data, originalDoc, 'discoveryMomentum')
 
+  const editorialPriority =
+    data.editorialPriority !== undefined
+      ? Boolean(data.editorialPriority)
+      : Boolean(originalDoc?.editorialPriority)
+  const editorialPriorityUntil =
+    data.editorialPriorityUntil !== undefined
+      ? data.editorialPriorityUntil
+      : originalDoc?.editorialPriorityUntil
+
   const ranking = calculateRanking({
     createdAt: originalDoc?.createdAt || new Date().toISOString(),
     upvotes,
@@ -210,6 +310,8 @@ const syncDerivedSignals: CollectionBeforeChangeHook = ({ data, originalDoc }) =
     uniqueCommenters,
     trustedInteractions,
     discoveryMomentum,
+    editorialPriority,
+    editorialPriorityUntil,
   })
 
   const score = upvotes - downvotes
@@ -242,7 +344,7 @@ export const Posts: CollectionConfig = {
   },
   hooks: {
     beforeValidate: [preparePost],
-    beforeChange: [createDiscoveryBoostEnforcementHook(), syncDerivedSignals],
+    beforeChange: [createDiscoveryBoostEnforcementHook(), grantEditorialPriority, syncDerivedSignals],
   },
   fields: [
     {
@@ -489,6 +591,32 @@ export const Posts: CollectionConfig = {
       admin: {
         readOnly: true,
         description: 'The member with Discovery standing who boosted this content.',
+      },
+      access: {
+        create: canEditModeration,
+        update: canEditModeration,
+      },
+    },
+    {
+      name: 'editorialPriority',
+      type: 'checkbox',
+      defaultValue: false,
+      index: true,
+      admin: {
+        description: 'Time-bounded priority boost for direct Main Feed editorial publication.',
+      },
+      access: {
+        create: canEditModeration,
+        update: canEditModeration,
+      },
+    },
+    {
+      name: 'editorialPriorityUntil',
+      type: 'date',
+      index: true,
+      admin: {
+        date: { pickerAppearance: 'dayAndTime' },
+        description: 'Expiration timestamp for the editorial priority boost.',
       },
       access: {
         create: canEditModeration,

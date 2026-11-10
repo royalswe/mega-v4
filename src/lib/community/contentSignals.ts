@@ -15,6 +15,8 @@ type TargetSignalDoc = {
   createdAt?: string | null
   clickCount?: number | null
   sharesCount?: number | null
+  editorialPriority?: boolean | null
+  editorialPriorityUntil?: string | null
 }
 
 export const recalculateTargetSignals = async ({
@@ -130,6 +132,8 @@ export const recalculateTargetSignals = async ({
     uniqueCommenters,
     trustedInteractions,
     discoveryMomentum,
+    editorialPriority: Boolean(targetDocData.editorialPriority),
+    editorialPriorityUntil: targetDocData.editorialPriorityUntil,
   })
 
   const score = upvotes - downvotes

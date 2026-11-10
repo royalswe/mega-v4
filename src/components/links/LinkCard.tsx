@@ -8,6 +8,7 @@ import { TrackedLink } from '@/components/links/TrackedLink'
 import { SubfeedAvatar } from '@/components/subfeeds/SubfeedAvatar'
 import { QuickEditLinkButton } from '@/components/links/QuickEditLinkButton'
 import { getDictionary } from '@/lib/dictionaries'
+import { isEditorialPriorityActive } from '@/lib/community/ranking'
 
 import type { Link as LinkType } from '@/payload-types'
 
@@ -109,6 +110,11 @@ export async function LinkCard({
           {link.feed === 'user' && typeof link.user === 'object' && link.user?.username ? (
             <span className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-xs font-medium">
               {dict.common.userFeedOrigin.replace('{username}', link.user.username)}
+            </span>
+          ) : null}
+          {isEditorialPriorityActive(link) ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 px-2 py-0.5 text-xs font-medium">
+              {dict.common.editorialPriority || 'Editorial Priority'}
             </span>
           ) : null}
           <Link href={`/link/${link.id}`} className="flex items-center hover:underline">

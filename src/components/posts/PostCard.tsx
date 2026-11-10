@@ -6,6 +6,7 @@ import { BookmarkButton } from '@/components/posts/BookmarkButton'
 import { getDictionary } from '@/lib/dictionaries'
 import { RichTextDisplay } from '@/components/ui/RichTextDisplay'
 import { Timestamp } from '@/components/ui/Timestamp'
+import { isEditorialPriorityActive } from '@/lib/community/ranking'
 
 import type { Post } from '@/payload-types'
 
@@ -50,6 +51,11 @@ export async function PostCard({
           {post.feed === 'user' && typeof post.user === 'object' && post.user?.username ? (
             <span className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-xs font-medium">
               {dict.common.userFeedOrigin.replace('{username}', post.user.username)}
+            </span>
+          ) : null}
+          {isEditorialPriorityActive(post) ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 px-2 py-0.5 text-xs font-medium">
+              {dict.common.editorialPriority || 'Editorial Priority'}
             </span>
           ) : null}
           <Link href={`/post/${post.id}`} className="flex items-center hover:underline">

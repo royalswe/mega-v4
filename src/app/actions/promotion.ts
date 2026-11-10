@@ -157,3 +157,117 @@ export async function unboostFromMainFeed({
 
   return { boosted: false, id }
 }
+
+/**
+ * Toggles or sets the quarantine status of a link or post.
+ * Quarantined content is immediately excluded from all public and promoted feeds.
+ * Dedicated administrator/moderator safety control (ticket #19).
+ */
+export async function setQuarantineContent({
+  collection,
+  id,
+  quarantined,
+}: {
+  collection: PromotionCollectionSlug
+  id: number
+  quarantined: boolean
+}) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user || !canModerateCommunity(user)) {
+    throw new Error('Only administrators and moderators can quarantine content')
+  }
+
+  assertValidTarget(collection, id)
+
+  const target = await payload.findByID({
+    collection,
+    id,
+    depth: 0,
+    overrideAccess: true,
+  })
+
+  if (!target) {
+    throw new Error('Content not found')
+  }
+
+  await payload.update({
+    collection,
+    id,
+    data: {
+      quarantined,
+    },
+    overrideAccess: true,
+  })
+
+  revalidatePath('/')
+  revalidatePath('/wall')
+  revalidatePath('/submitted')
+  if (collection === 'links') {
+    revalidatePath(`/link/${id}`)
+  } else {
+    revalidatePath(`/post/${id}`)
+  }
+
+  return { id, quarantined }
+}
+
+export const quarantineContent = setQuarantineContent
+
+/**
+ * Emergency rollback of any promotion on a link or post:
+ * clears discovery boost, featured status, and active editorial priority,
+ * and restores standard organic ranking.
+ * Dedicated administrator/moderator safety control (ticket #19).
+ */
+export async function rollbackPromotion({
+  collection,
+  id,
+}: {
+  collection: PromotionCollectionSlug
+  id: number
+}) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user || !canModerateCommunity(user)) {
+    throw new Error('Only administrators and moderators can rollback promotions')
+  }
+
+  assertValidTarget(collection, id)
+
+  const target = await payload.findByID({
+    collection,
+    id,
+    depth: 0,
+    overrideAccess: true,
+  })
+
+  if (!target) {
+    throw new Error('Content not found')
+  }
+
+  await payload.update({
+    collection,
+    id,
+    data: {
+      featured: false,
+      discoveryBoosted: false,
+      boostedAt: null,
+      boostedBy: null,
+      editorialPriority: false,
+      editorialPriorityUntil: null,
+    },
+    overrideAccess: true,
+    context: { rollbackPromotion: true },
+  })
+
+  revalidatePath('/')
+  revalidatePath('/wall')
+  if (collection === 'links') {
+    revalidatePath(`/link/${id}`)
+  } else {
+    revalidatePath(`/post/${id}`)
+  }
+
+  return { id, rolledBack: true }
+}

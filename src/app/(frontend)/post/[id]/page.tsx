@@ -13,6 +13,8 @@ import { getPostInteractions } from '@/app/(frontend)/data/getPostInteractions'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { RichTextDisplay } from '@/components/ui/RichTextDisplay'
 import { Timestamp } from '@/components/ui/Timestamp'
+import { ContentSafetyControls } from '@/components/links/ContentSafetyControls.client'
+import { canModerateCommunity } from '@/lib/community/subfeeds'
 
 import type { Payload } from 'payload'
 import type { User } from '@/payload-types'
@@ -123,6 +125,18 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
               </Button>
             ) : null}
           </div>
+          {canModerateCommunity(user) ? (
+            <div className="mb-4">
+              <ContentSafetyControls
+                collection="posts"
+                id={post.id}
+                isQuarantined={post.quarantined}
+                isPromotedOrPriority={Boolean(
+                  post.featured || post.discoveryBoosted || post.editorialPriority,
+                )}
+              />
+            </div>
+          ) : null}
           <div className="text-lg mb-6">
             <RichTextDisplay content={post.content} />
           </div>

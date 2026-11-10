@@ -21,7 +21,13 @@ export default async function WallPage({
   const showNSFW = user?.settings?.nsfw === true
   const showBookmarksOnly = (await searchParams)?.bookmarks === 'true'
 
-  const andFilters: Where[] = []
+  const andFilters: Where[] = [
+    {
+      quarantined: {
+        not_equals: true,
+      },
+    },
+  ]
 
   if (!showNSFW) {
     andFilters.push({

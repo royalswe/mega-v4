@@ -149,6 +149,11 @@ export default async function HomePage({
         not_equals: true,
       },
     },
+    {
+      quarantined: {
+        not_equals: true,
+      },
+    },
   ]
 
   if (!showNSFW) {

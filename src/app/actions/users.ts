@@ -170,3 +170,52 @@ export async function revokeAutomaticRole(userId: number, role: AutomaticRole, r
   revalidatePath('/user/[username]', 'page')
   revalidatePath('/', 'layout')
 }
+
+/**
+ * Emergency rollback of all automatically earned community roles for an account,
+ * optionally freezing standing to prevent immediate re-derivation.
+ * Dedicated administrator safety control (ticket #19).
+ */
+export async function rollbackUserRoles(
+  userId: number,
+  options?: { lockStanding?: boolean },
+) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user || !checkRole(['admin'], user)) {
+    throw new Error('Only administrators can rollback community roles')
+  }
+
+  const target = await payload.findByID({
+    collection: 'users',
+    id: userId,
+    overrideAccess: true,
+  })
+
+  if (!target) {
+    throw new Error('User not found')
+  }
+
+  const shouldLock = options?.lockStanding ?? true
+  const currentRoles = Array.isArray(target.roles) ? target.roles : []
+  const nextRoles: ('admin' | 'editor' | 'moderator' | 'cleaner' | 'uploader' | 'recruiter' | 'user')[] =
+    currentRoles.includes('admin') ? ['admin', 'user'] : ['user']
+
+  await payload.update({
+    collection: 'users',
+    id: userId,
+    data: {
+      revokedRoles: [...AUTOMATIC_ROLES],
+      standingLocked: shouldLock,
+      roles: nextRoles,
+    },
+    overrideAccess: true,
+  })
+
+  revalidatePath('/user/[username]', 'page')
+  revalidatePath('/', 'layout')
+
+  return { userId, rolledBack: true, standingLocked: shouldLock }
+}
+
+export const rollbackAutomaticRoles = rollbackUserRoles

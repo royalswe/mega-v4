@@ -373,6 +373,14 @@ export interface Link {
    * The member with Discovery standing who boosted this content.
    */
   boostedBy?: (number | null) | User;
+  /**
+   * Time-bounded priority boost for direct Main Feed editorial publication.
+   */
+  editorialPriority?: boolean | null;
+  /**
+   * Expiration timestamp for the editorial priority boost.
+   */
+  editorialPriorityUntil?: string | null;
   clickCount?: number | null;
   /**
    * Comments related to this link
@@ -493,6 +501,14 @@ export interface Post {
    * The member with Discovery standing who boosted this content.
    */
   boostedBy?: (number | null) | User;
+  /**
+   * Time-bounded priority boost for direct Main Feed editorial publication.
+   */
+  editorialPriority?: boolean | null;
+  /**
+   * Expiration timestamp for the editorial priority boost.
+   */
+  editorialPriorityUntil?: string | null;
   status?: ('published' | 'pending' | 'removed') | null;
   /**
    * Comments related to this post
@@ -975,6 +991,8 @@ export interface LinksSelect<T extends boolean = true> {
   discoveryBoosted?: T;
   boostedAt?: T;
   boostedBy?: T;
+  editorialPriority?: T;
+  editorialPriorityUntil?: T;
   clickCount?: T;
   relatedComments?: T;
   saves?: T;
@@ -1017,6 +1035,8 @@ export interface PostsSelect<T extends boolean = true> {
   discoveryBoosted?: T;
   boostedAt?: T;
   boostedBy?: T;
+  editorialPriority?: T;
+  editorialPriorityUntil?: T;
   status?: T;
   relatedComments?: T;
   saves?: T;

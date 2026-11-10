@@ -18,6 +18,7 @@ import { TRUST_LEVEL_THRESHOLDS } from '@/lib/community/reputation'
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import { getPostInteractions } from '@/app/(frontend)/data/getPostInteractions'
 import { checkRole } from '@/access/checkRole'
+import { AdminSafetyControls } from '@/components/users/AdminSafetyControls.client'
 
 export const dynamic = 'force-dynamic'
 
@@ -397,6 +398,15 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
           <ProfileSettings user={profileUser} currentUser={currentUser} dict={dict} lang={lang} />
         </CardContent>
       </Card>
+
+      {isAdminViewer ? (
+        <AdminSafetyControls
+          userId={profileUser.id}
+          username={profileUser.username}
+          standingLocked={profileUser.standingLocked}
+          earnedRoleCount={earnedRoles.length}
+        />
+      ) : null}
 
       {/* Tabs Section */}
       <div className="space-y-6">

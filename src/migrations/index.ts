@@ -10,6 +10,7 @@ import * as migration_20261102_194709 from './20261102_194709';
 import * as migration_20261110_172217_community_standing_controls from './20261110_172217_community_standing_controls';
 import * as migration_20261110_180535_subfeed_local_roles from './20261110_180535_subfeed_local_roles';
 import * as migration_20261110_183628_main_feed_promotion from './20261110_183628_main_feed_promotion';
+import * as migration_20261110_194500_editorial_priority_and_safety from './20261110_194500_editorial_priority_and_safety';
 
 export const migrations = [
   {
@@ -71,5 +72,10 @@ export const migrations = [
     up: migration_20261110_183628_main_feed_promotion.up,
     down: migration_20261110_183628_main_feed_promotion.down,
     name: '20261110_183628_main_feed_promotion'
+  },
+  {
+    up: migration_20261110_194500_editorial_priority_and_safety.up,
+    down: migration_20261110_194500_editorial_priority_and_safety.down,
+    name: '20261110_194500_editorial_priority_and_safety'
   },
 ];
