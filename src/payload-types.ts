@@ -255,6 +255,14 @@ export interface User {
   legacyContributionScore?: number | null;
   totalMemberValue?: number | null;
   roles?: ('admin' | 'editor' | 'moderator' | 'cleaner' | 'uploader' | 'recruiter' | 'user')[] | null;
+  /**
+   * When enabled, automatically earned roles are frozen and will not be re-granted or removed by standing changes.
+   */
+  standingLocked?: boolean | null;
+  /**
+   * Roles explicitly revoked by an administrator. Revoked roles are never re-granted automatically.
+   */
+  revokedRoles?: ('uploader' | 'editor' | 'moderator' | 'cleaner' | 'recruiter')[] | null;
   settings: {
     nsfw?: boolean | null;
     language: 'en' | 'sv';
@@ -823,6 +831,8 @@ export interface UsersSelect<T extends boolean = true> {
   legacyContributionScore?: T;
   totalMemberValue?: T;
   roles?: T;
+  standingLocked?: T;
+  revokedRoles?: T;
   settings?:
     | T
     | {

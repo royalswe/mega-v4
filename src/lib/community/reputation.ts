@@ -1,5 +1,12 @@
 export type TrustLevel =
-  'newcomer' | 'regular' | 'recognized' | 'trusted' | 'veteran' | 'curator' | 'pillar' | 'legend'
+  | 'newcomer'
+  | 'regular'
+  | 'recognized'
+  | 'trusted'
+  | 'veteran'
+  | 'curator'
+  | 'pillar'
+  | 'legend'
 
 export const TRUST_LEVEL_THRESHOLDS: Array<{ min: number; value: TrustLevel; label: string }> = [
   { min: 0, value: 'newcomer', label: 'Newcomer' },
@@ -11,6 +18,41 @@ export const TRUST_LEVEL_THRESHOLDS: Array<{ min: number; value: TrustLevel; lab
   { min: 1400, value: 'pillar', label: 'Pillar' },
   { min: 2100, value: 'legend', label: 'Legend' },
 ]
+
+/**
+ * Recency decay constants (exported so tests can reason about them).
+ *
+ * `RECENCY_HALF_LIFE_DAYS` — number of inactivity days it takes for a member's
+ * accumulated standing to halve. Shorter = faster cool-down.
+ *
+ * `COLD_START_FLOOR` — the minimum effective standing score granted to an active
+ * member who has any genuine activity. Kept modest (the `regular` threshold) so
+ * fresh accounts can establish initial standing but cannot farm higher levels.
+ *
+ * `COLD_START_ACTIVE_DAYS` — the inactivity window within which a member is still
+ * considered "active" for the purpose of the cold-start floor.
+ */
+export const RECENCY_HALF_LIFE_DAYS = 45
+export const COLD_START_FLOOR = 40
+export const COLD_START_ACTIVE_DAYS = 30
+
+/**
+ * Hysteresis margins for trust-level transitions.
+ *
+ * A promotion to a higher level requires the score to clear the target threshold
+ * by `HYSTERESIS_PROMOTE_MARGIN`. A demotion only happens once the score falls
+ * `HYSTERESIS_DEMOTE_MARGIN` below the *current* level's threshold. The band
+ * between these two thresholds prevents thrashing near boundaries.
+ */
+export const HYSTERESIS_PROMOTE_MARGIN = 8
+export const HYSTERESIS_DEMOTE_MARGIN = 12
+
+/**
+ * Fraction of the promotion point-thresholds that a member must retain in order
+ * to keep an already-earned automatic role. Applied together with a one-level
+ * relaxation of the trust gate, this gives role transitions their own hysteresis.
+ */
+export const ROLE_RETENTION_FACTOR = 0.75
 
 export interface PointClassSignals {
   discoveryScore?: number
@@ -26,6 +68,10 @@ export interface PointClassSignals {
 
 export type ReputationSignals = PointClassSignals
 
+export interface TrustSignals extends ReputationSignals {
+  lastActiveAt?: string | Date | null
+}
+
 export interface TrustProfile {
   reputationHidden: number
   trustLevel: TrustLevel
@@ -33,7 +79,22 @@ export interface TrustProfile {
 }
 
 export type CommunityRole =
-  'admin' | 'editor' | 'moderator' | 'cleaner' | 'uploader' | 'recruiter' | 'user'
+  | 'admin'
+  | 'editor'
+  | 'moderator'
+  | 'cleaner'
+  | 'uploader'
+  | 'recruiter'
+  | 'user'
+
+/** Roles that are earned automatically (excludes the base `user` and manual `admin`). */
+export const AUTOMATIC_ROLES: Array<Exclude<CommunityRole, 'admin' | 'user'>> = [
+  'uploader',
+  'editor',
+  'moderator',
+  'cleaner',
+  'recruiter',
+]
 
 export interface PointClassProfile {
   interactionPoints: number
@@ -45,6 +106,21 @@ export interface PointClassProfile {
   recruiterPoints: number
   securityPoints: number
   totalMemberValue: number
+}
+
+export interface EffectiveScore {
+  /** Raw (undecayed) weighted member value. */
+  raw: number
+  /** Recency factor applied to the raw score (0..1). */
+  factor: number
+  /** Raw score after recency decay (before floor). */
+  decayed: number
+  /** Final effective score (decayed + cold-start floor), rounded. */
+  effective: number
+  /** Whether the member is still within the cold-start active window. */
+  recentlyActive: boolean
+  /** Whether the cold-start floor was applied. */
+  floored: boolean
 }
 
 const TITLE_POOL = [
@@ -100,22 +176,149 @@ export const buildPointClassProfile = (signals: PointClassSignals): PointClassPr
   }
 }
 
-const calculateHiddenReputation = (signals: ReputationSignals): number => {
-  return buildPointClassProfile(signals).totalMemberValue
+/** Returns a copy of the profile with every point class scaled by `factor`. */
+const scaleProfile = (profile: PointClassProfile, factor: number): PointClassProfile => ({
+  interactionPoints: profile.interactionPoints * factor,
+  likabilityPoints: profile.likabilityPoints * factor,
+  contributionPoints: profile.contributionPoints * factor,
+  legacyContributionPoints: profile.legacyContributionPoints * factor,
+  cleaningPoints: profile.cleaningPoints * factor,
+  discoveryPoints: profile.discoveryPoints * factor,
+  recruiterPoints: profile.recruiterPoints * factor,
+  securityPoints: profile.securityPoints * factor,
+  totalMemberValue: clamp(Math.round(profile.totalMemberValue * factor)),
+})
+
+/** Whole (fractional) days elapsed since `lastActiveAt` (or `null` if unknown). */
+export const daysSince = (lastActiveAt?: string | Date | null, now: Date = new Date()): number | null => {
+  if (!lastActiveAt) return null
+
+  const lastActive = new Date(lastActiveAt)
+  if (Number.isNaN(lastActive.getTime())) return null
+
+  return Math.max(0, (now.getTime() - lastActive.getTime()) / 86_400_000)
 }
 
-const getTrustFromReputation = (score: number): TrustProfile => {
-  const safeScore = clamp(score)
+/** Exponential recency factor in (0, 1] based on inactivity duration. */
+export const recencyDecayFactor = (
+  lastActiveAt?: string | Date | null,
+  now: Date = new Date(),
+): number => {
+  const days = daysSince(lastActiveAt, now)
+  if (days === null || days <= 0) return 1
+  return Math.pow(0.5, days / RECENCY_HALF_LIFE_DAYS)
+}
 
+/**
+ * Computes the effective standing score from a raw weighted member value,
+ * applying gradual recency decay and the cold-start floor.
+ */
+export const calculateEffectiveScore = (
+  rawScore: number,
+  lastActiveAt?: string | Date | null,
+  now: Date = new Date(),
+): EffectiveScore => {
+  const raw = clamp(rawScore)
+  const factor = recencyDecayFactor(lastActiveAt, now)
+  const decayed = raw * factor
+  const days = daysSince(lastActiveAt, now)
+  const recentlyActive = days === null || days <= COLD_START_ACTIVE_DAYS
+
+  let effectiveRaw = decayed
+  let floored = false
+
+  if (raw > 0 && recentlyActive) {
+    const flooredRaw = Math.max(decayed, COLD_START_FLOOR)
+    if (flooredRaw > decayed) {
+      effectiveRaw = flooredRaw
+      floored = true
+    }
+  }
+
+  return {
+    raw,
+    factor,
+    decayed,
+    effective: Math.round(effectiveRaw),
+    recentlyActive,
+    floored,
+  }
+}
+
+const trustIndex = (level: TrustLevel): number =>
+  TRUST_LEVEL_THRESHOLDS.findIndex((entry) => entry.value === level)
+
+const trustFromScore = (score: number): TrustLevel => {
+  const safeScore = clamp(score)
   let selected = TRUST_LEVEL_THRESHOLDS[0]
   for (const level of TRUST_LEVEL_THRESHOLDS) {
     if (safeScore >= level.min) selected = level
   }
+  return selected.value
+}
+
+const trustLabel = (level: TrustLevel): string =>
+  TRUST_LEVEL_THRESHOLDS.find((entry) => entry.value === level)?.label ??
+  TRUST_LEVEL_THRESHOLDS[0].label
+
+/**
+ * Resolves a trust level from an effective score, applying hysteresis against a
+ * previous level so members near threshold boundaries do not thrash.
+ *
+ * - Promotion to a higher level requires clearing the target threshold by
+ *   `HYSTERESIS_PROMOTE_MARGIN`.
+ * - Demotion requires falling `HYSTERESIS_DEMOTE_MARGIN` below the current
+ *   level's threshold.
+ * - Promotions out of the unestablished `newcomer` baseline are exempt so the
+ *   cold-start floor (and any first large jump) can establish initial standing.
+ */
+export const resolveTrustLevel = (score: number, previous?: TrustLevel): TrustLevel => {
+  const safe = clamp(score)
+  const raw = trustFromScore(safe)
+
+  if (!previous) return raw
+
+  const prevIdx = trustIndex(previous)
+  const rawIdx = trustIndex(raw)
+
+  if (rawIdx === prevIdx) return raw
+
+  if (rawIdx > prevIdx) {
+    // Promotion — require margin above the target threshold, except cold-start.
+    const isColdStart = prevIdx === 0
+    if (!isColdStart) {
+      const targetMin = TRUST_LEVEL_THRESHOLDS[rawIdx].min
+      if (safe < targetMin + HYSTERESIS_PROMOTE_MARGIN) return previous
+    }
+    return raw
+  }
+
+  // Demotion — require falling below the current threshold by the demote margin.
+  const currentMin = TRUST_LEVEL_THRESHOLDS[prevIdx].min
+  if (safe < currentMin - HYSTERESIS_DEMOTE_MARGIN) return raw
+  return previous
+}
+
+export interface TrustProfileOptions {
+  /** Injectable clock (defaults to `new Date()`). */
+  now?: Date
+  /** Previous trust level, used for transition hysteresis. */
+  previousTrustLevel?: TrustLevel
+}
+
+export const buildTrustProfile = (
+  signals: TrustSignals,
+  options: TrustProfileOptions = {},
+): TrustProfile => {
+  const { now = new Date(), previousTrustLevel } = options
+  const raw = buildPointClassProfile(signals).totalMemberValue
+  const { effective } = calculateEffectiveScore(raw, signals.lastActiveAt, now)
+  const trustLevel = resolveTrustLevel(effective, previousTrustLevel)
 
   return {
-    reputationHidden: safeScore,
-    trustLevel: selected.value,
-    reputationPublicLabel: selected.label,
+    reputationHidden: effective,
+    trustLevel,
+    reputationPublicLabel: trustLabel(trustLevel),
   }
 }
 
@@ -133,29 +336,94 @@ export interface RoleSignals extends ReputationSignals {
   lastActiveAt?: string | Date | null
 }
 
-const daysSince = (lastActiveAt?: string | Date | null): number | null => {
-  if (!lastActiveAt) return null
-
-  const lastActive = new Date(lastActiveAt)
-  if (Number.isNaN(lastActive.getTime())) return null
-
-  return Math.max(0, (Date.now() - lastActive.getTime()) / 86_400_000)
-}
-
-const hasRecentActivity = (lastActiveAt?: string | Date | null): boolean => {
-  const inactivityDays = daysSince(lastActiveAt)
-  return inactivityDays === null ? true : inactivityDays <= 30
-}
-
-const isAtLeast = (value: TrustLevel, threshold: TrustLevel): boolean => {
-  return (
-    TRUST_LEVEL_THRESHOLDS.findIndex((level) => level.value === value) >=
-    TRUST_LEVEL_THRESHOLDS.findIndex((level) => level.value === threshold)
-  )
+export interface DeriveRolesOptions {
+  /** Injectable clock (defaults to `new Date()`). */
+  now?: Date
+  /** Previous trust level, used for trust hysteresis inside role predicates. */
+  previousTrustLevel?: TrustLevel
+  /** When true, automatic derivation is frozen and existing roles are kept. */
+  rolesLocked?: boolean
+  /** Roles explicitly revoked by an admin; never re-granted automatically. */
+  revokedRoles?: CommunityRole[]
 }
 
 const normalizeRoles = (roles: CommunityRole[]): CommunityRole[] => {
   return Array.from(new Set(roles))
+}
+
+const isAtLeast = (value: TrustLevel, threshold: TrustLevel): boolean => {
+  return trustIndex(value) >= trustIndex(threshold)
+}
+
+/** Relaxes a trust gate by one level, used for role retention. */
+const relaxTrust = (threshold: TrustLevel): TrustLevel => {
+  const idx = trustIndex(threshold)
+  return idx > 0 ? TRUST_LEVEL_THRESHOLDS[idx - 1].value : threshold
+}
+
+interface RoleContext {
+  trustLevel: TrustLevel
+  contribution: number
+  discovery: number
+  interaction: number
+  cleaning: number
+  recruiter: number
+  security: number
+}
+
+const canUploadPromote = (ctx: RoleContext): boolean =>
+  (isAtLeast(ctx.trustLevel, 'recognized') && (ctx.contribution >= 80 || ctx.discovery >= 60)) ||
+  ctx.contribution >= 120
+
+const canUploadRetain = (ctx: RoleContext): boolean =>
+  (isAtLeast(ctx.trustLevel, relaxTrust('recognized')) &&
+    (ctx.contribution >= 80 * ROLE_RETENTION_FACTOR || ctx.discovery >= 60 * ROLE_RETENTION_FACTOR)) ||
+  ctx.contribution >= 120 * ROLE_RETENTION_FACTOR
+
+const canEditPromote = (ctx: RoleContext): boolean =>
+  (isAtLeast(ctx.trustLevel, 'trusted') && ctx.contribution >= 180 && ctx.interaction >= 60) ||
+  ctx.contribution >= 280
+
+const canEditRetain = (ctx: RoleContext): boolean =>
+  (isAtLeast(ctx.trustLevel, relaxTrust('trusted')) &&
+    ctx.contribution >= 180 * ROLE_RETENTION_FACTOR &&
+    ctx.interaction >= 60 * ROLE_RETENTION_FACTOR) ||
+  ctx.contribution >= 280 * ROLE_RETENTION_FACTOR
+
+const canModeratePromote = (ctx: RoleContext): boolean =>
+  (isAtLeast(ctx.trustLevel, 'curator') && ctx.cleaning >= 40 && ctx.security >= 25) ||
+  ctx.cleaning >= 80
+
+const canModerateRetain = (ctx: RoleContext): boolean =>
+  (isAtLeast(ctx.trustLevel, relaxTrust('curator')) &&
+    ctx.cleaning >= 40 * ROLE_RETENTION_FACTOR &&
+    ctx.security >= 25 * ROLE_RETENTION_FACTOR) ||
+  ctx.cleaning >= 80 * ROLE_RETENTION_FACTOR
+
+const canCleanPromote = (ctx: RoleContext): boolean =>
+  ctx.cleaning >= 40 || (isAtLeast(ctx.trustLevel, 'trusted') && ctx.cleaning >= 20)
+
+const canCleanRetain = (ctx: RoleContext): boolean =>
+  ctx.cleaning >= 40 * ROLE_RETENTION_FACTOR ||
+  (isAtLeast(ctx.trustLevel, relaxTrust('trusted')) && ctx.cleaning >= 20 * ROLE_RETENTION_FACTOR)
+
+const canRecruitPromote = (ctx: RoleContext): boolean =>
+  ctx.recruiter >= 40 || (isAtLeast(ctx.trustLevel, 'recognized') && ctx.contribution >= 120)
+
+const canRecruitRetain = (ctx: RoleContext): boolean =>
+  ctx.recruiter >= 40 * ROLE_RETENTION_FACTOR ||
+  (isAtLeast(ctx.trustLevel, relaxTrust('recognized')) &&
+    ctx.contribution >= 120 * ROLE_RETENTION_FACTOR)
+
+const automaticRolePredicates: Record<
+  Exclude<CommunityRole, 'admin' | 'user'>,
+  { promote: (ctx: RoleContext) => boolean; retain: (ctx: RoleContext) => boolean }
+> = {
+  uploader: { promote: canUploadPromote, retain: canUploadRetain },
+  editor: { promote: canEditPromote, retain: canEditRetain },
+  moderator: { promote: canModeratePromote, retain: canModerateRetain },
+  cleaner: { promote: canCleanPromote, retain: canCleanRetain },
+  recruiter: { promote: canRecruitPromote, retain: canRecruitRetain },
 }
 
 export const deriveBehavioralTitles = (signals: TitleSignals): string[] => {
@@ -188,49 +456,52 @@ export const deriveBehavioralTitles = (signals: TitleSignals): string[] => {
 export const deriveAutomaticRoles = (
   signals: RoleSignals,
   existingRoles: CommunityRole[] = [],
+  options: DeriveRolesOptions = {},
 ): CommunityRole[] => {
-  const pointProfile = buildPointClassProfile(signals)
-  const trust = buildTrustProfile(signals)
-  const nextRoles: CommunityRole[] = ['user']
+  const {
+    now = new Date(),
+    previousTrustLevel,
+    rolesLocked = false,
+    revokedRoles = [],
+  } = options
+
+  const revoked = new Set(revokedRoles)
   const preserveAdmin = existingRoles.includes('admin')
 
-  if (preserveAdmin) {
-    nextRoles.unshift('admin')
+  const baseRoles: CommunityRole[] = preserveAdmin ? ['admin', 'user'] : ['user']
+
+  if (rolesLocked) {
+    // Frozen: keep whatever roles the member already holds (minus revoked).
+    const frozen = normalizeRoles([...existingRoles])
+    const withoutRevoked = frozen.filter((role) => !revoked.has(role))
+    if (!withoutRevoked.includes('user')) withoutRevoked.push('user')
+    return normalizeRoles(withoutRevoked)
   }
 
-  if (!hasRecentActivity(signals.lastActiveAt)) {
-    return normalizeRoles(nextRoles)
+  const rawProfile = buildPointClassProfile(signals)
+  const factor = recencyDecayFactor(signals.lastActiveAt, now)
+  const decayedProfile = scaleProfile(rawProfile, factor)
+  const trust = buildTrustProfile(signals, { now, previousTrustLevel })
+
+  const ctx: RoleContext = {
+    trustLevel: trust.trustLevel,
+    contribution: decayedProfile.contributionPoints,
+    discovery: decayedProfile.discoveryPoints,
+    interaction: decayedProfile.interactionPoints,
+    cleaning: decayedProfile.cleaningPoints,
+    recruiter: decayedProfile.recruiterPoints,
+    security: decayedProfile.securityPoints,
   }
 
-  const discovery = pointProfile.discoveryPoints
-  const contribution = pointProfile.contributionPoints
-  const interaction = pointProfile.interactionPoints
-  const cleaning = pointProfile.cleaningPoints
-  const recruiter = pointProfile.recruiterPoints
-  const security = pointProfile.securityPoints
+  const nextRoles: CommunityRole[] = [...baseRoles]
 
-  const canUpload =
-    (isAtLeast(trust.trustLevel, 'recognized') && (contribution >= 80 || discovery >= 60)) ||
-    contribution >= 120
-  const canEdit =
-    (isAtLeast(trust.trustLevel, 'trusted') && contribution >= 180 && interaction >= 60) ||
-    contribution >= 280
-  const canModerate =
-    (isAtLeast(trust.trustLevel, 'curator') && cleaning >= 40 && security >= 25) || cleaning >= 80
-  const canClean = cleaning >= 40 || (isAtLeast(trust.trustLevel, 'trusted') && cleaning >= 20)
-  const canRecruit =
-    recruiter >= 40 || (isAtLeast(trust.trustLevel, 'recognized') && contribution >= 120)
+  for (const role of AUTOMATIC_ROLES) {
+    const predicates = automaticRolePredicates[role]
+    const alreadyHas = existingRoles.includes(role)
+    if (predicates.promote(ctx) || (alreadyHas && predicates.retain(ctx))) {
+      nextRoles.push(role)
+    }
+  }
 
-  if (canUpload) nextRoles.push('uploader')
-  if (canEdit) nextRoles.push('editor')
-  if (canModerate) nextRoles.push('moderator')
-  if (canClean) nextRoles.push('cleaner')
-  if (canRecruit) nextRoles.push('recruiter')
-
-  return normalizeRoles(nextRoles)
-}
-
-export const buildTrustProfile = (signals: ReputationSignals): TrustProfile => {
-  const hidden = calculateHiddenReputation(signals)
-  return getTrustFromReputation(hidden)
+  return normalizeRoles(nextRoles.filter((role) => !revoked.has(role)))
 }

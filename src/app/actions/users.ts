@@ -1,7 +1,12 @@
 'use server'
 
 import { getAuthenticatedUser } from '@/lib/auth'
+import { checkRole } from '@/access/checkRole'
 import { revalidatePath } from 'next/cache'
+
+type AutomaticRole = 'uploader' | 'editor' | 'moderator' | 'cleaner' | 'recruiter'
+
+const AUTOMATIC_ROLES: AutomaticRole[] = ['uploader', 'editor', 'moderator', 'cleaner', 'recruiter']
 
 export async function uploadMedia(formData: FormData) {
   const { user, payload } = await getAuthenticatedUser()
@@ -94,6 +99,73 @@ export async function updateUserAvatar(mediaId: number) {
     })
     throw new Error('Failed to update user avatar. Please try again later.')
   }
+
+  revalidatePath('/user/[username]', 'page')
+  revalidatePath('/', 'layout')
+}
+
+export async function setStandingLock(userId: number, locked: boolean) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user || !checkRole(['admin'], user)) {
+    throw new Error('Only administrators can freeze community standing')
+  }
+
+  await payload.update({
+    collection: 'users',
+    id: userId,
+    data: {
+      standingLocked: locked,
+    },
+    user,
+    overrideAccess: false,
+  })
+
+  revalidatePath('/user/[username]', 'page')
+  revalidatePath('/', 'layout')
+}
+
+export async function revokeAutomaticRole(userId: number, role: AutomaticRole, revoke: boolean) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user || !checkRole(['admin'], user)) {
+    throw new Error('Only administrators can revoke community roles')
+  }
+
+  if (!AUTOMATIC_ROLES.includes(role)) {
+    throw new Error('Invalid automatic role')
+  }
+
+  const target = await payload.findByID({
+    collection: 'users',
+    id: userId,
+    user,
+    overrideAccess: false,
+  })
+
+  if (!target) {
+    throw new Error('User not found')
+  }
+
+  const current = new Set<AutomaticRole>(
+    Array.isArray(target.revokedRoles) ? (target.revokedRoles as AutomaticRole[]) : [],
+  )
+
+  if (revoke) {
+    current.add(role)
+  } else {
+    current.delete(role)
+  }
+
+  await payload.update({
+    collection: 'users',
+    id: userId,
+    data: {
+      revokedRoles: Array.from(current),
+    },
+    user,
+    overrideAccess: false,
+  })
 
   revalidatePath('/user/[username]', 'page')
   revalidatePath('/', 'layout')
