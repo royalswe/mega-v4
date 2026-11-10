@@ -7,6 +7,7 @@ import type {
 } from 'payload'
 
 import { checkRole } from '@/access/checkRole'
+import { getSubfeedEligibilityForUser } from '@/lib/community/subfeedEligibility'
 import { bumpUserSignals } from '@/lib/community/userSignals'
 import { resolveID } from '@/lib/community/userSignals'
 
@@ -30,6 +31,29 @@ const normalizeIds = (values: unknown): number[] => {
   if (!Array.isArray(values)) return []
 
   return values.map(resolveID).filter((value): value is number => typeof value === 'number')
+}
+
+/**
+ * SubFeed creation is gated behind earned community standing. Site admins
+ * bypass; everyone else must meet the uploader/editor candidacy or strong
+ * recruiter thresholds computed by `evaluateSubfeedEligibility`. We read the
+ * acting user's own profile with `overrideAccess: true` (reading one's own
+ * standing fields for gating is fine) and never run the eligibility logic as
+ * admin.
+ */
+const canCreateSubfeed: Access = async ({ req }) => {
+  const { user } = req
+  if (!user) return false
+
+  if (checkRole(['admin'], user)) return true
+
+  const userId = resolveID(user.id)
+  if (!userId) return false
+
+  const eligibility = await getSubfeedEligibilityForUser(req.payload, userId, req)
+  if (!eligibility) return false
+
+  return eligibility.eligible
 }
 
 const canManageSubfeed: Access = async ({ id, req, data }) => {
@@ -156,7 +180,7 @@ export const SubFeeds: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req: { user } }) => Boolean(user),
+    create: canCreateSubfeed,
     update: canManageSubfeed,
     delete: ({ req: { user } }) => canModerate(user),
   },

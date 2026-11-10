@@ -319,6 +319,19 @@ const dictionaries = {
         createdToast: 'Subfeed created',
         createError: 'Failed to create subfeed',
       },
+      eligibilityGate: {
+        title: 'SubFeeds are earned',
+        intro:
+          'SubFeeds compete with the Main Feed, so creators must have earned community standing first. Meet any one requirement below to unlock SubFeed creation.',
+        requirementsTitle: 'Your path to creating a SubFeed',
+        lockedTitle: 'Standing frozen',
+        lockedMessage:
+          'Your community standing is currently frozen, so you cannot create a SubFeed right now. Contact a moderator if you believe this is a mistake.',
+        userFeedNote: 'You can still publish and manage content on your own User Feed right now.',
+        userFeedLink: 'Go to your User Feed',
+        earned: 'Earned',
+        progressPercent: '{percent}% complete',
+      },
     },
     moderationPage: {
       title: 'Moderation Queue',
@@ -669,6 +682,19 @@ const dictionaries = {
         creatingButton: 'Skapar...',
         createdToast: 'Delflöde skapat',
         createError: 'Kunde inte skapa delflöde',
+      },
+      eligibilityGate: {
+        title: 'Delflöden förtjänas',
+        intro:
+          'Delflöden konkurrerar med huvudflödet, så skapare måste ha förtjänat community-ansvar först. Uppfyll något av kraven nedan för att låsa upp skapande av delflöden.',
+        requirementsTitle: 'Din väg till att skapa ett delflöde',
+        lockedTitle: 'Anseende fryst',
+        lockedMessage:
+          'Ditt community-ansvar är för närvarande fryst, så du kan inte skapa ett delflöde just nu. Kontakta en moderator om du tror att det är ett misstag.',
+        userFeedNote: 'Du kan fortfarande publicera och hantera innehåll i ditt eget flöde redan nu.',
+        userFeedLink: 'Gå till ditt flöde',
+        earned: 'Förtjänat',
+        progressPercent: '{percent} % klart',
       },
     },
     moderationPage: {

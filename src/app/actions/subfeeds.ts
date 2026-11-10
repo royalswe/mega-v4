@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { getAuthenticatedUser } from '@/lib/auth'
+import { assertSubfeedCreationEligible } from '@/lib/community/subfeedEligibility'
 import { canModerateCommunity, readRelationshipIds } from '@/lib/community/subfeeds'
 
 const slugify = (value: string): string =>
@@ -25,6 +26,8 @@ export async function createSubfeed(values: {
   if (!user) {
     throw new Error('You must be logged in to create a subfeed')
   }
+
+  await assertSubfeedCreationEligible(payload, user.id)
 
   const name = values.name.trim()
   const description = values.description.trim()
