@@ -1,3 +1,5 @@
+import type { CollectionBeforeValidateHook } from 'payload'
+
 import { checkRole } from '@/access/checkRole'
 import { resolveID } from '@/lib/community/userSignals'
 
@@ -98,6 +100,45 @@ export const canCurateSubfeedContent = (
 ): boolean => {
   const roles = getSubfeedLocalRoles(subfeed, userId)
   return roles.owner || roles.moderator || roles.editor
+}
+
+export const enforceSubfeedContentTargetAccess: CollectionBeforeValidateHook = async ({
+  data,
+  originalDoc,
+  operation,
+  req,
+}) => {
+  if (
+    req.context.skipHooks ||
+    operation !== 'update' ||
+    !req.user ||
+    canModerateCommunity(req.user) ||
+    resolveID(originalDoc?.user) === req.user.id
+  ) {
+    return data
+  }
+
+  const changesTarget =
+    (data?.feed !== undefined && data.feed !== originalDoc?.feed) ||
+    (data?.subfeed !== undefined && resolveID(data.subfeed) !== resolveID(originalDoc?.subfeed)) ||
+    (data?.user !== undefined && resolveID(data.user) !== resolveID(originalDoc?.user))
+  if (!changesTarget) return data
+
+  const subfeedId = resolveID(originalDoc?.subfeed)
+  const subfeed = subfeedId
+    ? await req.payload.findByID({
+        collection: 'subfeeds',
+        id: subfeedId,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      })
+    : null
+  if (!subfeed || !canModerateSubfeedContent(subfeed, req.user.id)) {
+    throw new Error("Only moderators can change another member's content feed, subfeed, or author")
+  }
+
+  return data
 }
 
 /**

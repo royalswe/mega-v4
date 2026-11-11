@@ -109,6 +109,7 @@ export const bumpUserSignals = async (
       streakDays: calculateStreak(existing.lastActiveAt, existing.streakDays),
       lastActiveAt: new Date().toISOString(),
     },
+    context: { updateUserActivity: true },
     overrideAccess: true,
     req,
   })

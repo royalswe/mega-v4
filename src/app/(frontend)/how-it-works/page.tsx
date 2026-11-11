@@ -332,7 +332,7 @@ export default async function HowItWorksPage() {
               point classes, effective standing, and recent activity.
             </p>
             <ul className="list-disc pl-5 space-y-1">
-              <li>Activity decays your standing and can relax earned roles if you go inactive.</li>
+              <li>Inactivity decays your standing and can relax earned roles if you go inactive.</li>
               <li>
                 Roles are retained with a grace margin before relaxing, so short quiet spells do not
                 cost you your standing.

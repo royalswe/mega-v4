@@ -336,8 +336,8 @@ export default async function HurDetFunkarPage() {
             </p>
             <ul className="list-disc pl-5 space-y-1">
               <li>
-                Aktivitet trappar ner ditt anseende och kan släppa intjänade roller om du blir
-                inaktiv.
+                Inaktivitet minskar ditt effektiva anseende och kan leda till att du förlorar
+                intjänade roller.
               </li>
               <li>
                 Roller behålls med en marginal innan de släpps, så korta lugna perioder kostar dig

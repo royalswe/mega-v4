@@ -3,6 +3,8 @@ import { describe, it, beforeAll, expect } from 'vitest'
 
 import { getTestPayload } from '../utils/test-user'
 import { createTestUser } from './helpers'
+import { bumpUserSignals } from '@/lib/community/userSignals'
+import { createPayloadRequest } from 'payload'
 import {
   AUTOMATIC_ROLES,
   COLD_START_FLOOR,
@@ -245,7 +247,7 @@ describe('Community standing integration', () => {
     await payload.update({
       collection: 'users',
       id: user.id,
-      data: { contributionScore: 88 },
+      data: { contributionScore: 88, trustLevel: 'newcomer' },
       overrideAccess: true,
     })
 
@@ -328,5 +330,61 @@ describe('Community standing integration', () => {
       overrideAccess: true,
     })
     expect(after.roles).not.toContain('editor')
+  })
+
+  it('re-grants an eligible role when the saved revocation list is cleared', async () => {
+    const user = await createTestUser(payload)
+    const revoked = await payload.update({
+      collection: 'users',
+      id: user.id,
+      data: { contributionScore: 300, interactionScore: 100, revokedRoles: ['editor'] },
+      overrideAccess: true,
+    })
+    expect(revoked.roles).not.toContain('editor')
+
+    const restored = await payload.update({
+      collection: 'users',
+      id: user.id,
+      data: { revokedRoles: [] },
+      overrideAccess: true,
+    })
+    expect(restored.revokedRoles).toEqual([])
+    expect(restored.roles).toContain('editor')
+  })
+
+  it('ignores member-supplied activity but accepts trusted signal activity', async () => {
+    const user = await createTestUser(payload)
+    const inactiveSince = new Date(Date.now() - 90 * DAY).toISOString()
+    const inactive = await payload.update({
+      collection: 'users',
+      id: user.id,
+      data: { contributionScore: 90, lastActiveAt: inactiveSince },
+      overrideAccess: true,
+    })
+    const updated = await payload.update({
+      collection: 'users',
+      id: user.id,
+      data: { bio: 'Still inactive', trustLevel: 'legend', lastActiveAt: new Date().toISOString() },
+      user: inactive,
+      overrideAccess: false,
+    })
+    expect(updated.lastActiveAt).toBe(inactiveSince)
+    expect(updated.trustLevel).toBe('newcomer')
+    const saved = await payload.findByID({
+      collection: 'users',
+      id: user.id,
+      overrideAccess: true,
+    })
+    expect(saved.roles).not.toContain('uploader')
+
+    const req = await createPayloadRequest({ user: inactive, payload })
+    await bumpUserSignals(req, user.id, { interactionScore: 1 })
+    const active = await payload.findByID({
+      collection: 'users',
+      id: user.id,
+      overrideAccess: true,
+    })
+    expect(new Date(active.lastActiveAt!).getTime()).toBeGreaterThan(Date.now() - 60_000)
+    expect(active.roles).toContain('uploader')
   })
 })

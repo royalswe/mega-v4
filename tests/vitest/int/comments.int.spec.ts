@@ -91,6 +91,55 @@ describe('Comments Integration', () => {
       overrideAccess: true,
     });
     expect(updated.moderationStatus).toBe('pending');
+
+    await expect(
+      payload.update({
+        collection: 'comments',
+        id: comment.id,
+        data: { link: null },
+        overrideAccess: true,
+      }),
+    ).rejects.toThrow('Either link or post must be provided');
+
+    const post = await payload.create({
+      collection: 'posts',
+      data: {
+        title: `Comment target ${faker.string.alphanumeric(10)}`,
+        content: commentJson,
+        type: 'discussion',
+        user: testUser.id,
+        feed: 'user',
+      },
+      overrideAccess: true,
+    });
+    const moved = await payload.update({
+      collection: 'comments',
+      id: comment.id,
+      data: { link: null, post: post.id },
+      overrideAccess: true,
+      depth: 0,
+    });
+    expect(moved.link).toBeNull();
+    expect(moved.post).toBe(post.id);
+
+    await expect(
+      payload.update({
+        collection: 'comments',
+        id: comment.id,
+        data: { post: null },
+        overrideAccess: true,
+      }),
+    ).rejects.toThrow('Either link or post must be provided');
+
+    const restored = await payload.update({
+      collection: 'comments',
+      id: comment.id,
+      data: { post: null, link: link.id },
+      overrideAccess: true,
+      depth: 0,
+    });
+    expect(restored.post).toBeNull();
+    expect(restored.link).toBe(link.id);
   });
 
   it('fails to create comment without required fields', async () => {

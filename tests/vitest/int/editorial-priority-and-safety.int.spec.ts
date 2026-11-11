@@ -1,4 +1,4 @@
-import { Payload } from 'payload'
+import { createPayloadRequest, Payload } from 'payload'
 import { describe, it, beforeAll, expect } from 'vitest'
 import { faker } from '@faker-js/faker'
 
@@ -12,6 +12,7 @@ import {
   EDITORIAL_PRIORITY_DURATION_MS,
 } from '@/lib/community/ranking'
 import { AUTOMATIC_ROLES } from '@/lib/community/reputation'
+import { recalculateTargetSignals } from '@/lib/community/contentSignals'
 
 let payload: Payload
 
@@ -130,6 +131,56 @@ describe('Direct Main Feed publications and editorial priority (integration)', (
   beforeAll(async () => {
     payload = await getTestPayload()
   })
+
+  it.each(['links', 'posts'] as const)(
+    'uses organic thresholds for %s flags during signal recalculation',
+    async (collection) => {
+      const author = await createTestUser(payload)
+      const common = {
+        title: `Organic thresholds ${unique()}`,
+        user: author.id,
+        feed: 'main' as const,
+        editorialPriority: true,
+        editorialPriorityUntil: new Date(Date.now() + EDITORIAL_PRIORITY_DURATION_MS).toISOString(),
+      }
+      const item = collection === 'links'
+        ? await payload.create({
+            collection,
+            data: { ...common, url: `https://example.com/${unique()}`, type: 'article' },
+            overrideAccess: true,
+          })
+        : await payload.create({
+            collection,
+            data: { ...common, content: createRichText('Organic thresholds'), type: 'discussion' },
+            overrideAccess: true,
+          })
+      const req = await createPayloadRequest({ payload })
+      await recalculateTargetSignals({ req, targetCollection: collection, targetId: item.id })
+      const recalculated = await payload.findByID({
+        collection,
+        id: item.id,
+        overrideAccess: true,
+      })
+      expect(recalculated.rankingScore).toBeGreaterThan(180)
+      expect(recalculated.featured).toBe(false)
+      expect(recalculated.breaking).toBe(false)
+
+      await payload.update({
+        collection,
+        id: item.id,
+        data: { sharesCount: 100 },
+        overrideAccess: true,
+      })
+      await recalculateTargetSignals({ req, targetCollection: collection, targetId: item.id })
+      const organic = await payload.findByID({
+        collection,
+        id: item.id,
+        overrideAccess: true,
+      })
+      expect(organic.featured).toBe(true)
+      expect(organic.breaking).toBe(true)
+    },
+  )
 
   it('automatically grants editorial priority to direct Main Feed publications by uploader role', async () => {
     const uploader = await createTestUser(payload)

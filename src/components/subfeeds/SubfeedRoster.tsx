@@ -174,21 +174,19 @@ export function SubfeedRoster({
                             : labels.makeUploader}
                       </Button>
                     ))}
-                    {roles.some((role) => role !== 'owner') ? (
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        disabled={pending}
-                        onClick={() => {
-                          const revocable = (['uploader', 'editor', 'moderator'] as SubfeedLocalRole[]).find(
-                            (role) => roles.includes(role),
-                          )
-                          if (revocable) revoke(user.id, revocable)
-                        }}
-                      >
-                        {labels.revoke}
-                      </Button>
-                    ) : null}
+                    {roles
+                      .filter((role) => role !== 'owner')
+                      .map((role) => (
+                        <Button
+                          key={`revoke-${role}`}
+                          variant="ghost"
+                          size="xs"
+                          disabled={pending}
+                          onClick={() => revoke(user.id, role)}
+                        >
+                          {labels.revoke} {labels[role]}
+                        </Button>
+                      ))}
                     <Button
                       variant="destructive"
                       size="xs"

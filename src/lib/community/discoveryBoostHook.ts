@@ -29,16 +29,18 @@ export interface DiscoveryBoostContext {
 }
 
 /**
- * True when the incoming data attempts to *write* a boost field to a
- * non-default value (e.g. `discoveryBoosted: true`). On create, `data` carries
- * every field's default (`discoveryBoosted: false`, `boostedAt: null`, …), so
- * we must ignore the empty defaults rather than treat their mere presence as an
- * attempt to change the boost.
+ * Ignore echoed values on update and empty defaults on create.
  */
-const attemptsBoostWrite = (data: Record<string, unknown> | null | undefined): boolean =>
+const attemptsBoostWrite = (
+  data: Record<string, unknown> | null | undefined,
+  originalDoc: Record<string, unknown> | null | undefined,
+): boolean =>
   BOOST_FIELD_NAMES.some((field) => {
     const value = data?.[field]
-    return value !== undefined && value !== false && value !== null
+    if (value === undefined) return false
+    if (!originalDoc) return value !== false && value !== null
+    if (field === 'boostedBy') return resolveID(value) !== resolveID(originalDoc[field])
+    return value !== originalDoc[field]
   })
 
 /**
@@ -60,7 +62,7 @@ const attemptsBoostWrite = (data: Record<string, unknown> | null | undefined): b
  *     change boost fields (e.g. a member hitting the Local API directly).
  */
 export const createDiscoveryBoostEnforcementHook = (): CollectionBeforeChangeHook => {
-  return async ({ data, originalDoc, req }) => {
+  return async ({ data, originalDoc, operation, req }) => {
     const boostContext = req?.context?.discoveryBoost as DiscoveryBoostContext | undefined
 
     if (boostContext) {
@@ -133,7 +135,10 @@ export const createDiscoveryBoostEnforcementHook = (): CollectionBeforeChangeHoo
     }
 
     // No boost context: guard direct writes to boost fields.
-    if (attemptsBoostWrite(data) && !canModerateCommunity(req?.user)) {
+    if (
+      attemptsBoostWrite(data, operation === 'update' ? originalDoc : undefined) &&
+      !canModerateCommunity(req?.user)
+    ) {
       throw new Error(
         'Only site administrators, moderators, and editors can change discovery boost fields.',
       )

@@ -16,6 +16,7 @@ import {
   canModerateCommunity,
   canModerateSubfeedContent,
   canSubmitToSubfeed,
+  enforceSubfeedContentTargetAccess,
 } from '@/lib/community/subfeeds'
 import type { SubfeedRosterLike } from '@/lib/community/subfeeds'
 import { createDiscoveryBoostEnforcementHook } from '@/lib/community/discoveryBoostHook'
@@ -237,12 +238,12 @@ const prepareLink: CollectionBeforeValidateHook = async ({ data, operation, req,
     })
   }
 
-  const effectiveFeed = nextData?.feed ?? originalDoc?.feed
-  const effectiveSubfeed = nextData?.subfeed ?? originalDoc?.subfeed
-
-  if (nextData?.subfeed && effectiveFeed !== 'subfeed') {
+  if (nextData?.subfeed && (nextData.feed ?? originalDoc?.feed) !== 'subfeed') {
     nextData.feed = 'subfeed'
   }
+
+  const effectiveFeed = nextData.feed !== undefined ? nextData.feed : originalDoc?.feed
+  const effectiveSubfeed = nextData.subfeed !== undefined ? nextData.subfeed : originalDoc?.subfeed
 
   if (effectiveFeed === 'subfeed') {
     const subfeedId = resolveID(effectiveSubfeed)
@@ -251,8 +252,11 @@ const prepareLink: CollectionBeforeValidateHook = async ({ data, operation, req,
         throw new Error('Links in subfeed feed must include a subfeed relation')
       }
       nextData.feed = 'user'
-    } else if (operation === 'create' && !canModerateCommunity(req.user)) {
-      const authorId = resolveID(nextData?.user) ?? req.user?.id ?? null
+    } else if (!canModerateCommunity(req.user)) {
+      const authorId =
+        resolveID(nextData.user !== undefined ? nextData.user : originalDoc?.user) ??
+        req.user?.id ??
+        null
 
       if (!authorId) {
         throw new Error('Links in subfeed feed must include a valid author')
@@ -409,7 +413,7 @@ export const Links: CollectionConfig = {
     },
   },
   hooks: {
-    beforeValidate: [prepareLink],
+    beforeValidate: [enforceSubfeedContentTargetAccess, prepareLink],
     beforeChange: [createDiscoveryBoostEnforcementHook(), grantEditorialPriority, syncDerivedSignals],
     beforeDelete: [deleteRelatedLinkClicks],
   },

@@ -398,6 +398,7 @@ export async function assignSubfeedRole(subfeedId: number, userId: number, role:
     id: subfeedId,
     data,
     user,
+    context: { skipHooks: true },
     overrideAccess: false,
   })
 
@@ -443,6 +444,7 @@ export async function removeSubfeedRole(subfeedId: number, userId: number, role:
     id: subfeedId,
     data,
     user,
+    context: { skipHooks: true },
     overrideAccess: false,
   })
 
@@ -489,6 +491,7 @@ export async function removeSubfeedMember(subfeedId: number, userId: number) {
       members: nextMembers,
     },
     user,
+    context: { skipHooks: true },
     overrideAccess: false,
   })
 

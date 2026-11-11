@@ -8,7 +8,8 @@ import type {
 
 import { checkRole } from '@/access/checkRole'
 import { getSubfeedEligibilityForUser } from '@/lib/community/subfeedEligibility'
-import { canModerateSubfeedContent } from '@/lib/community/subfeeds'
+import { canModerateSubfeedContent, resolveSubfeedOwner } from '@/lib/community/subfeeds'
+import type { SubfeedRosterLike } from '@/lib/community/subfeeds'
 import { bumpUserSignals } from '@/lib/community/userSignals'
 import { resolveID } from '@/lib/community/userSignals'
 
@@ -32,6 +33,19 @@ const normalizeIds = (values: unknown): number[] => {
   if (!Array.isArray(values)) return []
 
   return values.map(resolveID).filter((value): value is number => typeof value === 'number')
+}
+
+const preservesOwner = (
+  data: SubfeedRosterLike | undefined,
+  originalDoc: SubfeedRosterLike,
+): boolean => {
+  const ownerId = resolveSubfeedOwner(originalDoc)
+  return (
+    (data?.owner === undefined || resolveID(data.owner) === resolveID(originalDoc.owner)) &&
+    (data?.moderators === undefined ||
+      ownerId === null ||
+      normalizeIds(data.moderators).includes(ownerId))
+  )
 }
 
 /**
@@ -77,7 +91,7 @@ const canManageSubfeed: Access = async ({ id, req, data }) => {
   if (!subfeed) return false
 
   if (canModerateSubfeedContent(subfeed, user.id)) {
-    return true
+    return preservesOwner(data, subfeed)
   }
 
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
@@ -128,12 +142,25 @@ const prepareSubfeed: CollectionBeforeValidateHook = ({ data }) => {
   return next
 }
 
-const attachCreatorToCommunity: CollectionBeforeChangeHook = ({ data, operation, req }) => {
+const attachCreatorToCommunity: CollectionBeforeChangeHook = ({
+  data,
+  operation,
+  originalDoc,
+  req,
+}) => {
+  if (
+    operation === 'update' &&
+    req.user &&
+    !canModerate(req.user) &&
+    !preservesOwner(data, originalDoc)
+  ) {
+    throw new Error('You cannot change the owner or remove the owner from moderators')
+  }
   if (operation !== 'create' || !req.user) return data
 
   const creatorId = req.user.id
 
-  const owner = resolveID(data?.owner) ?? creatorId
+  const owner = canModerate(req.user) ? (resolveID(data?.owner) ?? creatorId) : creatorId
 
   const moderators = Array.isArray(data?.moderators)
     ? Array.from(new Set([...normalizeIds(data.moderators), creatorId]))
@@ -152,19 +179,20 @@ const attachCreatorToCommunity: CollectionBeforeChangeHook = ({ data, operation,
 }
 
 const rewardRecruitment: CollectionAfterChangeHook = async ({ doc, previousDoc, req }) => {
-  if (!req.user || !previousDoc) return
+  if (req.context.skipHooks || !req.user || !previousDoc) return
+
+  const rosterChanged = (['moderators', 'editors', 'uploaders'] as const).some(
+    (field) =>
+      JSON.stringify(normalizeIds(doc[field])) !== JSON.stringify(normalizeIds(previousDoc[field])),
+  )
+  if (rosterChanged) return
 
   const previousMembers = new Set(normalizeIds(previousDoc.members))
   const nextMembers = new Set(normalizeIds(doc.members))
 
-  let recruitedCount = 0
-  for (const memberId of nextMembers) {
-    if (!previousMembers.has(memberId)) recruitedCount += 1
-  }
-
-  if (recruitedCount > 0) {
+  if (!previousMembers.has(req.user.id) && nextMembers.has(req.user.id)) {
     await bumpUserSignals(req, req.user.id, {
-      recruiterScore: recruitedCount,
+      recruiterScore: 1,
     })
   }
 }
@@ -233,6 +261,9 @@ export const SubFeeds: CollectionConfig = {
       name: 'owner',
       type: 'relationship',
       relationTo: 'users',
+      access: {
+        update: ({ req: { user } }) => canModerate(user),
+      },
       admin: {
         description:
           'The SubFeed owner. Governs local roles and roster. Defaults to the creator; legacy rows fall back to the first moderator.',

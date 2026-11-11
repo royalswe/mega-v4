@@ -236,6 +236,202 @@ describe('SubFeed local roles (integration)', () => {
     payload = await getTestPayload()
   })
 
+  it('protects the owner, including the legacy first-moderator fallback', async () => {
+    const owner = await createTestUser(payload)
+    const localMod = await createTestUser(payload)
+    const subfeed = await createTestSubfeed(owner.id, {
+      moderators: [owner.id, localMod.id],
+    })
+    for (const data of [{ owner: localMod.id }, { moderators: [localMod.id] }]) {
+      await expect(
+        payload.update({
+          collection: 'subfeeds',
+          id: subfeed.id,
+          data,
+          user: localMod,
+          overrideAccess: false,
+        }),
+      ).rejects.toThrow()
+    }
+
+    await payload.update({
+      collection: 'subfeeds',
+      id: subfeed.id,
+      data: { owner: null },
+      overrideAccess: true,
+    })
+    await expect(
+      revokeLocalRole(subfeed.id, localMod, owner.id, 'moderator'),
+    ).rejects.toThrow()
+
+    const admin = await payload.update({
+      collection: 'users',
+      id: localMod.id,
+      data: { roles: ['admin', 'user'] },
+      overrideAccess: true,
+    })
+    const transferred = await payload.update({
+      collection: 'subfeeds',
+      id: subfeed.id,
+      data: { owner: localMod.id, moderators: [localMod.id] },
+      user: admin,
+      overrideAccess: false,
+      depth: 0,
+    })
+    expect(transferred.owner).toBe(localMod.id)
+  })
+
+  it('forces a non-site-moderator creator to own their subfeed', async () => {
+    const creator = await createTestUser(payload)
+    const other = await createTestUser(payload)
+    const qualified = await payload.update({
+      collection: 'users',
+      id: creator.id,
+      data: { contributionScore: 200 },
+      overrideAccess: true,
+    })
+    const unique = faker.string.alphanumeric(10).toLowerCase()
+    const subfeed = await payload.create({
+      collection: 'subfeeds',
+      data: {
+        name: `Creator ${unique}`,
+        slug: `creator-${unique}`,
+        description: 'Owner must be the qualified creator',
+        owner: other.id,
+        moderators: [other.id],
+      },
+      user: qualified,
+      overrideAccess: false,
+      depth: 0,
+    })
+    expect(subfeed.owner).toBe(creator.id)
+    expect(subfeed.moderators).toContain(creator.id)
+  })
+
+  it('rewards self-joins but not role assignments or roster additions', async () => {
+    const owner = await createTestUser(payload)
+    const member = await createTestUser(payload)
+    const subfeed = await createTestSubfeed(owner.id)
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await assignLocalRole(subfeed.id, owner, member.id, 'editor')
+      await payload.update({
+        collection: 'subfeeds',
+        id: subfeed.id,
+        data: { editors: [], members: [owner.id] },
+        user: owner,
+        overrideAccess: false,
+      })
+    }
+    const unchanged = await payload.findByID({
+      collection: 'users',
+      id: owner.id,
+      overrideAccess: true,
+    })
+    expect(unchanged.recruiterScore).toBe(0)
+
+    await payload.update({
+      collection: 'subfeeds',
+      id: subfeed.id,
+      data: { members: [owner.id, member.id] },
+      user: member,
+      overrideAccess: false,
+    })
+    const joined = await payload.findByID({
+      collection: 'users',
+      id: member.id,
+      overrideAccess: true,
+    })
+    expect(joined.recruiterScore).toBe(1)
+  })
+
+  it.each(['links', 'posts'] as const)(
+    'lets local editors curate %s but only moderators may retarget another author',
+    async (collection) => {
+      const owner = await createTestUser(payload)
+      const editor = await createTestUser(payload)
+      const author = await createTestUser(payload)
+      const subfeed = await createTestSubfeed(owner.id, {
+        editors: [editor.id],
+        members: [owner.id, editor.id, author.id],
+      })
+      const destination = await createTestSubfeed(owner.id, {
+        members: [owner.id, author.id],
+      })
+      const item = collection === 'links'
+        ? await createSubfeedLink(author, subfeed.id)
+        : await createSubfeedPost(author, subfeed.id)
+
+      for (const data of [
+        { feed: 'user' as const, subfeed: null },
+        { subfeed: destination.id },
+        { user: editor.id },
+      ]) {
+        await expect(
+          payload.update({
+            collection,
+            id: item.id,
+            data,
+            user: editor,
+            overrideAccess: false,
+          }),
+        ).rejects.toThrow('Only moderators can change')
+      }
+
+      const curated = await payload.update({
+        collection,
+        id: item.id,
+        data: { title: `Curated ${faker.string.alphanumeric(10)}` },
+        user: editor,
+        overrideAccess: false,
+      })
+      expect(curated.id).toBe(item.id)
+
+      const moved = await payload.update({
+        collection,
+        id: item.id,
+        data: { subfeed: destination.id },
+        user: owner,
+        overrideAccess: false,
+        depth: 0,
+      })
+      expect(moved.subfeed).toBe(destination.id)
+
+      const retargeted = await payload.update({
+        collection,
+        id: item.id,
+        data: { feed: 'user', subfeed: null, user: owner.id },
+        user: owner,
+        overrideAccess: false,
+        depth: 0,
+      })
+      expect(retargeted.feed).toBe('user')
+      expect(retargeted.subfeed).toBeNull()
+      expect(retargeted.user).toBe(owner.id)
+    },
+  )
+
+  it.each(['links', 'posts'] as const)(
+    'rejects moving %s to a subfeed where its author has no membership',
+    async (collection) => {
+      const owner = await createTestUser(payload)
+      const author = await createTestUser(payload)
+      const source = await createTestSubfeed(owner.id, { members: [owner.id, author.id] })
+      const destination = await createTestSubfeed(owner.id)
+      const item = collection === 'links'
+        ? await createSubfeedLink(author, source.id)
+        : await createSubfeedPost(author, source.id)
+      await expect(
+        payload.update({
+          collection,
+          id: item.id,
+          data: { subfeed: destination.id },
+          user: owner,
+          overrideAccess: false,
+        }),
+      ).rejects.toThrow('You must join this subfeed before posting')
+    },
+  )
+
   it('lets the owner assign and revoke each local role', async () => {
     const owner = await getTestUser()
     const member = await createTestUser(payload)

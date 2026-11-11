@@ -26,7 +26,7 @@ const readDate = (value: unknown): string | Date | undefined => {
   return undefined
 }
 
-const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc }) => {
+const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc, req }) => {
   const existingRoles =
     Array.isArray(data?.roles) && data.roles.length > 0
       ? data.roles
@@ -48,14 +48,17 @@ const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc })
   const cleaningScore = mergeScore(data?.cleaningScore, originalDoc?.cleaningScore)
   const recruiterScore = mergeScore(data?.recruiterScore, originalDoc?.recruiterScore)
 
+  const trustedActivityUpdate =
+    req.context.updateUserActivity === true ||
+    admins({ req }) ||
+    (req.payloadAPI === 'local' && !req.user)
   const lastActiveAt =
-    readDate(data?.lastActiveAt) ??
+    (trustedActivityUpdate ? readDate(data?.lastActiveAt) : undefined) ??
     readDate(originalDoc?.lastActiveAt) ??
     (data && !originalDoc ? new Date().toISOString() : undefined)
 
   const previousTrustLevel =
-    (typeof data?.trustLevel === 'string' ? data.trustLevel : undefined) ??
-    (typeof originalDoc?.trustLevel === 'string' ? originalDoc.trustLevel : undefined)
+    typeof originalDoc?.trustLevel === 'string' ? originalDoc.trustLevel : undefined
 
   const rolesLocked =
     typeof data?.standingLocked === 'boolean'
@@ -64,12 +67,11 @@ const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc })
         ? originalDoc.standingLocked
         : false
 
-  const revokedRoles =
-    Array.isArray(data?.revokedRoles) && data.revokedRoles.length > 0
-      ? data.revokedRoles
-      : Array.isArray(originalDoc?.revokedRoles)
-        ? originalDoc.revokedRoles
-        : []
+  const revokedRoles = Array.isArray(data?.revokedRoles)
+    ? data.revokedRoles
+    : Array.isArray(originalDoc?.revokedRoles)
+      ? originalDoc.revokedRoles
+      : []
 
   const signals = {
     discoveryScore,
@@ -193,6 +195,10 @@ export const Users: CollectionConfig = {
       name: 'trustLevel',
       type: 'select',
       defaultValue: 'newcomer',
+      access: {
+        create: admins,
+        update: admins,
+      },
       admin: {
         readOnly: true,
       },
@@ -366,6 +372,10 @@ export const Users: CollectionConfig = {
     {
       name: 'lastActiveAt',
       type: 'date',
+      access: {
+        create: admins,
+        update: admins,
+      },
       admin: {
         readOnly: true,
       },

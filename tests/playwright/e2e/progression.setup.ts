@@ -1,7 +1,6 @@
 import { test as setup } from '@playwright/test'
 import { getPayload } from 'payload'
 import type { Payload } from 'payload'
-import configPromise from '@payload-config'
 import { AuthPage } from './pages/AuthPage'
 import path from 'path'
 import fs from 'fs'
@@ -13,11 +12,9 @@ import type { Browser } from '@playwright/test'
 // first Next-dev compile, so raise the test-level timeout well above the default.
 setup.setTimeout(300_000)
 
-// Load environment deterministically for the Local API (mirrors vitest.setup.ts
-// and test-user.ts). `playwright.config.ts` already loads `.env`, but re-loading
-// here makes the setup self-contained regardless of worker ordering.
+// Test overrides must be loaded before importing the database configuration.
 dotenv.config()
-dotenv.config({ path: path.resolve(process.cwd(), 'tests/test.env') })
+dotenv.config({ path: path.resolve(process.cwd(), 'tests/test.env'), override: true })
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -75,6 +72,7 @@ async function getTestPayload(): Promise<Payload> {
   if (payloadInitPromise) return payloadInitPromise
 
   payloadInitPromise = (async () => {
+    const { default: configPromise } = await import('@payload-config')
     const cfg = await configPromise
     const initialized = await getPayload({ config: cfg })
     cachedPayload = initialized

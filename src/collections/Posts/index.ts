@@ -15,6 +15,7 @@ import {
   canModerateCommunity,
   canModerateSubfeedContent,
   canSubmitToSubfeed,
+  enforceSubfeedContentTargetAccess,
 } from '@/lib/community/subfeeds'
 import type { SubfeedRosterLike } from '@/lib/community/subfeeds'
 import { createDiscoveryBoostEnforcementHook } from '@/lib/community/discoveryBoostHook'
@@ -161,12 +162,12 @@ const preparePost: CollectionBeforeValidateHook = async ({ data, operation, req,
     nextData.slug = nextData.slug || slugify(nextData.title)
   }
 
-  const effectiveFeed = nextData?.feed ?? originalDoc?.feed
-  const effectiveSubfeed = nextData?.subfeed ?? originalDoc?.subfeed
-
-  if (nextData?.subfeed && effectiveFeed !== 'subfeed') {
+  if (nextData?.subfeed && (nextData.feed ?? originalDoc?.feed) !== 'subfeed') {
     nextData.feed = 'subfeed'
   }
+
+  const effectiveFeed = nextData.feed !== undefined ? nextData.feed : originalDoc?.feed
+  const effectiveSubfeed = nextData.subfeed !== undefined ? nextData.subfeed : originalDoc?.subfeed
 
   if (effectiveFeed === 'subfeed') {
     const subfeedId = resolveID(effectiveSubfeed)
@@ -177,8 +178,11 @@ const preparePost: CollectionBeforeValidateHook = async ({ data, operation, req,
       // If the referenced subfeed was cascade-deleted (ON DELETE SET NULL),
       // demote this post to user feed rather than bricking updates
       nextData.feed = 'user'
-    } else if (operation === 'create' && !canModerateCommunity(req.user)) {
-      const authorId = resolveID(nextData?.user) ?? req.user?.id ?? null
+    } else if (!canModerateCommunity(req.user)) {
+      const authorId =
+        resolveID(nextData.user !== undefined ? nextData.user : originalDoc?.user) ??
+        req.user?.id ??
+        null
 
       if (!authorId) {
         throw new Error('Posts in subfeed feed must include a valid author')
@@ -343,7 +347,7 @@ export const Posts: CollectionConfig = {
     delete: deleteAccess,
   },
   hooks: {
-    beforeValidate: [preparePost],
+    beforeValidate: [enforceSubfeedContentTargetAccess, preparePost],
     beforeChange: [createDiscoveryBoostEnforcementHook(), grantEditorialPriority, syncDerivedSignals],
   },
   fields: [

@@ -137,6 +137,7 @@ export const recalculateTargetSignals = async ({
   })
 
   const score = upvotes - downvotes
+  const organicScore = ranking.score - ranking.editorialBoost
   const createdAt = targetDocData.createdAt ?? new Date().toISOString()
   const ageHours = Math.max(0, (Date.now() - new Date(createdAt).getTime()) / 3_600_000)
 
@@ -157,8 +158,8 @@ export const recalculateTargetSignals = async ({
       spamProbability: ranking.spamProbability,
       ragebaitProbability: ranking.ragebaitProbability,
       rankingScore: ranking.score,
-      breaking: ranking.score >= 180 && ageHours <= 24,
-      featured: ranking.score >= 120 && ranking.spamProbability < 0.55,
+      breaking: organicScore >= 180 && ageHours <= 24,
+      featured: organicScore >= 120 && ranking.spamProbability < 0.55,
       controversial: ranking.controversyScore >= 45 || ranking.ragebaitProbability >= 0.6,
     },
     overrideAccess: true,

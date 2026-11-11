@@ -479,4 +479,55 @@ describe('Main Feed promotion integration', () => {
       }),
     ).rejects.toThrow(/Only site administrators, moderators, and editors/)
   })
+
+  it('accepts echoed boost values but rejects unauthorized changes and clears', async () => {
+    const author = await createTestUser(payload)
+    const admin = await payload.update({
+      collection: 'users',
+      id: author.id,
+      data: { roles: ['admin', 'user'] },
+      overrideAccess: true,
+    })
+    const link = await createLink({ user: author.id, feed: 'user', upvotes: 20 })
+    const boosted = await payload.update({
+      collection: 'links',
+      id: link.id,
+      data: {
+        discoveryBoosted: true,
+        boostedAt: new Date().toISOString(),
+        boostedBy: author.id,
+      },
+      user: admin,
+      overrideAccess: false,
+      depth: 0,
+    })
+    const echoed = await payload.update({
+      collection: 'links',
+      id: link.id,
+      data: {
+        description: 'Routine update',
+        discoveryBoosted: boosted.discoveryBoosted,
+        boostedAt: boosted.boostedAt,
+        boostedBy: boosted.boostedBy,
+      },
+      overrideAccess: true,
+    })
+    expect(echoed.discoveryBoosted).toBe(true)
+
+    for (const data of [
+      { discoveryBoosted: false },
+      { boostedAt: null },
+      { boostedBy: null },
+      { boostedAt: new Date(Date.now() + 60_000).toISOString() },
+    ]) {
+      await expect(
+        payload.update({
+          collection: 'links',
+          id: link.id,
+          data,
+          overrideAccess: true,
+        }),
+      ).rejects.toThrow(/Only site administrators, moderators, and editors/)
+    }
+  })
 })
