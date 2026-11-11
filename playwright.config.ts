@@ -23,6 +23,12 @@ dotenv.config({ path: path.resolve(__dirname, 'tests/test.env') })
 export default defineConfig({
   testDir: './tests/playwright/e2e',
   testMatch: '**/*.spec.ts', // Only include files ending with .spec.ts as test files
+  /* Next dev cold-compiles routes on first navigation against the shared Postgres
+     DB; under parallel workers this can exceed Playwright's 30s default. */
+  timeout: 120_000,
+  expect: {
+    timeout: 15_000,
+  },
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
