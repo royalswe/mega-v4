@@ -1,4 +1,4 @@
-Avsändare: Bobhund1557
+Avsändare: Bobhund
 Datum: 2026-11-01 18:04
 
 Jag var precis inne på How It Works och kollade beskrivningen av de olika klasserna och poängen. Bra grund, går att finslipa mekaniken bakom så att allting blir mer dynamiskt och att progressionen är aktivitetsbaserad.
@@ -32,7 +32,7 @@ Sedan funderar jag också på vad dina värden i tabellen betyder. Hur har du ko
 
 Förstår du min tanke med att hela sidans ekosystem hänger ihop, och om en sak rör sig åt ett håll, då förflyttas allt annat samtisigt? Hela ekosystemet hänger på att användarna i communityt är aktiva och bidrar själva, och genom att bygga in algoritmer för att uppmana till gott uppförande och avfärda content och användare som är dåliga för sidan, så blir hela ekosystemet självreglerande.
 
-Avsändare: Bobhund1557
+Avsändare: Bobhund
 Datum: 2026-11-01 18:42
 
 Förtydligande kring hur sidans ekosystem ska fungera.
