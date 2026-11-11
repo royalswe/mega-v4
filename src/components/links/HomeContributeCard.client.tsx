@@ -23,7 +23,7 @@ import {
   setContributeCardCollapsedPreference,
   setHomeSubfeedsViewPreference,
 } from '@/app/actions/links'
-import type { AppDictionary } from '@/lib/dictionaries'
+import type { AppDictionary, UserLanguage } from '@/lib/dictionaries'
 import type { Media } from '@/payload-types'
 
 interface HomeContributeCardSubfeed {
@@ -45,6 +45,7 @@ interface HomeContributeStripItem {
 
 interface HomeContributeCardProps {
   dict: AppDictionary
+  lang: UserLanguage
   variant: 'member' | 'noSubfeeds' | 'guest'
   joinedSubfeeds?: HomeContributeCardSubfeed[]
   initialCollapsed?: boolean
@@ -55,6 +56,7 @@ interface HomeContributeCardProps {
 
 export function HomeContributeCard({
   dict,
+  lang,
   variant,
   joinedSubfeeds = [],
   initialCollapsed = false,
@@ -157,6 +159,8 @@ export function HomeContributeCard({
   }
 
   const renderActions = () => {
+    const howItWorksHref = lang === 'sv' ? '/hur-det-funkar' : '/how-it-works'
+
     if (variant === 'guest') {
       return (
         <>
@@ -164,7 +168,7 @@ export function HomeContributeCard({
             <Link href="/create-account">{copy.signUpAction}</Link>
           </Button>
           <Button asChild size="sm" variant="outline">
-            <Link href="/how-it-works">{copy.learnMoreAction}</Link>
+            <Link href={howItWorksHref}>{copy.learnMoreAction}</Link>
           </Button>
         </>
       )

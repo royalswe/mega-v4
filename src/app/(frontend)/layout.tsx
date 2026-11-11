@@ -5,15 +5,19 @@ import Link from 'next/link'
 
 import { Header } from '@/components/layout/Header'
 import { Toaster } from '@/components/ui/sonner'
+import { getDictionary } from '@/lib/dictionaries'
 
 export const metadata: Metadata = {
   title: 'V4',
   description: 'A place to share and discover links.',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const { dict, lang } = await getDictionary()
+  const howItWorksHref = lang === 'sv' ? '/hur-det-funkar' : '/how-it-works'
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={lang} suppressHydrationWarning>
       <body className="bg-background text-foreground overflow-x-hidden">
         <ThemeProvider
           attribute="class"
@@ -29,8 +33,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <footer className="py-4 px-3 sm:px-6 border-t text-sm text-muted-foreground">
               <div className="w-full max-w-245 mx-auto flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
                 <p>&copy;V4 All rights reserved.</p>
-                <Link href="/how-it-works" className="underline hover:text-foreground">
-                  How it works
+                <Link href={howItWorksHref} className="underline hover:text-foreground">
+                  {dict.pages.contribute.learnMoreAction}
                 </Link>
               </div>
             </footer>

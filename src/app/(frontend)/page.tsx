@@ -70,7 +70,7 @@ export default async function HomePage({
   }>
 }) {
   const { user, payload } = await getAuthenticatedUser()
-  const { dict } = await getDictionary()
+  const { dict, lang } = await getDictionary()
   const cookieStore = await cookies()
   const resolvedSearchParams = await searchParams
 
@@ -809,6 +809,7 @@ export default async function HomePage({
 
       <HomeContributeCard
         dict={dict}
+        lang={lang}
         variant={contributeVariant}
         joinedSubfeeds={contributeSubfeeds}
         initialCollapsed={contributeCardCollapsed}
