@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic' // This stops the build-time DB check
 
 import Link from 'next/link'
-import { after } from 'next/server'
 import { cookies } from 'next/headers'
 import type { Where } from 'payload'
 
@@ -81,16 +80,10 @@ export default async function HomePage({
   const resolvedSearchParams = await searchParams
   const feedPage = parseFeedPage(resolvedSearchParams?.page)
 
-  // Bobhund #1: a lapsed editorial window must stop boosting ranking order.
-  // The sweep runs after the response (`after`): a large expiry backlog (it
-  // costs ~5 queries per expired item) never blocks a visitor's render.
-  // Ranking already treats expired windows as inactive at read time — the
-  // sweep only persists that state, so deferring it costs seconds of
-  // ordering staleness, not correctness.
-  after(() => {
-    expireEditorialPriority({ payload }).catch((error: unknown) => {
-      payload.logger.error({ err: error, msg: 'Failed to expire editorial priority on Home feed' })
-    })
+  // Ranking is persisted on writes; clear expired boosts before selecting
+  // items, even if another render swept within the normal throttle window.
+  await expireEditorialPriority({ payload, force: true }).catch((error: unknown) => {
+    payload.logger.error({ err: error, msg: 'Failed to expire editorial priority on Home feed' })
   })
 
   const showNSFW = user?.settings?.nsfw === true

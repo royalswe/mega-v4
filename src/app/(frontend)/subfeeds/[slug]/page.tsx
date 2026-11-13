@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
-import { after } from 'next/server'
 import { notFound } from 'next/navigation'
 
 import { getPostInteractions } from '@/app/(frontend)/data/getPostInteractions'
@@ -220,13 +219,9 @@ export default async function SubfeedDetailsPage({
   const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
   const { user, payload } = await getAuthenticatedUser()
   const { dict, lang } = await getDictionary()
-  // Bobhund #1: clear lapsed editorial boosts. Runs after the response
-  // (`after`) so the expiry sweep never blocks the render; the sweep is
-  // idempotent and the next page render retries it.
-  after(() => {
-    expireEditorialPriority({ payload }).catch((error: unknown) => {
-      payload.logger.error({ err: error, msg: 'Failed to expire editorial priority on Subfeed page' })
-    })
+  // Selection and mixed-content ordering use persisted ranking scores.
+  await expireEditorialPriority({ payload, force: true }).catch((error: unknown) => {
+    payload.logger.error({ err: error, msg: 'Failed to expire editorial priority on Subfeed page' })
   })
   const canQuickEditLinks = user ? checkRole(['admin'], user) : false
   const selectedWindow = parsePulseWindow(resolvedSearchParams.window)

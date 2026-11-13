@@ -30,7 +30,7 @@ export function LazyFeedLoader({ nextHref, pendingLabel }: { nextHref: string; p
         fired = true
         setRequested(true)
         startTransition(() => {
-          router.push(nextHref, { scroll: false })
+          router.replace(nextHref, { scroll: false })
         })
       },
       // Start loading well before the reader reaches the end.

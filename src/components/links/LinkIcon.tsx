@@ -28,8 +28,8 @@ const colorByType: Record<string, string> = {
 }
 
 export function LinkIcon({ type, className }: { type: LinkType; className?: string }) {
-  const icon = iconByType[type] ?? FILE_TEXT
-  const colorClass = colorByType[type] ?? 'text-slate-600'
+  const icon = Object.hasOwn(iconByType, type) ? iconByType[type] : FILE_TEXT
+  const colorClass = Object.hasOwn(colorByType, type) ? colorByType[type] : 'text-slate-600'
 
   return <ServerIcon icon={icon} size={40} className={cn(colorClass, className)} />
 }
