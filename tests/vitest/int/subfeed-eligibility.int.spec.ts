@@ -189,13 +189,12 @@ describe('SubFeed creation eligibility integration', () => {
 
   const createEligibleUser = async () => {
     const user = await createTestUser(payload)
-    await payload.update({
+    return payload.update({
       collection: 'users',
       id: user.id,
       data: { contributionScore: 120, lastActiveAt: new Date().toISOString() },
       overrideAccess: true,
     })
-    return user
   }
 
   it('allows an eligible member to create a SubFeed', async () => {

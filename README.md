@@ -90,6 +90,10 @@ reference-time offset (for example discovery `discoveredAt`) are reconciled to
 the new reference time, and person signal scores are re-applied after the
 interaction hooks run.
 
+Reconciliation also restores removed fixture replies to visible and returns the
+pending-post scenario to pending after publication, using the seeded moderator's
+normal authorization path.
+
 ### Verification
 
 The seed scenario spec is opt-in so the normal suite never depends on demo data:
@@ -101,8 +105,9 @@ SEED_VERIFY=1 pnpm exec vitest run tests/vitest/int/seed-scenarios.int.spec.ts
 
 It runs the seed twice, checks effective roles/standing, SubFeed publishing
 eligibility, promotion/safety visibility and second-run row counts. Without
-`SEED_VERIFY=1` the spec is skipped and `pnpm run test:int` stays independent of
-the demo database.
+`SEED_VERIFY=1` the database scenarios are skipped; database-free reconciliation
+regressions still run. Row counts are scoped to seed-owned records so unrelated
+fixture writes do not affect the idempotency comparison.
 
 ### Scenario manifest
 

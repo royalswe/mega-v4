@@ -293,28 +293,38 @@ export const loadPublishingDestinationEligibility = async (
   payload: Payload,
   user: PublishingActor | null | undefined,
 ): Promise<PublishingDestinationEligibility> => {
-  const { docs } = await payload.find({
-    collection: 'subfeeds',
-    sort: 'name',
-    depth: 0,
-    limit: 200,
-    user: (user ?? null) as User | null,
-    overrideAccess: false,
-  })
+  const userId = resolveID(user)
+  if (userId === null) return getPublishingDestinationEligibility(user, [])
 
-  return getPublishingDestinationEligibility(
-    user,
-    docs.map((subfeed) => ({
-      id: subfeed.id,
-      name: subfeed.name,
-      slug: subfeed.slug,
-      owner: subfeed.owner,
-      moderators: subfeed.moderators,
-      editors: subfeed.editors,
-      uploaders: subfeed.uploaders,
-      members: subfeed.members,
-    })),
-  )
+  const subfeeds: EligibleSubfeedSource[] = []
+  let page = 1
+  let hasNextPage = true
+  while (hasNextPage) {
+    const result = await payload.find({
+      collection: 'subfeeds',
+      where: canModerateCommunity(user)
+        ? undefined
+        : {
+            or: [
+              { owner: { equals: userId } },
+              { moderators: { in: [userId] } },
+              { editors: { in: [userId] } },
+              { uploaders: { in: [userId] } },
+            ],
+          },
+      sort: 'name',
+      depth: 0,
+      limit: 200,
+      page,
+      user: user as User,
+      overrideAccess: false,
+    })
+    subfeeds.push(...result.docs)
+    hasNextPage = result.hasNextPage
+    page += 1
+  }
+
+  return getPublishingDestinationEligibility(user, subfeeds)
 }
 
 export interface PersistedPublicationDoc {

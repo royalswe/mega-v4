@@ -63,6 +63,7 @@ interface ProgressionFixture {
   subfeeds: {
     qualifiedSubfeed: FixtureSubfeed
     adminSubfeed: FixtureSubfeed
+    moderatorSubfeed: FixtureSubfeed
   }
 }
 
@@ -198,6 +199,14 @@ test.describe('Progression & promotion lifecycle', () => {
 
         const localmodRow = page.locator('li').filter({ hasText: fixtures.users.localmod.username })
         await expect(localmodRow).toBeVisible()
+        const revokeModerator = localmodRow.getByRole('button', {
+          name: 'Revoke Moderator',
+          exact: true,
+        })
+        if (await revokeModerator.isVisible()) {
+          await revokeModerator.click()
+          await expect(localmodRow.getByRole('button', { name: 'Make moderator' })).toBeVisible()
+        }
         await localmodRow.getByRole('button', { name: 'Make moderator' }).click()
 
         // The local role is reflected in the roster as a Moderator badge.
@@ -221,7 +230,7 @@ test.describe('Progression & promotion lifecycle', () => {
         page,
       }) => {
         // Local moderator can manage the Subfeed they govern.
-        await page.goto(`/subfeeds/${fixtures.subfeeds.qualifiedSubfeed.slug}`)
+        await page.goto(`/subfeeds/${fixtures.subfeeds.moderatorSubfeed.slug}`)
         await expect(
           page.getByText('Promote members to local roles, revoke roles, or remove members below.'),
         ).toBeVisible()

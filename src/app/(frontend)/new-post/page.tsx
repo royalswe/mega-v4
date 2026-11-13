@@ -2,7 +2,7 @@ import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 import { PostSubmitForm } from '@/components/posts/PostSubmitForm'
 import { redirect } from 'next/navigation'
-import { getPublishingDestinationEligibility } from '@/lib/community/subfeeds'
+import { loadPublishingDestinationEligibility } from '@/lib/community/subfeeds'
 
 export default async function NewPostPage() {
   const { user, payload } = await getAuthenticatedUser()
@@ -12,16 +12,7 @@ export default async function NewPostPage() {
     redirect('/login')
   }
 
-  const { docs: subfeeds } = await payload.find({
-    collection: 'subfeeds',
-    sort: 'name',
-    depth: 0,
-    limit: 200,
-    user,
-    overrideAccess: false,
-  })
-
-  const eligibility = getPublishingDestinationEligibility(user, subfeeds)
+  const eligibility = await loadPublishingDestinationEligibility(payload, user)
 
   return (
     <div className="space-y-4">

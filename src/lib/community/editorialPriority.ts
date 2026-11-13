@@ -1,6 +1,8 @@
-import type { Payload, PayloadRequest } from 'payload'
+import { sql } from '@payloadcms/db-postgres'
+import { createPayloadRequest, type Payload, type PayloadRequest } from 'payload'
 
 import { recalculateTargetSignals } from './contentSignals'
+import { withSerializableTransaction } from '@/lib/withSerializableTransaction'
 
 /**
  * Editorial-priority expiry sweep (Bobhund suggestion #1).
@@ -64,21 +66,58 @@ const clearExpiredBatch = async (
   if (expired.docs.length === 0) return 0
 
   for (const doc of expired.docs) {
-    await recalculateTargetSignals({
-      payload,
-      req,
-      targetCollection: collection,
-      targetId: doc.id,
-      now,
-    })
+    const clearSelectedWindow = async (transactionReq: PayloadRequest): Promise<void> => {
+      const transactionID = await transactionReq.transactionID
+      const tx = transactionID ? payload.db.sessions[transactionID]?.db : undefined
+      const tableName = payload.db.tableNameMap.get(collection)
+      const table = tableName ? payload.db.tables[tableName] : undefined
+      if (!tx || !('execute' in tx) || !table) {
+        throw new Error('Editorial expiry requires an active PostgreSQL transaction')
+      }
 
-    await payload.update({
-      collection,
-      id: doc.id,
-      data: { editorialPriority: false, editorialPriorityUntil: null },
-      overrideAccess: true,
-      ...reqScope,
-    })
+      // Lock before comparing so a renewed window cannot be cleared by a stale sweep.
+      await tx.execute(sql`
+        SELECT ${table.id} FROM ${table} WHERE ${table.id} = ${doc.id} FOR UPDATE
+      `)
+      const current = await payload.findByID({
+        collection,
+        id: doc.id,
+        depth: 0,
+        overrideAccess: true,
+        req: transactionReq,
+      })
+      if (
+        !current.editorialPriority ||
+        current.editorialPriorityUntil !== doc.editorialPriorityUntil
+      )
+        return
+
+      await recalculateTargetSignals({
+        payload,
+        req: transactionReq,
+        targetCollection: collection,
+        targetId: doc.id,
+        now,
+      })
+
+      await payload.update({
+        collection,
+        id: doc.id,
+        data: { editorialPriority: false, editorialPriorityUntil: null },
+        overrideAccess: true,
+        req: transactionReq,
+      })
+    }
+
+    if (req?.transactionID) {
+      await clearSelectedWindow(req)
+    } else {
+      await withSerializableTransaction(payload, async (transactionReq) => {
+        await clearSelectedWindow(
+          await createPayloadRequest({ payload, req: { ...req, ...transactionReq } }),
+        )
+      })
+    }
   }
 
   return expired.docs.length

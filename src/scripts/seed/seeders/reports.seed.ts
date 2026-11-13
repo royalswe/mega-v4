@@ -1,48 +1,14 @@
 import type { Payload } from 'payload'
-import type { Report } from '@/payload-types'
 
 import {
   SEED_INTERACTION_SCENARIOS,
   createSeedTally,
   offsetIsoFromReference,
-  readRelationId,
   type SeedStepTally,
   type SeededContentIndex,
 } from './utils.seed'
 import { requirePersona } from './links.seed'
 import type { SeedUsers } from './users.seed'
-
-export type ReportTargetType = 'post' | 'comment' | 'link' | 'user'
-
-const reportKey = ({
-  reporterId,
-  targetType,
-  targetId,
-  reason,
-}: {
-  reporterId: number
-  targetType: string
-  targetId: string
-  reason: string
-}) => `${reporterId}:${targetType}:${targetId}:${reason}`
-
-const resolveReportTarget = (
-  report: Report,
-): { targetType: ReportTargetType; targetId: string } => {
-  if (report.targetPost) {
-    return { targetType: 'post', targetId: String(readRelationId(report.targetPost)) }
-  }
-
-  if (report.targetComment) {
-    return { targetType: 'comment', targetId: String(readRelationId(report.targetComment)) }
-  }
-
-  if (report.targetLink) {
-    return { targetType: 'link', targetId: String(readRelationId(report.targetLink)) }
-  }
-
-  return { targetType: 'user', targetId: String(readRelationId(report.targetUser)) }
-}
 
 /**
  * Creates the authored moderation reports. Reports are append-only scenario
@@ -58,30 +24,6 @@ export async function seedReports(
   const tally = createSeedTally('reports')
   const scenarios = SEED_INTERACTION_SCENARIOS.filter((scenario) => scenario.kind === 'report')
 
-  const { docs: existingReports } = await payload.find({
-    collection: 'reports',
-    limit: 10_000,
-    depth: 0,
-    overrideAccess: true,
-  })
-
-  const seen = new Set<string>()
-
-  for (const report of existingReports) {
-    const reporterId = readRelationId(report.reporter)
-    if (!reporterId) continue
-
-    const target = resolveReportTarget(report)
-    seen.add(
-      reportKey({
-        reporterId,
-        targetType: target.targetType,
-        targetId: target.targetId,
-        reason: report.reason,
-      }),
-    )
-  }
-
   for (const scenario of scenarios) {
     const actor = requirePersona(users, scenario.actor)
     const target = content.get(scenario.target)
@@ -96,14 +38,21 @@ export async function seedReports(
       throw new Error(`Seed report "${scenario.key}" has no reason.`)
     }
 
-    const key = reportKey({
-      reporterId: actor.id,
-      targetType: target.kind,
-      targetId: String(target.id),
-      reason: scenario.reason,
+    const { docs: existing } = await payload.find({
+      collection: 'reports',
+      where: {
+        and: [
+          { reporter: { equals: actor.id } },
+          { [target.kind === 'link' ? 'targetLink' : 'targetPost']: { equals: target.id } },
+          { reason: { equals: scenario.reason } },
+        ],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
     })
 
-    if (seen.has(key)) {
+    if (existing.length > 0) {
       tally.skipped += 1
       continue
     }
@@ -128,7 +77,6 @@ export async function seedReports(
       depth: 0,
     })
 
-    seen.add(key)
     tally.created += 1
   }
 

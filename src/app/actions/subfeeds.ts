@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import type { Payload } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
 
 import { getAuthenticatedUser } from '@/lib/auth'
 import { assertSubfeedCreationEligible } from '@/lib/community/subfeedEligibility'
@@ -12,6 +12,7 @@ import {
   resolveSubfeedOwner,
 } from '@/lib/community/subfeeds'
 import type { User } from '@/payload-types'
+import { withSerializableTransaction } from '@/lib/withSerializableTransaction'
 
 const slugify = (value: string): string =>
   value
@@ -179,34 +180,42 @@ export async function toggleSubfeedMembership(subfeedId: number) {
     overrideAccess: false as const,
   }
 
-  const subfeed = await payload.findByID({
-    collection: 'subfeeds',
-    id: subfeedId,
-    depth: 0,
-    ...withAccess,
-  })
+  const { updatedSubfeed, isMember, memberCount } = await withSerializableTransaction(
+    payload,
+    async (req) => {
+      const subfeed = await payload.findByID({
+        collection: 'subfeeds',
+        id: subfeedId,
+        depth: 0,
+        ...withAccess,
+        req,
+      })
 
-  const currentMembers = readRelationshipIds(subfeed.members)
-  const isMember = currentMembers.includes(user.id)
-  const nextMembers = isMember
-    ? currentMembers.filter((memberId) => memberId !== user.id)
-    : Array.from(new Set([...currentMembers, user.id]))
+      const currentMembers = readRelationshipIds(subfeed.members)
+      const isMember = currentMembers.includes(user.id)
+      const nextMembers = isMember
+        ? currentMembers.filter((memberId) => memberId !== user.id)
+        : Array.from(new Set([...currentMembers, user.id]))
 
-  const updatedSubfeed = await payload.update({
-    collection: 'subfeeds',
-    id: subfeedId,
-    data: {
-      members: nextMembers,
+      const updatedSubfeed = await payload.update({
+        collection: 'subfeeds',
+        id: subfeedId,
+        data: {
+          members: nextMembers,
+        },
+        ...withAccess,
+        req,
+      })
+      return { updatedSubfeed, isMember, memberCount: nextMembers.length }
     },
-    ...withAccess,
-  })
+  )
 
   revalidatePath('/subfeeds')
   revalidatePath(`/subfeeds/${updatedSubfeed.slug}`)
 
   return {
     joined: !isMember,
-    memberCount: nextMembers.length,
+    memberCount,
   }
 }
 
@@ -331,6 +340,7 @@ const loadManagedSubfeed = async (
   payload: Payload,
   subfeedId: number,
   user: User,
+  req: Pick<PayloadRequest, 'transactionID'>,
 ) => {
   const subfeed = await payload.findByID({
     collection: 'subfeeds',
@@ -338,6 +348,7 @@ const loadManagedSubfeed = async (
     depth: 0,
     user,
     overrideAccess: false,
+    req,
   })
 
   if (!canModerateCommunity(user) && !canModerateSubfeedContent(subfeed, user.id)) {
@@ -380,28 +391,32 @@ export async function assignSubfeedRole(subfeedId: number, userId: number, role:
     throw new Error('Invalid member')
   }
 
-  const subfeed = await loadManagedSubfeed(payload, subfeedId, user)
+  const subfeed = await withSerializableTransaction(payload, async (req) => {
+    const subfeed = await loadManagedSubfeed(payload, subfeedId, user, req)
 
-  const currentIds = rosterIdsForRole(subfeed, role)
-  const nextIds = Array.from(new Set([...currentIds, userId]))
-  const nextMembers = Array.from(new Set([...readRelationshipIds(subfeed.members), userId]))
+    const currentIds = rosterIdsForRole(subfeed, role)
+    const nextIds = Array.from(new Set([...currentIds, userId]))
+    const nextMembers = Array.from(new Set([...readRelationshipIds(subfeed.members), userId]))
 
-  const data = {
-    members: nextMembers,
-    ...(role === 'moderator' ? { moderators: nextIds } : {}),
-    ...(role === 'editor' ? { editors: nextIds } : {}),
-    ...(role === 'uploader' ? { uploaders: nextIds } : {}),
-  }
+    const data = {
+      members: nextMembers,
+      ...(role === 'moderator' ? { moderators: nextIds } : {}),
+      ...(role === 'editor' ? { editors: nextIds } : {}),
+      ...(role === 'uploader' ? { uploaders: nextIds } : {}),
+    }
 
-  await payload.update({
-    collection: 'subfeeds',
-    id: subfeedId,
-    data,
-    user,
-    context: { skipHooks: true },
-    overrideAccess: false,
+    await payload.update({
+      collection: 'subfeeds',
+      id: subfeedId,
+      data,
+      user,
+      context: { skipHooks: true },
+      overrideAccess: false,
+      req,
+    })
+
+    return subfeed
   })
-
   revalidatePath(`/subfeeds/${subfeed.slug}`)
 }
 
@@ -424,30 +439,34 @@ export async function removeSubfeedRole(subfeedId: number, userId: number, role:
     throw new Error('Invalid member')
   }
 
-  const subfeed = await loadManagedSubfeed(payload, subfeedId, user)
+  const subfeed = await withSerializableTransaction(payload, async (req) => {
+    const subfeed = await loadManagedSubfeed(payload, subfeedId, user, req)
 
-  if (role === 'moderator' && resolveSubfeedOwner(subfeed) === userId) {
-    throw new Error('You cannot remove the owner from moderators')
-  }
+    if (role === 'moderator' && resolveSubfeedOwner(subfeed) === userId) {
+      throw new Error('You cannot remove the owner from moderators')
+    }
 
-  const currentIds = rosterIdsForRole(subfeed, role)
-  const nextIds = currentIds.filter((id) => id !== userId)
+    const currentIds = rosterIdsForRole(subfeed, role)
+    const nextIds = currentIds.filter((id) => id !== userId)
 
-  const data = {
-    ...(role === 'moderator' ? { moderators: nextIds } : {}),
-    ...(role === 'editor' ? { editors: nextIds } : {}),
-    ...(role === 'uploader' ? { uploaders: nextIds } : {}),
-  }
+    const data = {
+      ...(role === 'moderator' ? { moderators: nextIds } : {}),
+      ...(role === 'editor' ? { editors: nextIds } : {}),
+      ...(role === 'uploader' ? { uploaders: nextIds } : {}),
+    }
 
-  await payload.update({
-    collection: 'subfeeds',
-    id: subfeedId,
-    data,
-    user,
-    context: { skipHooks: true },
-    overrideAccess: false,
+    await payload.update({
+      collection: 'subfeeds',
+      id: subfeedId,
+      data,
+      user,
+      context: { skipHooks: true },
+      overrideAccess: false,
+      req,
+    })
+
+    return subfeed
   })
-
   revalidatePath(`/subfeeds/${subfeed.slug}`)
 }
 
@@ -470,30 +489,34 @@ export async function removeSubfeedMember(subfeedId: number, userId: number) {
     throw new Error('Invalid member')
   }
 
-  const subfeed = await loadManagedSubfeed(payload, subfeedId, user)
+  const subfeed = await withSerializableTransaction(payload, async (req) => {
+    const subfeed = await loadManagedSubfeed(payload, subfeedId, user, req)
 
-  if (resolveSubfeedOwner(subfeed) === userId) {
-    throw new Error('You cannot remove the owner from the subfeed')
-  }
+    if (resolveSubfeedOwner(subfeed) === userId) {
+      throw new Error('You cannot remove the owner from the subfeed')
+    }
 
-  const nextModerators = readRelationshipIds(subfeed.moderators).filter((id) => id !== userId)
-  const nextEditors = readRelationshipIds(subfeed.editors).filter((id) => id !== userId)
-  const nextUploaders = readRelationshipIds(subfeed.uploaders).filter((id) => id !== userId)
-  const nextMembers = readRelationshipIds(subfeed.members).filter((id) => id !== userId)
+    const nextModerators = readRelationshipIds(subfeed.moderators).filter((id) => id !== userId)
+    const nextEditors = readRelationshipIds(subfeed.editors).filter((id) => id !== userId)
+    const nextUploaders = readRelationshipIds(subfeed.uploaders).filter((id) => id !== userId)
+    const nextMembers = readRelationshipIds(subfeed.members).filter((id) => id !== userId)
 
-  await payload.update({
-    collection: 'subfeeds',
-    id: subfeedId,
-    data: {
-      moderators: nextModerators,
-      editors: nextEditors,
-      uploaders: nextUploaders,
-      members: nextMembers,
-    },
-    user,
-    context: { skipHooks: true },
-    overrideAccess: false,
+    await payload.update({
+      collection: 'subfeeds',
+      id: subfeedId,
+      data: {
+        moderators: nextModerators,
+        editors: nextEditors,
+        uploaders: nextUploaders,
+        members: nextMembers,
+      },
+      user,
+      context: { skipHooks: true },
+      overrideAccess: false,
+      req,
+    })
+
+    return subfeed
   })
-
   revalidatePath(`/subfeeds/${subfeed.slug}`)
 }

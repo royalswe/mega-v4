@@ -55,8 +55,8 @@ const assertPostScenario = ({
 
 /**
  * Creates or reconciles the manifest's Post scenarios through the real
- * authorisation path. The pending fixture uses the collection's supported
- * `forcePending` context, because `status` is moderator-gated field access.
+ * authorisation path. Restoring a published fixture to pending requires a
+ * moderator because `status` is moderator-gated field access.
  */
 export async function seedPosts(
   payload: Payload,
@@ -120,12 +120,18 @@ export async function seedPosts(
         collection: 'posts',
         id: existing.id,
         data,
-        user: author,
+        user: isPending ? requirePersona(users, 'kalle') : author,
         overrideAccess: false,
         depth: 0,
       })
 
-      assertPostScenario({ actual: updated, author, scenario, subfeedId: subfeed?.id })
+      const persisted = await payload.findByID({
+        collection: 'posts',
+        id: updated.id,
+        depth: 0,
+        overrideAccess: true,
+      })
+      assertPostScenario({ actual: persisted, author, scenario, subfeedId: subfeed?.id })
       ids.set(scenario.key, updated.id)
       tally.reconciled += 1
       continue

@@ -3,6 +3,7 @@
 import { getAuthenticatedUser } from '@/lib/auth'
 import { checkRole } from '@/access/checkRole'
 import { revalidatePath } from 'next/cache'
+import { withSerializableTransaction } from '@/lib/withSerializableTransaction'
 
 type AutomaticRole = 'uploader' | 'editor' | 'moderator' | 'cleaner' | 'recruiter'
 
@@ -136,35 +137,39 @@ export async function revokeAutomaticRole(userId: number, role: AutomaticRole, r
     throw new Error('Invalid automatic role')
   }
 
-  const target = await payload.findByID({
-    collection: 'users',
-    id: userId,
-    user,
-    overrideAccess: false,
-  })
+  await withSerializableTransaction(payload, async (req) => {
+    const target = await payload.findByID({
+      collection: 'users',
+      id: userId,
+      user,
+      overrideAccess: false,
+      req,
+    })
 
-  if (!target) {
-    throw new Error('User not found')
-  }
+    if (!target) {
+      throw new Error('User not found')
+    }
 
-  const current = new Set<AutomaticRole>(
-    Array.isArray(target.revokedRoles) ? (target.revokedRoles as AutomaticRole[]) : [],
-  )
+    const current = new Set<AutomaticRole>(
+      Array.isArray(target.revokedRoles) ? (target.revokedRoles as AutomaticRole[]) : [],
+    )
 
-  if (revoke) {
-    current.add(role)
-  } else {
-    current.delete(role)
-  }
+    if (revoke) {
+      current.add(role)
+    } else {
+      current.delete(role)
+    }
 
-  await payload.update({
-    collection: 'users',
-    id: userId,
-    data: {
-      revokedRoles: Array.from(current),
-    },
-    user,
-    overrideAccess: false,
+    await payload.update({
+      collection: 'users',
+      id: userId,
+      data: {
+        revokedRoles: Array.from(current),
+      },
+      user,
+      overrideAccess: false,
+      req,
+    })
   })
 
   revalidatePath('/user/[username]', 'page')
@@ -176,40 +181,42 @@ export async function revokeAutomaticRole(userId: number, role: AutomaticRole, r
  * optionally freezing standing to prevent immediate re-derivation.
  * Dedicated administrator safety control (ticket #19).
  */
-export async function rollbackUserRoles(
-  userId: number,
-  options?: { lockStanding?: boolean },
-) {
+export async function rollbackUserRoles(userId: number, options?: { lockStanding?: boolean }) {
   const { user, payload } = await getAuthenticatedUser()
 
   if (!user || !checkRole(['admin'], user)) {
     throw new Error('Only administrators can rollback community roles')
   }
 
-  const target = await payload.findByID({
-    collection: 'users',
-    id: userId,
-    overrideAccess: true,
-  })
-
-  if (!target) {
-    throw new Error('User not found')
-  }
-
   const shouldLock = options?.lockStanding ?? true
-  const currentRoles = Array.isArray(target.roles) ? target.roles : []
-  const nextRoles: ('admin' | 'editor' | 'moderator' | 'cleaner' | 'uploader' | 'recruiter' | 'user')[] =
-    currentRoles.includes('admin') ? ['admin', 'user'] : ['user']
+  await withSerializableTransaction(payload, async (req) => {
+    const target = await payload.findByID({
+      collection: 'users',
+      id: userId,
+      overrideAccess: true,
+      req,
+    })
 
-  await payload.update({
-    collection: 'users',
-    id: userId,
-    data: {
-      revokedRoles: [...AUTOMATIC_ROLES],
-      standingLocked: shouldLock,
-      roles: nextRoles,
-    },
-    overrideAccess: true,
+    if (!target) {
+      throw new Error('User not found')
+    }
+
+    const currentRoles = Array.isArray(target.roles) ? target.roles : []
+    const nextRoles: (
+      'admin' | 'editor' | 'moderator' | 'cleaner' | 'uploader' | 'recruiter' | 'user'
+    )[] = currentRoles.includes('admin') ? ['admin', 'user'] : ['user']
+
+    await payload.update({
+      collection: 'users',
+      id: userId,
+      data: {
+        revokedRoles: [...AUTOMATIC_ROLES],
+        standingLocked: shouldLock,
+        roles: nextRoles,
+      },
+      overrideAccess: true,
+      req,
+    })
   })
 
   revalidatePath('/user/[username]', 'page')

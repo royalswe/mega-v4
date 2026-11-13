@@ -112,6 +112,7 @@ export interface PromotionWhereOptions {
 
 /** Structural subset of a Link/Post needed for the pure eligibility predicate. */
 export interface PromotableItemLike {
+  _status?: string | null
   feed?: string | null
   featured?: boolean | null
   discoveryBoosted?: boolean | null
@@ -133,6 +134,9 @@ const readNum = (value?: number | null): number =>
 const isRemoved = (item: PromotableItemLike): boolean =>
   item.softDeleted === true || item.status === 'removed'
 
+export const isPublishedForPromotion = (item: PromotableItemLike): boolean =>
+  (item.status ?? item._status) === 'published'
+
 /** True when the item passes the organic engagement/momentum threshold gate. */
 export const passesOrganicThreshold = (item: PromotableItemLike): boolean => {
   const threshold = promotionThresholdForFeed(item.feed)
@@ -148,28 +152,29 @@ export const passesOrganicThreshold = (item: PromotableItemLike): boolean => {
   )
 }
 
-/**
- * Pure predicate: is this item eligible to appear in the Main Feed as promoted
- * (non-main) content? Used by the boost action and hook to re-validate targets
- * server-side, and by tests.
- *
- * Note: `discoveryBoosted` is intentionally NOT a qualifying factor here. The
- * curated boost is the *outcome* of an authorised write, so the eligibility
- * check used to gate that write must only consider organic signals (featured or
- * thresholds). This prevents a boost from validating itself.
- */
-export const isEligibleForMainFeedPromotion = (item: PromotableItemLike): boolean => {
+/** Boosts require a safe, published origin, not pre-existing organic traction. */
+export const isSafeDiscoveryBoostTarget = (item: PromotableItemLike): boolean => {
   if (item.feed !== 'subfeed' && item.feed !== 'user') return false
+  if (!isPublishedForPromotion(item)) return false
   if (item.controversial === true) return false
   if (isRemoved(item)) return false
   if (item.quarantined === true) return false
-  if (item.featured === true) return true
-  return passesOrganicThreshold(item)
+  return true
 }
+
+/** Organic promotion remains independent of an existing curated boost. */
+export const isEligibleForMainFeedPromotion = (item: PromotableItemLike): boolean =>
+  isSafeDiscoveryBoostTarget(item) && (item.featured === true || passesOrganicThreshold(item))
+
+const buildPublishedFilter = (options: PromotionWhereOptions): Where =>
+  options.collection === 'posts'
+    ? { status: { equals: 'published' } }
+    : { _status: { equals: 'published' } }
 
 /** Safety exclusions applied to every promotion branch (but not main-feed native). */
 export const buildSafetyExclusions = (options: PromotionWhereOptions = {}): Where[] => {
   const exclusions: Where[] = [
+    buildPublishedFilter(options),
     { controversial: { not_equals: true } },
     { quarantined: { not_equals: true } },
   ]
@@ -228,7 +233,10 @@ export const buildPromotableOriginFilter = (options: PromotionWhereOptions = {})
  * `mainFeedFilter` previously defined in the Home page.
  */
 export const buildMainFeedWhere = (options: PromotionWhereOptions = {}): Where => ({
-  or: [{ feed: { equals: 'main' } }, buildPromotableOriginFilter(options)],
+  and: [
+    buildPublishedFilter(options),
+    { or: [{ feed: { equals: 'main' } }, buildPromotableOriginFilter(options)] },
+  ],
 })
 
 /** Structural subset of a Users doc needed to evaluate discovery standing. */

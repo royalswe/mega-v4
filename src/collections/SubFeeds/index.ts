@@ -44,7 +44,10 @@ const preservesOwner = (
     (data?.owner === undefined || resolveID(data.owner) === resolveID(originalDoc.owner)) &&
     (data?.moderators === undefined ||
       ownerId === null ||
-      normalizeIds(data.moderators).includes(ownerId))
+      normalizeIds(data.moderators).includes(ownerId)) &&
+    (data?.members === undefined ||
+      ownerId === null ||
+      normalizeIds(data.members).includes(ownerId))
   )
 }
 
@@ -154,7 +157,7 @@ const attachCreatorToCommunity: CollectionBeforeChangeHook = ({
     !canModerate(req.user) &&
     !preservesOwner(data, originalDoc)
   ) {
-    throw new Error('You cannot change the owner or remove the owner from moderators')
+    throw new Error('You cannot change the owner or remove the owner from moderators or members')
   }
   if (operation !== 'create' || !req.user) return data
 
@@ -162,13 +165,8 @@ const attachCreatorToCommunity: CollectionBeforeChangeHook = ({
 
   const owner = canModerate(req.user) ? (resolveID(data?.owner) ?? creatorId) : creatorId
 
-  const moderators = Array.isArray(data?.moderators)
-    ? Array.from(new Set([...normalizeIds(data.moderators), creatorId]))
-    : [creatorId]
-
-  const members = Array.isArray(data?.members)
-    ? Array.from(new Set([...normalizeIds(data.members), creatorId]))
-    : [creatorId]
+  const moderators = Array.from(new Set([...normalizeIds(data?.moderators), owner, creatorId]))
+  const members = Array.from(new Set([...normalizeIds(data?.members), owner, creatorId]))
 
   return {
     ...data,

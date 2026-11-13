@@ -310,11 +310,13 @@ export const resolveTrustLevel = (
   if (rawIdx > prevIdx) {
     // Promotion — require margin above the target threshold, except cold-start.
     const isColdStart = prevIdx === 0
-    if (!isColdStart) {
-      const targetMin = thresholds[rawIdx].min
-      if (safe < targetMin + HYSTERESIS_PROMOTE_MARGIN) return previous
+    if (isColdStart) return raw
+    for (let index = rawIdx; index > prevIdx; index -= 1) {
+      if (safe >= thresholds[index].min + HYSTERESIS_PROMOTE_MARGIN) {
+        return thresholds[index].value
+      }
     }
-    return raw
+    return previous
   }
 
   // Demotion — require falling below the current threshold by the demote margin.

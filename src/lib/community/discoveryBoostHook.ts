@@ -5,7 +5,8 @@ import {
   DISCOVERY_BOOST_INELIGIBLE_MESSAGE,
   DISCOVERY_BOOST_REQUIRED_MESSAGE,
   hasDiscoveryBoostStanding,
-  isEligibleForMainFeedPromotion,
+  isPublishedForPromotion,
+  isSafeDiscoveryBoostTarget,
 } from './promotion'
 import type { PromotableItemLike } from './promotion'
 import { resolveID } from './userSignals'
@@ -120,9 +121,9 @@ export const createDiscoveryBoostEnforcementHook = (): CollectionBeforeChangeHoo
         throw new Error(DISCOVERY_BOOST_REQUIRED_MESSAGE)
       }
 
-      // Re-validate the target's promotion eligibility (featured or organic).
+      // Re-validate publication and safety independently of organic traction.
       const target = { ...(originalDoc ?? {}), ...(data ?? {}) }
-      if (!isEligibleForMainFeedPromotion(target as PromotableItemLike)) {
+      if (!isSafeDiscoveryBoostTarget(target as PromotableItemLike)) {
         throw new Error(DISCOVERY_BOOST_INELIGIBLE_MESSAGE)
       }
 
@@ -142,6 +143,14 @@ export const createDiscoveryBoostEnforcementHook = (): CollectionBeforeChangeHoo
       throw new Error(
         'Only site administrators, moderators, and editors can change discovery boost fields.',
       )
+    }
+
+    if (
+      data?.discoveryBoosted === true &&
+      attemptsBoostWrite(data, operation === 'update' ? originalDoc : undefined) &&
+      !isPublishedForPromotion({ ...originalDoc, ...data })
+    ) {
+      throw new Error(DISCOVERY_BOOST_INELIGIBLE_MESSAGE)
     }
 
     return data

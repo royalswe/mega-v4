@@ -238,6 +238,19 @@ setup('prepare progression fixtures and per-role auth states', async ({ browser 
     overrideAccess: true,
   })
 
+  const moderatorSubfeed = await payload.create({
+    collection: 'subfeeds',
+    data: {
+      name: `E2E Moderator Subfeed ${suffix}`,
+      slug: `e2e-moderator-subfeed-${suffix}`,
+      description: 'Independent fixture for local moderator permissions.',
+      owner: qualified.id,
+      moderators: [qualified.id, localmod.id],
+      members: [qualified.id, localmod.id],
+    },
+    overrideAccess: true,
+  })
+
   // 4. Content fixtures.
   const featuredUserFeed = await createLink(payload, {
     title: `E2E Featured User Feed ${suffix}`,
@@ -342,6 +355,11 @@ setup('prepare progression fixtures and per-role auth states', async ({ browser 
       quarantineTarget: { id: quarantineTarget.id, title: quarantineTarget.title },
     },
     subfeeds: {
+      moderatorSubfeed: {
+        id: moderatorSubfeed.id,
+        slug: moderatorSubfeed.slug,
+        name: moderatorSubfeed.name,
+      },
       qualifiedSubfeed: {
         id: qualifiedSubfeed.id as number,
         slug: qualifiedSubfeed.slug as string,

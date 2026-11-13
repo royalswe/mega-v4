@@ -1,19 +1,14 @@
 import type { Payload } from 'payload'
-import type { Bookmark } from '@/payload-types'
 
 import {
   SEED_INTERACTION_SCENARIOS,
   createSeedTally,
   offsetIsoFromReference,
-  readRelationId,
   type SeedStepTally,
   type SeededContentIndex,
 } from './utils.seed'
 import { requirePersona } from './links.seed'
 import type { SeedUsers } from './users.seed'
-
-const bookmarkKey = (userId: number, kind: 'link' | 'post', targetId: number) =>
-  `${userId}:${kind}:${targetId}`
 
 /** Creates the authored bookmark scenarios, skipping rows that already exist. */
 export async function seedBookmarks(
@@ -25,24 +20,6 @@ export async function seedBookmarks(
   const tally = createSeedTally('bookmarks')
   const scenarios = SEED_INTERACTION_SCENARIOS.filter((scenario) => scenario.kind === 'bookmark')
 
-  const { docs: existingBookmarks } = await payload.find({
-    collection: 'bookmarks',
-    limit: 10_000,
-    depth: 0,
-    overrideAccess: true,
-  })
-
-  const seen = new Set<string>()
-
-  for (const bookmark of existingBookmarks) {
-    const userId = readRelationId(bookmark.user)
-    const targetId = readRelationId(bookmark.link) ?? readRelationId(bookmark.post)
-    const kind = bookmark.link ? 'link' : bookmark.post ? 'post' : null
-
-    if (!userId || !targetId || !kind) continue
-    seen.add(bookmarkKey(userId, kind, targetId))
-  }
-
   for (const scenario of scenarios) {
     const actor = requirePersona(users, scenario.actor)
     const target = content.get(scenario.target)
@@ -53,9 +30,17 @@ export async function seedBookmarks(
       )
     }
 
-    const key = bookmarkKey(actor.id, target.kind, target.id)
+    const { docs: existing } = await payload.find({
+      collection: 'bookmarks',
+      where: {
+        and: [{ user: { equals: actor.id } }, { [target.kind]: { equals: target.id } }],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    })
 
-    if (seen.has(key)) {
+    if (existing.length > 0) {
       tally.skipped += 1
       continue
     }
@@ -75,7 +60,6 @@ export async function seedBookmarks(
       depth: 0,
     })
 
-    seen.add(key)
     tally.created += 1
   }
 

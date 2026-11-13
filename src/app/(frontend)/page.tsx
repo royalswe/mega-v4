@@ -74,7 +74,11 @@ export default async function HomePage({
   const resolvedSearchParams = await searchParams
 
   // Bobhund #1: a lapsed editorial window must stop boosting ranking order.
-  await expireEditorialPriority({ payload })
+  try {
+    await expireEditorialPriority({ payload })
+  } catch (error) {
+    payload.logger.error({ err: error, msg: 'Failed to expire editorial priority on Home feed' })
+  }
 
   const showNSFW = user?.settings?.nsfw === true
   const showBookmarksOnly = resolvedSearchParams?.bookmarks === 'true'

@@ -7,7 +7,7 @@ import {
   DISCOVERY_BOOST_INELIGIBLE_MESSAGE,
   DISCOVERY_BOOST_REQUIRED_MESSAGE,
   hasDiscoveryBoostStanding,
-  isEligibleForMainFeedPromotion,
+  isSafeDiscoveryBoostTarget,
 } from '@/lib/community/promotion'
 import type {
   PromotableItemLike,
@@ -80,7 +80,7 @@ export async function boostToMainFeed({
     throw new Error('Content not found')
   }
 
-  if (!isEligibleForMainFeedPromotion(target as PromotableItemLike)) {
+  if (!isSafeDiscoveryBoostTarget(target as PromotableItemLike)) {
     throw new Error(DISCOVERY_BOOST_INELIGIBLE_MESSAGE)
   }
 
@@ -257,7 +257,8 @@ export async function rollbackPromotion({
       editorialPriority: false,
       editorialPriorityUntil: null,
     },
-    overrideAccess: true,
+    user,
+    overrideAccess: false,
     context: { rollbackPromotion: true },
   })
 

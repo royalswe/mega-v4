@@ -1,23 +1,18 @@
 import type { Payload } from 'payload'
-import type { Vote } from '@/payload-types'
 
 import {
   SEED_INTERACTION_SCENARIOS,
   createSeedTally,
   offsetIsoFromReference,
-  readRelationId,
   type SeedStepTally,
   type SeededContentIndex,
 } from './utils.seed'
 import { requirePersona } from './links.seed'
 import type { SeedUsers } from './users.seed'
 
-const voteKey = (userId: number, kind: 'link' | 'post', targetId: number) =>
-  `${userId}:${kind}:${targetId}`
-
 /**
  * Creates or reconciles the deterministic vote scenarios. Vote uniqueness is
- * preserved both by the natural key map and by the collection's own hook, so a
+ * preserved both by a targeted natural-key lookup and the collection's hook, so a
  * rerun updates a changed direction instead of adding a duplicate vote.
  */
 export async function seedVotes(
@@ -28,24 +23,6 @@ export async function seedVotes(
 ): Promise<SeedStepTally> {
   const tally = createSeedTally('votes')
   const scenarios = SEED_INTERACTION_SCENARIOS.filter((scenario) => scenario.kind === 'vote')
-
-  const { docs: existingVotes } = await payload.find({
-    collection: 'votes',
-    limit: 10_000,
-    depth: 0,
-    overrideAccess: true,
-  })
-
-  const existingByKey = new Map<string, Vote>()
-
-  for (const vote of existingVotes) {
-    const userId = readRelationId(vote.user)
-    const targetId = readRelationId(vote.link) ?? readRelationId(vote.post)
-    const kind = vote.link ? 'link' : vote.post ? 'post' : null
-
-    if (!userId || !targetId || !kind) continue
-    existingByKey.set(voteKey(userId, kind, targetId), vote)
-  }
 
   for (const scenario of scenarios) {
     const actor = requirePersona(users, scenario.actor)
@@ -61,7 +38,16 @@ export async function seedVotes(
       throw new Error(`Seed vote "${scenario.key}" has no direction.`)
     }
 
-    const existing = existingByKey.get(voteKey(actor.id, target.kind, target.id))
+    const { docs } = await payload.find({
+      collection: 'votes',
+      where: {
+        and: [{ user: { equals: actor.id } }, { [target.kind]: { equals: target.id } }],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const existing = docs[0]
 
     if (existing) {
       if (existing.vote !== scenario.value) {

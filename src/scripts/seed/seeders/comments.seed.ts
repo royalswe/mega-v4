@@ -79,7 +79,7 @@ export async function seedComments(
         ...(postIds.length > 0 ? [{ post: { in: postIds } }] : []),
       ],
     },
-    limit: 2000,
+    pagination: false,
     depth: 0,
     overrideAccess: true,
   })
@@ -146,12 +146,23 @@ export async function seedComments(
           collection: 'comments',
           id: existing.id,
           data,
-          user: actor,
+          user: moderationChanged ? requirePersona(users, 'kalle') : actor,
           overrideAccess: false,
           depth: 0,
         })
 
-        ids.set(scenario.key, updated.id)
+        const persisted = await payload.findByID({
+          collection: 'comments',
+          id: updated.id,
+          depth: 0,
+          overrideAccess: true,
+        })
+
+        if (persisted.moderationStatus !== 'visible') {
+          throw new Error(`Seed comment "${scenario.key}" was not restored to visible.`)
+        }
+
+        ids.set(scenario.key, persisted.id)
         tally.reconciled += 1
       } else {
         ids.set(scenario.key, existing.id)

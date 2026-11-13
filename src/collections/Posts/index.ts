@@ -216,7 +216,9 @@ const grantEditorialPriority: CollectionBeforeChangeHook = async ({
 
   const feed = data.feed ?? originalDoc?.feed
   if (feed !== 'main') return data
-  if (operation !== 'create' && originalDoc?.feed === 'main') return data
+  if ((data.status ?? originalDoc?.status) !== 'published') return data
+  if (operation !== 'create' && originalDoc?.feed === 'main' && originalDoc?.status === 'published')
+    return data
 
   const authorId = resolveID(data.user) ?? resolveID(originalDoc?.user) ?? req.user?.id ?? null
   let hasEditorialRole = false

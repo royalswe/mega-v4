@@ -1,5 +1,5 @@
 import { createPayloadRequest, Payload } from 'payload'
-import { describe, it, beforeAll, expect } from 'vitest'
+import { describe, it, beforeAll, expect, vi } from 'vitest'
 import { faker } from '@faker-js/faker'
 
 import { getTestPayload } from '../utils/test-user'
@@ -331,6 +331,56 @@ describe('Direct Main Feed publications and editorial priority (integration)', (
     expect(post.editorialPriorityUntil).toBeDefined()
     expect(post.rankingScore).toBeGreaterThan(200)
   })
+
+  it('starts Main Feed post priority on publication, not while forcePending', async () => {
+    const user = await createTestUser(payload)
+    const editor = await payload.update({
+      collection: 'users',
+      id: user.id,
+      data: {
+        contributionScore: 300,
+        interactionScore: 100,
+        lastActiveAt: new Date().toISOString(),
+      },
+      overrideAccess: true,
+    })
+    const post = await payload.create({
+      collection: 'posts',
+      data: {
+        title: `Pending Editorial ${unique()}`,
+        content: createRichText('Publish after review'),
+        type: 'discussion',
+        feed: 'main',
+        user: editor.id,
+      },
+      user: editor,
+      overrideAccess: false,
+      context: { forcePending: true },
+    })
+    expect(post.status).toBe('pending')
+    expect(post.editorialPriority).toBe(false)
+    expect(post.editorialPriorityUntil).toBeNull()
+
+    const published = await payload.update({
+      collection: 'posts',
+      id: post.id,
+      data: { status: 'published' },
+      user: editor,
+      overrideAccess: false,
+    })
+    expect(published.editorialPriority).toBe(true)
+    expect(new Date(published.editorialPriorityUntil!).getTime()).toBeGreaterThan(Date.now())
+
+    const cleared = await payload.update({
+      collection: 'posts',
+      id: post.id,
+      data: { editorialPriority: false, editorialPriorityUntil: null },
+      user: editor,
+      overrideAccess: false,
+    })
+    expect(cleared.editorialPriority).toBe(false)
+    expect(cleared.editorialPriorityUntil).toBeNull()
+  })
 })
 
 describe('Administrator safety controls: Quarantine (integration)', () => {
@@ -505,7 +555,7 @@ describe('Administrator safety controls: Promotion and role rollbacks (integrati
       },
       draft: false,
       user: adminUser,
-      overrideAccess: true,
+      overrideAccess: false,
     })
 
     expect(link.featured).toBe(true)
@@ -525,7 +575,7 @@ describe('Administrator safety controls: Promotion and role rollbacks (integrati
         editorialPriorityUntil: null,
       },
       user: adminUser,
-      overrideAccess: true,
+      overrideAccess: false,
     })
 
     expect(rolledBack.featured).toBe(false)
@@ -685,5 +735,55 @@ describe('Editorial priority expiry sweep (integration)', () => {
     })
     expect(fresh.editorialPriority).toBe(true)
     expect(fresh.editorialPriorityUntil).toBe(windowEndsAt.toISOString())
+  })
+
+  it('does not clear a window renewed after the sweep selected its expired value', async () => {
+    const author = await createTestUser(payload)
+    const expiredAt = new Date(Date.now() - 3_600_000).toISOString()
+    const link = await payload.create({
+      collection: 'links',
+      data: {
+        title: `Renewed Window ${unique()}`,
+        url: `https://example.com/renewed-${unique()}`,
+        type: 'article',
+        feed: 'main',
+        user: author.id,
+        editorialPriority: true,
+        editorialPriorityUntil: expiredAt,
+        _status: 'published',
+      },
+      draft: false,
+      overrideAccess: true,
+    })
+    const selected = await payload.find({
+      collection: 'links',
+      where: { id: { equals: link.id } },
+      depth: 0,
+      overrideAccess: true,
+    })
+    const renewedUntil = new Date(Date.now() + 6 * 3_600_000).toISOString()
+    await payload.update({
+      collection: 'links',
+      id: link.id,
+      data: { editorialPriorityUntil: renewedUntil },
+      overrideAccess: true,
+    })
+
+    const find = vi.spyOn(payload, 'find').mockResolvedValueOnce(selected)
+    try {
+      resetEditorialPrioritySweepThrottle()
+      await expireEditorialPriority({ payload, force: true })
+    } finally {
+      find.mockRestore()
+    }
+
+    const renewed = await payload.findByID({
+      collection: 'links',
+      id: link.id,
+      overrideAccess: true,
+    })
+    expect(renewed.editorialPriority).toBe(true)
+    expect(renewed.editorialPriorityUntil).toBe(renewedUntil)
+    expect(renewed.rankingScore).toBeGreaterThan(EDITORIAL_PRIORITY_BOOST)
   })
 })

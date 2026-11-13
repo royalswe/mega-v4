@@ -1,10 +1,11 @@
-import { Payload } from 'payload'
-import { describe, it, beforeAll, expect } from 'vitest'
+import { BasePayload, type Payload } from 'payload'
+import { describe, it, beforeAll, expect, vi } from 'vitest'
 import { faker } from '@faker-js/faker'
 
 import {
   MAIN_FEED_PUBLISH_UNAUTHORIZED_MESSAGE,
   SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE,
+  loadPublishingDestinationEligibility,
 } from '@/lib/community/subfeeds'
 import { getTestPayload, getTestUser } from '../utils/test-user'
 import { createTestUser } from './helpers'
@@ -63,6 +64,45 @@ interface TestSubfeedOpts {
   uploaders?: number[]
   members?: number[]
 }
+
+describe('Publishing destination pagination (pure)', () => {
+  it('filters publishing roles before paging and includes eligible SubFeeds beyond 200', async () => {
+    const user = { id: 21, roles: ['user'] }
+    const subfeeds = Array.from({ length: 201 }, (_, index) => ({
+      id: index + 1,
+      name: `SubFeed ${index + 1}`,
+      slug: `subfeed-${index + 1}`,
+      uploaders: [user.id],
+    }))
+    const find = vi
+      .fn()
+      .mockResolvedValueOnce({ docs: subfeeds.slice(0, 200), hasNextPage: true })
+      .mockResolvedValueOnce({ docs: subfeeds.slice(200), hasNextPage: false })
+    const payloadStub = new BasePayload()
+    payloadStub.find = find
+    const eligibility = await loadPublishingDestinationEligibility(payloadStub, user)
+
+    expect(eligibility.eligibleSubfeeds).toHaveLength(201)
+    expect(eligibility.eligibleSubfeeds.at(-1)?.id).toBe(201)
+    expect(find).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        page: 1,
+        user,
+        overrideAccess: false,
+        where: {
+          or: [
+            { owner: { equals: user.id } },
+            { moderators: { in: [user.id] } },
+            { editors: { in: [user.id] } },
+            { uploaders: { in: [user.id] } },
+          ],
+        },
+      }),
+    )
+    expect(find).toHaveBeenNthCalledWith(2, expect.objectContaining({ page: 2 }))
+  })
+})
 
 const createTestSubfeed = async (userId: number, opts: TestSubfeedOpts = {}) => {
   const unique = faker.string.alphanumeric(8).toLowerCase()

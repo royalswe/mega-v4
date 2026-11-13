@@ -1,11 +1,9 @@
 import type { Payload } from 'payload'
-import type { Discovery } from '@/payload-types'
 
 import {
   SEED_INTERACTION_SCENARIOS,
   createSeedTally,
   offsetIsoFromReference,
-  readRelationId,
   type SeedStepTally,
   type SeededContentIndex,
 } from './utils.seed'
@@ -28,24 +26,6 @@ export async function seedDiscoveries(
 ): Promise<SeedStepTally> {
   const tally = createSeedTally('discoveries')
   const scenarios = SEED_INTERACTION_SCENARIOS.filter((scenario) => scenario.kind === 'discovery')
-  const postIds = [...content.values()].filter((entry) => entry.kind === 'post').map((e) => e.id)
-
-  const { docs: existingDiscoveries } = await payload.find({
-    collection: 'discoveries',
-    ...(postIds.length > 0 ? { where: { post: { in: postIds } } } : {}),
-    limit: 10_000,
-    depth: 0,
-    overrideAccess: true,
-  })
-
-  const existingByKey = new Map<string, Discovery>()
-
-  for (const discovery of existingDiscoveries) {
-    const userId = readRelationId(discovery.user)
-    const postId = readRelationId(discovery.post)
-    if (!userId || !postId) continue
-    existingByKey.set(`${userId}:${postId}`, discovery)
-  }
 
   for (const scenario of scenarios) {
     const actor = requirePersona(users, scenario.actor)
@@ -59,7 +39,16 @@ export async function seedDiscoveries(
 
     const discoveredAt = offsetIsoFromReference(referenceNow, scenario.referenceNowOffsetHours)
     const engagementGenerated = scenario.engagementGenerated ?? 0
-    const existing = existingByKey.get(`${actor.id}:${target.id}`)
+    const { docs } = await payload.find({
+      collection: 'discoveries',
+      where: {
+        and: [{ user: { equals: actor.id } }, { post: { equals: target.id } }],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const existing = docs[0]
 
     if (existing) {
       const needsUpdate =

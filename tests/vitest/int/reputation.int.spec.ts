@@ -106,6 +106,12 @@ describe('Trust-level hysteresis (pure)', () => {
     expect(resolveTrustLevel(COLD_START_FLOOR, 'newcomer')).toBe('regular')
     expect(resolveTrustLevel(122, 'newcomer')).toBe('recognized')
   })
+
+  it('promotes to the highest cleared level when the next raw level is inside its margin', () => {
+    expect(resolveTrustLevel(280, 'regular')).toBe('recognized')
+    expect(resolveTrustLevel(280 + HYSTERESIS_PROMOTE_MARGIN - 1, 'regular')).toBe('recognized')
+    expect(resolveTrustLevel(280 + HYSTERESIS_PROMOTE_MARGIN, 'regular')).toBe('trusted')
+  })
 })
 
 describe('Automatic role derivation (pure)', () => {

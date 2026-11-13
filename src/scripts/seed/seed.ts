@@ -106,7 +106,7 @@ const collectTargetStats = async (
           ...(postIds.length > 0 ? [{ post: { in: postIds } }] : []),
         ],
       },
-      limit: 5000,
+      pagination: false,
       depth: 0,
       overrideAccess: true,
     }),
@@ -118,14 +118,14 @@ const collectTargetStats = async (
           ...(postIds.length > 0 ? [{ post: { in: postIds } }] : []),
         ],
       },
-      limit: 5000,
+      pagination: false,
       depth: 1,
       overrideAccess: true,
     }),
     payload.find({
       collection: 'discoveries',
       where: { post: { in: postIds } },
-      limit: 5000,
+      pagination: false,
       depth: 0,
       overrideAccess: true,
     }),
@@ -309,7 +309,7 @@ const assertScenarioInvariants = async ({
   }
 }
 
-const assertMainFeedVisibility = async ({
+export const assertMainFeedVisibility = async ({
   payload,
   content,
 }: {
@@ -319,15 +319,37 @@ const assertMainFeedVisibility = async ({
   const [mainLinks, mainPosts] = await Promise.all([
     payload.find({
       collection: 'links',
-      where: buildMainFeedWhere({ collection: 'links' }),
-      limit: 500,
+      where: {
+        and: [
+          buildMainFeedWhere({ collection: 'links' }),
+          {
+            id: {
+              in: [...content.values()]
+                .filter((entry) => entry.kind === 'link')
+                .map((entry) => entry.id),
+            },
+          },
+        ],
+      },
+      pagination: false,
       depth: 0,
       overrideAccess: true,
     }),
     payload.find({
       collection: 'posts',
-      where: buildMainFeedWhere({ collection: 'posts' }),
-      limit: 500,
+      where: {
+        and: [
+          buildMainFeedWhere({ collection: 'posts' }),
+          {
+            id: {
+              in: [...content.values()]
+                .filter((entry) => entry.kind === 'post')
+                .map((entry) => entry.id),
+            },
+          },
+        ],
+      },
+      pagination: false,
       depth: 0,
       overrideAccess: true,
     }),
