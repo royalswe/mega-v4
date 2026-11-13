@@ -1,97 +1,182 @@
 import type { Payload } from 'payload'
-import { faker } from '@faker-js/faker'
+import type { Comment } from '@/payload-types'
 
-import { asLexicalRichText, chance, pickOne } from './utils.seed'
+import {
+  SEED_INTERACTION_SCENARIOS,
+  asLexicalRichText,
+  createSeedTally,
+  offsetIsoFromReference,
+  readRelationId,
+  type SeedStepTally,
+  type SeededContentIndex,
+} from './utils.seed'
+import { requirePersona } from './links.seed'
+import type { SeedUsers } from './users.seed'
 
-type Target = {
-  id: number
-  type: 'link' | 'post'
+export interface SeedCommentsResult {
+  tally: SeedStepTally
+  ids: Map<string, number>
 }
 
-type SeededComment = {
-  id: number
-  targetKey: string
+const lexicalText = (value: unknown): string => {
+  const root = (value as { root?: { children?: unknown[] } } | null)?.root
+  if (!root || !Array.isArray(root.children)) return ''
+
+  const paragraphs: string[] = []
+
+  for (const node of root.children) {
+    const children = (node as { children?: unknown[] } | null)?.children
+    if (!Array.isArray(children)) continue
+
+    const text = children
+      .map((child) => (child as { text?: unknown } | null)?.text)
+      .filter((part): part is string => typeof part === 'string')
+      .join('')
+
+    if (text) paragraphs.push(text)
+  }
+
+  return paragraphs.join('\n\n')
 }
 
-export async function seedComments(payload: Payload) {
-  const [{ docs: users }, { docs: links }, { docs: posts }] = await Promise.all([
-    payload.find({
-      collection: 'users',
-      limit: 1000,
-      depth: 0,
-      overrideAccess: true,
-    }),
-    payload.find({
-      collection: 'links',
-      where: {
-        _status: {
-          equals: 'published',
-        },
-      },
-      limit: 300,
-      depth: 0,
-      overrideAccess: true,
-    }),
-    payload.find({
-      collection: 'posts',
-      where: {
-        status: {
-          not_equals: 'removed',
-        },
-      },
-      limit: 300,
-      depth: 0,
-      overrideAccess: true,
-    }),
-  ])
+const commentKey = ({
+  kind,
+  targetId,
+  userId,
+  text,
+}: {
+  kind: 'link' | 'post'
+  targetId: number
+  userId: number
+  text: string
+}) => `${kind}:${targetId}:${userId}:${text}`
 
-  if (users.length === 0) {
-    console.log('Skipping comment seed: no users available')
-    return
+const seededCommentScenarios = SEED_INTERACTION_SCENARIOS.filter(
+  (scenario) => scenario.kind === 'comment',
+)
+
+/**
+ * Creates or reconciles the authored comment scenarios. Natural key:
+ * `(target kind, target id, author id, comment text)`. Replies resolve their
+ * parent through the comment scenario key on the same target.
+ */
+export async function seedComments(
+  payload: Payload,
+  users: SeedUsers,
+  content: SeededContentIndex,
+  referenceNow: Date,
+): Promise<SeedCommentsResult> {
+  const tally = createSeedTally('comments')
+  const ids = new Map<string, number>()
+  const linkIds = [...content.values()].filter((entry) => entry.kind === 'link').map((e) => e.id)
+  const postIds = [...content.values()].filter((entry) => entry.kind === 'post').map((e) => e.id)
+
+  const { docs: existingComments } = await payload.find({
+    collection: 'comments',
+    where: {
+      or: [
+        ...(linkIds.length > 0 ? [{ link: { in: linkIds } }] : []),
+        ...(postIds.length > 0 ? [{ post: { in: postIds } }] : []),
+      ],
+    },
+    limit: 2000,
+    depth: 0,
+    overrideAccess: true,
+  })
+
+  const existingByKey = new Map<string, Comment>()
+
+  for (const comment of existingComments) {
+    const targetId = readRelationId(comment.link) ?? readRelationId(comment.post)
+    const userId = readRelationId(comment.user)
+    const kind = comment.link ? 'link' : comment.post ? 'post' : null
+
+    if (!targetId || !userId || !kind) continue
+
+    existingByKey.set(
+      commentKey({ kind, targetId, userId, text: lexicalText(comment.comment) }),
+      comment,
+    )
   }
 
-  const targets: Target[] = [
-    ...links.map((link) => ({ id: link.id, type: 'link' as const })),
-    ...posts.map((post) => ({ id: post.id, type: 'post' as const })),
-  ]
+  for (const scenario of seededCommentScenarios) {
+    const actor = requirePersona(users, scenario.actor)
+    const target = content.get(scenario.target)
 
-  if (targets.length === 0) {
-    console.log('Skipping comment seed: no links or posts available')
-    return
-  }
+    if (!target) {
+      throw new Error(
+        `Seed comment "${scenario.key}" targets unknown content scenario "${scenario.target}".`,
+      )
+    }
 
-  const seededComments: SeededComment[] = []
-  let created = 0
+    if (!scenario.text) {
+      throw new Error(`Seed comment "${scenario.key}" has no authored text.`)
+    }
 
-  for (let i = 0; i < 120; i += 1) {
-    const author = pickOne(users)
-    const target = pickOne(targets)
-    const targetKey = `${target.type}:${target.id}`
+    const parentComment = scenario.parentKey ? ids.get(scenario.parentKey) : undefined
 
-    const parentCandidates = seededComments.filter((comment) => comment.targetKey === targetKey)
-    const parentComment =
-      chance(0.2) && parentCandidates.length > 0 ? pickOne(parentCandidates).id : undefined
+    if (scenario.parentKey && !parentComment) {
+      throw new Error(
+        `Seed comment "${scenario.key}" replies to "${scenario.parentKey}", which has not been seeded on the same target.`,
+      )
+    }
 
-    const comment = await payload.create({
+    const key = commentKey({
+      kind: target.kind,
+      targetId: target.id,
+      userId: actor.id,
+      text: scenario.text,
+    })
+    const existing = existingByKey.get(key)
+    const data = {
+      user: actor.id,
+      link: target.kind === 'link' ? target.id : undefined,
+      post: target.kind === 'post' ? target.id : undefined,
+      parentComment,
+      comment: asLexicalRichText(scenario.text),
+      moderationStatus: 'visible' as const,
+    }
+
+    if (existing) {
+      const parentChanged = readRelationId(existing.parentComment) !== (parentComment ?? null)
+      const moderationChanged = existing.moderationStatus !== 'visible'
+
+      if (parentChanged || moderationChanged) {
+        const updated = await payload.update({
+          collection: 'comments',
+          id: existing.id,
+          data,
+          user: actor,
+          overrideAccess: false,
+          depth: 0,
+        })
+
+        ids.set(scenario.key, updated.id)
+        tally.reconciled += 1
+      } else {
+        ids.set(scenario.key, existing.id)
+        tally.skipped += 1
+      }
+
+      continue
+    }
+
+    const createdAt = offsetIsoFromReference(referenceNow, scenario.referenceNowOffsetHours)
+    const created = await payload.create({
       collection: 'comments',
       data: {
-        user: author.id,
-        link: target.type === 'link' ? target.id : undefined,
-        post: target.type === 'post' ? target.id : undefined,
-        parentComment,
-        comment: asLexicalRichText(faker.lorem.sentences({ min: 1, max: 3 })),
-        moderationStatus: chance(0.08) ? 'pending' : 'visible',
+        ...data,
+        createdAt,
+        updatedAt: createdAt,
       },
-      overrideAccess: true,
+      user: actor,
+      overrideAccess: false,
+      depth: 0,
     })
 
-    seededComments.push({
-      id: comment.id,
-      targetKey,
-    })
-
-    created += 1
+    ids.set(scenario.key, created.id)
+    tally.created += 1
   }
 
-  console.log(`Seeded comments: ${created}`)
+  return { tally, ids }
 }

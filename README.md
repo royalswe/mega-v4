@@ -45,6 +45,83 @@ Set `DATABASE_URL` in `.env` to match the compose file before running `pnpm dev`
 | `pnpm run migrate -- --name <name>` | Create a new Payload migration                                               |
 | `pnpm run seed`                     | Run the seeder                                                               |
 
+## Curated demo seed
+
+`pnpm run seed` builds a small, deterministic fictional community (8 personas, 3
+SubFeeds, 10 links, 8 posts, comments, votes, bookmarks, discoveries and
+reports). Every row has a stable natural key, so a second run reconciles the same
+records instead of appending another random community.
+
+**Always point `DATABASE_URL` at an isolated database.** The seeder never wipes
+or truncates anything, but it is still a demo dataset and must not run against a
+shared or production database.
+
+### Fresh isolated database
+
+```bash
+# From the host, using the Postgres container from docker-compose-dev.yml:
+docker exec v4-postgres-1 psql -U royal -d postgres \
+  -c "CREATE DATABASE v4_seed_check OWNER royal"
+
+DATABASE_URL='postgres://royal:passw0rd@127.0.0.1:5432/v4_seed_check' \
+  pnpm payload migrate
+
+DATABASE_URL='postgres://royal:passw0rd@127.0.0.1:5432/v4_seed_check' \
+  pnpm run seed
+```
+
+If you run Postgres directly on the host, `createdb v4_seed_check` is the
+equivalent first step.
+
+### Reference time
+
+One reference time anchors every time-sensitive fixture (`createdAt`, editorial
+priority, discovery timestamps). Persona activity stays anchored to the actual
+run clock so pinning a historical reference time cannot decay earned roles below
+the manifest.
+
+- Default: the moment the run starts.
+- Override: `SEED_REFERENCE_TIME='2026-11-12T09:00:00Z'` (any `Date.parse`-able
+  ISO timestamp). An invalid value fails the run with an actionable error.
+
+Reruns are row-idempotent: users, SubFeeds, content and interactions are matched
+by natural key, so the second run creates **0** rows. Records that carry a
+reference-time offset (for example discovery `discoveredAt`) are reconciled to
+the new reference time, and person signal scores are re-applied after the
+interaction hooks run.
+
+### Verification
+
+The seed scenario spec is opt-in so the normal suite never depends on demo data:
+
+```bash
+DATABASE_URL='postgres://royal:passw0rd@127.0.0.1:5432/v4_seed_check' \
+SEED_VERIFY=1 pnpm exec vitest run tests/vitest/int/seed-scenarios.int.spec.ts
+```
+
+It runs the seed twice, checks effective roles/standing, SubFeed publishing
+eligibility, promotion/safety visibility and second-run row counts. Without
+`SEED_VERIFY=1` the spec is skipped and `pnpm run test:int` stays independent of
+the demo database.
+
+### Scenario manifest
+
+| Persona  | Scenario                                                      | Expected visibility                                                                                 |
+| -------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `astrid` | Newcomer: 0 SubFeeds, personal feed only                      | Own link + post publicly readable; one link and one post promoted to the Main Feed                  |
+| `malin`  | Membership-only participant                                   | Personal link + post public; pending draft hidden from readers; **0** SubFeed items                 |
+| `soren`  | Owner `nordic-indie-web`, uploader `applied-ai-notes`         | Promoted SubFeed link in nordic-indie-web; unpromoted local post in applied-ai-notes                |
+| `linnea` | Local uploader `nordic-indie-web` only                        | Public SubFeed link/post in nordic-indie-web; no Main Feed publishing, no other SubFeeds            |
+| `henrik` | Owner `craft-design-systems`, local editor `nordic-indie-web` | Promoted craft link; unpromoted focus-ring post; controversial link visible but never promoted      |
+| `freja`  | Site editor, owner `applied-ai-notes`                         | Two native Main Feed items with active 24h editorial priority                                       |
+| `kalle`  | Site moderator                                                | No authored content; reviews the seeded moderation reports                                          |
+| `alva`   | Site administrator                                            | Native Main Feed link with expired editorial priority; quarantine authority for the disputed mirror |
+
+Scenario roles are asserted by the seed itself: promoted items satisfy
+`isEligibleForMainFeedPromotion`, unpromoted/pending/quarantined/controversial
+items do not, native `feed: 'main'` content is visible through
+`buildMainFeedWhere`, and origin (`user` / `subfeed` / `main`) is preserved.
+
 ## Project layout
 
 See [AGENTS.md](AGENTS.md#repo-layout) for the canonical repo layout and conventions.

@@ -9,6 +9,18 @@ export const EDITORIAL_PRIORITY_DURATION_MS = EDITORIAL_PRIORITY_DURATION_HOURS 
  */
 export const EDITORIAL_PRIORITY_BOOST = 120
 
+/**
+ * Origin priority boost (Bobhund suggestion #2): SubFeeds are independent
+ * editorial desks that compete with the Main Feed, so their content outranks
+ * ordinary User Feed content at equal engagement. The boost is deliberately
+ * smaller than an active editorial window (120) so a SubFeed cannot outrank a
+ * fresh Main Feed editorial piece, but large enough to break ties against a
+ * User Feed item with the same signals.
+ */
+export const SUBFEED_PRIORITY_BOOST = 45
+
+export type RankingFeedOrigin = 'main' | 'subfeed' | 'user'
+
 export interface RankingInput {
   createdAt?: string | Date | null
   upvotes?: number
@@ -22,6 +34,8 @@ export interface RankingInput {
   ragebaitProbability?: number
   editorialPriority?: boolean | null
   editorialPriorityUntil?: string | Date | null
+  /** Origin feed of the content; `subfeed` receives `SUBFEED_PRIORITY_BOOST`. */
+  feed?: RankingFeedOrigin | string | null
   now?: Date | string | null
 }
 
@@ -33,6 +47,8 @@ export interface RankingOutput {
   ragebaitProbability: number
   editorialPriorityActive: boolean
   editorialBoost: number
+  /** Origin boost applied because the item belongs to a SubFeed. */
+  subfeedBoost: number
 }
 
 const clamp = (value: number, min = 0, max = 1): number => {
@@ -65,7 +81,10 @@ export const isEditorialPriorityActive = (
   return until > now.getTime()
 }
 
-const getAgeHours = (createdAt?: string | Date | null, referenceTime: number = Date.now()): number => {
+const getAgeHours = (
+  createdAt?: string | Date | null,
+  referenceTime: number = Date.now(),
+): number => {
   if (!createdAt) return 0
   const dateValue = createdAt instanceof Date ? createdAt.getTime() : new Date(createdAt).getTime()
   if (Number.isNaN(dateValue)) return 0
@@ -90,11 +109,7 @@ export const calculateRanking = (input: RankingInput): RankingOutput => {
   const trustedInteractions = Math.max(0, asNumber(input.trustedInteractions))
   const discoveryMomentum = Math.max(0, asNumber(input.discoveryMomentum))
 
-  const now = input.now
-    ? input.now instanceof Date
-      ? input.now
-      : new Date(input.now)
-    : new Date()
+  const now = input.now ? (input.now instanceof Date ? input.now : new Date(input.now)) : new Date()
   const referenceTime = now.getTime()
 
   const ageHours = getAgeHours(input.createdAt, referenceTime)
@@ -117,6 +132,7 @@ export const calculateRanking = (input: RankingInput): RankingOutput => {
 
   const editorialActive = isEditorialPriorityActive(input, now)
   const editorialBoost = editorialActive ? EDITORIAL_PRIORITY_BOOST : 0
+  const subfeedBoost = input.feed === 'subfeed' ? SUBFEED_PRIORITY_BOOST : 0
 
   const weighted =
     freshness +
@@ -124,7 +140,8 @@ export const calculateRanking = (input: RankingInput): RankingOutput => {
     uniqueCommenters * 1.9 +
     trustedInteractions * 2.5 +
     discoveryMomentum * 2.2 +
-    editorialBoost -
+    editorialBoost +
+    subfeedBoost -
     spamProbability * 90 -
     ragebaitProbability * 70
 
@@ -136,5 +153,6 @@ export const calculateRanking = (input: RankingInput): RankingOutput => {
     ragebaitProbability: Math.round(ragebaitProbability * 1000) / 1000,
     editorialPriorityActive: editorialActive,
     editorialBoost,
+    subfeedBoost,
   }
 }

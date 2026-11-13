@@ -1,256 +1,195 @@
 import type { Payload } from 'payload'
-import type { Subfeed } from '@/payload-types'
-import { faker } from '@faker-js/faker'
+import type { Link, User } from '@/payload-types'
 
-import { chance, pickOne, randomInt } from './utils.seed'
+import type { SeedSubfeeds } from './subfeeds.seed'
+import {
+  SEED_CONTENT_SCENARIOS,
+  createSeedTally,
+  offsetIsoFromReference,
+  readRelationId,
+  type ContentScenarioKey,
+  type PersonaKey,
+  type SeedContentScenario,
+  type SeedLinkScenario,
+  type SeedStepTally,
+  type SubfeedKey,
+} from './utils.seed'
+import type { SeedUsers } from './users.seed'
 
-type LinkType = 'article' | 'video' | 'image' | 'audio' | 'game'
-
-type CuratedLink = {
-  type: LinkType
-  url: string
-  title: string
-  description: string
-  tags: string[]
+export interface SeedContentResult {
+  tally: SeedStepTally
+  ids: Map<string, number>
 }
 
-const readRelationshipIds = (value: unknown): number[] => {
-  if (!Array.isArray(value)) return []
+export const requirePersona = (users: SeedUsers, key: PersonaKey): User => {
+  const user = users.get(key)
 
-  return value
-    .map((item) => {
-      if (typeof item === 'number') return item
-      if (item && typeof item === 'object' && 'id' in item) {
-        const relation = item as { id?: unknown }
-        return typeof relation.id === 'number' ? relation.id : null
-      }
-      return null
-    })
-    .filter((item): item is number => typeof item === 'number')
-}
-
-const curatedExampleLinks: CuratedLink[] = [
-  {
-    type: 'video',
-    url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw',
-    title: 'Internet History: The First YouTube Upload',
-    description:
-      'A short but iconic clip that marks the beginning of user-generated video culture online.',
-    tags: ['video', 'internet-history', 'culture'],
-  },
-  {
-    type: 'article',
-    url: 'https://existenz.se/',
-    title: 'Existenz.se: Curated Internet Finds and Daily Discovery',
-    description:
-      'A long-running Nordic-style curation feed with a mix of oddities, links, and cultural moments.',
-    tags: ['article', 'curation', 'web'],
-  },
-  {
-    type: 'image',
-    url: 'https://www.mamp.one/wp-content/uploads/2024/09/image-resources2.jpg',
-    title: 'Image Resource Example for Visual Testing',
-    description:
-      'A high-resolution image resource useful for previews, layout checks, and content card testing.',
-    tags: ['image', 'design', 'assets'],
-  },
-  {
-    type: 'game',
-    url: 'https://www.crazygames.com/game/polytrack',
-    title: 'PolyTrack: Browser Racing Game',
-    description:
-      'A fast-paced browser game with low friction onboarding, ideal for testing engagement patterns.',
-    tags: ['game', 'browser', 'play'],
-  },
-  {
-    type: 'audio',
-    url: 'https://www.youtube.com/watch?v=lYpgHsw3M5o',
-    title: 'Audio Session: Long-Form Listening Pick',
-    description:
-      'A music-focused link for audio category seeding and feed variety across media types.',
-    tags: ['audio', 'music', 'playlist'],
-  },
-]
-
-const randomLinkIdeas: Record<
-  LinkType,
-  { prefixes: string[]; descriptions: string[]; tags: string[] }
-> = {
-  article: {
-    prefixes: ['Field Guide', 'Deep Dive', 'Practical Notes', 'What We Learned', 'Case Study'],
-    descriptions: [
-      'A practical write-up with concrete examples and trade-offs from real-world implementation.',
-      'Strong context, clear argumentation, and useful references for follow-up reading.',
-      'Worth discussing for teams who care about quality and long-term maintainability.',
-    ],
-    tags: ['article', 'engineering', 'product'],
-  },
-  video: {
-    prefixes: ['Walkthrough', 'Build Log', 'Explainer', 'Talk Summary', 'Hands-on Demo'],
-    descriptions: [
-      'A concise video walkthrough that highlights key decisions without unnecessary fluff.',
-      'Useful visual explanation with timestamps and practical takeaways for practitioners.',
-      'Great reference to spark discussion around implementation quality and UX details.',
-    ],
-    tags: ['video', 'demo', 'learning'],
-  },
-  image: {
-    prefixes: ['Visual Breakdown', 'Design Snapshot', 'Reference Board', 'Annotated Example'],
-    descriptions: [
-      'A visual reference with enough clarity to discuss composition, hierarchy, and usability.',
-      'Helpful image resource for comparing layout choices and UI quality patterns.',
-      'Good inspiration material for product teams iterating on interface details.',
-    ],
-    tags: ['image', 'design', 'ui'],
-  },
-  audio: {
-    prefixes: ['Podcast Pick', 'Audio Briefing', 'Listening Notes', 'Interview Highlight'],
-    descriptions: [
-      'A useful listening recommendation with clear insights and practical framing.',
-      'Good background audio for understanding trends, user behavior, and product strategy.',
-      'Concise format that works well for async learning and team discussion.',
-    ],
-    tags: ['audio', 'podcast', 'insights'],
-  },
-  game: {
-    prefixes: ['Playtest Link', 'Mechanics Spotlight', 'Interaction Study', 'Game Loop Example'],
-    descriptions: [
-      'A browser-playable example with interesting pacing and interaction patterns.',
-      'Useful for studying engagement loops, challenge curves, and session design.',
-      'A quick playable reference that can inspire feedback and iteration discussions.',
-    ],
-    tags: ['game', 'interaction', 'web'],
-  },
-}
-
-const sharedTags = ['opensource', 'design', 'ai', 'devops', 'security', 'product', 'culture', 'web']
-
-const pickEligibleSubfeed = (subfeeds: Subfeed[], authorId: number) => {
-  const eligibleSubfeeds = subfeeds.filter((subfeed) => {
-    const members = readRelationshipIds(subfeed.members)
-    const moderators = readRelationshipIds(subfeed.moderators)
-    return members.includes(authorId) || moderators.includes(authorId)
-  })
-
-  return eligibleSubfeeds.length > 0 && chance(0.35) ? pickOne(eligibleSubfeeds) : null
-}
-
-export async function seedLinks(payload: Payload) {
-  const [{ docs: users }, { docs: subfeeds }, { docs: existingLinks }] = await Promise.all([
-    payload.find({
-      collection: 'users',
-      limit: 1000,
-      depth: 0,
-      overrideAccess: true,
-    }),
-    payload.find({
-      collection: 'subfeeds',
-      limit: 300,
-      depth: 0,
-      overrideAccess: true,
-    }),
-    payload.find({
-      collection: 'links',
-      limit: 5000,
-      depth: 0,
-      overrideAccess: true,
-    }),
-  ])
-
-  if (users.length === 0) {
-    console.log('Skipping link seed: no users found')
-    return
+  if (!user) {
+    throw new Error(
+      `Seed scenario needs persona "${key}", but seedUsers did not return it. Run seedUsers first.`,
+    )
   }
 
-  const types: LinkType[] = ['article', 'video', 'image', 'audio', 'game']
-  const existingUrls = new Set(existingLinks.map((link) => link.url).filter(Boolean))
+  return user
+}
 
-  let created = 0
+export const requireSubfeed = (subfeeds: SeedSubfeeds, key: SubfeedKey) => {
+  const subfeed = subfeeds.get(key)
 
-  for (const example of curatedExampleLinks) {
-    if (existingUrls.has(example.url)) {
+  if (!subfeed) {
+    throw new Error(
+      `Seed scenario needs SubFeed "${key}", but seedSubfeeds did not return it. Run seedSubfeeds first.`,
+    )
+  }
+
+  return subfeed
+}
+
+const assertLinkScenario = ({
+  actual,
+  author,
+  scenario,
+  subfeedId,
+}: {
+  actual: Link
+  author: User
+  scenario: SeedLinkScenario
+  subfeedId?: number
+}) => {
+  const problems: string[] = []
+
+  if (actual.slug !== scenario.key)
+    problems.push(`slug: expected ${scenario.key}, got ${actual.slug}`)
+  if (actual.feed !== scenario.destination.feed) {
+    problems.push(`feed: expected ${scenario.destination.feed}, got ${actual.feed}`)
+  }
+  if (readRelationId(actual.user) !== author.id) {
+    problems.push(
+      `user: expected ${author.id} (${scenario.author}), got ${readRelationId(actual.user)}`,
+    )
+  }
+  if (readRelationId(actual.subfeed) !== (subfeedId ?? null)) {
+    problems.push(`subfeed: expected ${subfeedId ?? 'none'}, got ${readRelationId(actual.subfeed)}`)
+  }
+  if (actual._status !== 'published') {
+    problems.push(`_status: expected published, got ${actual._status}`)
+  }
+
+  if (problems.length > 0) {
+    throw new Error(
+      `Seeded link "${scenario.key}" fell outside its scenario:\n  ${problems.join('\n  ')}`,
+    )
+  }
+}
+
+/**
+ * Creates or reconciles the manifest's Link scenarios through the real
+ * authorisation path (`user` + `overrideAccess: false`). Moderator/system signal
+ * fields are applied later by the single reconciliation pass in `seed.ts`.
+ */
+export async function seedLinks(
+  payload: Payload,
+  users: SeedUsers,
+  subfeeds: SeedSubfeeds,
+  referenceNow: Date,
+): Promise<SeedContentResult> {
+  const tally = createSeedTally('links')
+  const ids = new Map<string, number>()
+  const scenarios: SeedLinkScenario[] = []
+
+  for (const scenario of SEED_CONTENT_SCENARIOS as readonly SeedContentScenario[]) {
+    if (scenario.kind === 'link') scenarios.push(scenario)
+  }
+
+  const slugs = scenarios.map((scenario) => scenario.key)
+  const urls = scenarios.map((scenario) => scenario.url)
+
+  const { docs: existingLinks } = await payload.find({
+    collection: 'links',
+    where: {
+      or: [{ slug: { in: slugs } }, { url: { in: urls } }],
+    },
+    limit: slugs.length * 2,
+    depth: 0,
+    overrideAccess: true,
+  })
+
+  const existingBySlug = new Map<string, (typeof existingLinks)[number]>()
+  const existingByUrl = new Map<string, (typeof existingLinks)[number]>()
+
+  for (const link of existingLinks) {
+    if (link.slug) existingBySlug.set(link.slug, link)
+    existingByUrl.set(link.url, link)
+  }
+
+  for (const scenario of scenarios) {
+    const author = requirePersona(users, scenario.author)
+    const subfeed =
+      scenario.destination.feed === 'subfeed'
+        ? requireSubfeed(subfeeds, scenario.destination.subfeed)
+        : null
+
+    const data = {
+      title: scenario.title,
+      slug: scenario.key,
+      url: scenario.url,
+      description: scenario.description,
+      type: scenario.type,
+      user: author.id,
+      feed: scenario.destination.feed,
+      subfeed: subfeed?.id,
+      tags: [...scenario.tags],
+      nsfw: false,
+    }
+
+    const existing = existingBySlug.get(scenario.key) ?? existingByUrl.get(scenario.url)
+
+    if (existing && existing.slug !== scenario.key) {
+      throw new Error(
+        `Seed link URL "${scenario.url}" already exists under slug "${existing.slug}", but the manifest expects slug "${scenario.key}". Refusing to create a duplicate; rename or remove the conflicting link.`,
+      )
+    }
+
+    if (existing) {
+      const existingAuthorId = readRelationId(existing.user)
+
+      if (existingAuthorId !== author.id) {
+        throw new Error(
+          `Seed link "${scenario.key}" already exists with author ${existingAuthorId}, but the manifest expects ${author.id} (${scenario.author}). Refusing to overwrite unrelated content; rename or remove the conflicting link.`,
+        )
+      }
+
+      const updated = await payload.update({
+        collection: 'links',
+        id: existing.id,
+        data,
+        user: author,
+        overrideAccess: false,
+        depth: 0,
+      })
+
+      assertLinkScenario({ actual: updated, author, scenario, subfeedId: subfeed?.id })
+      ids.set(scenario.key, updated.id)
+      tally.reconciled += 1
       continue
     }
 
-    const author = pickOne(users)
-    const targetSubfeed = pickEligibleSubfeed(subfeeds, author.id)
-    const feed = targetSubfeed && chance(0.2) ? 'subfeed' : 'main'
-
-    await payload.create({
+    const created = await payload.create({
       collection: 'links',
       data: {
-        title: example.title,
-        url: example.url,
-        description: example.description,
-        type: example.type,
-        user: author.id,
-        feed,
-        subfeed: feed === 'subfeed' ? targetSubfeed?.id : undefined,
-        tags: example.tags,
-        nsfw: false,
-        clickCount: randomInt(20, 350),
-        upvotes: randomInt(20, 260),
-        downvotes: randomInt(0, 35),
-        commentsCount: randomInt(2, 55),
-        sharesCount: randomInt(1, 40),
-        uniqueCommenters: randomInt(1, 24),
-        trustedInteractions: randomInt(1, 24),
-        softDeleted: false,
-        _status: 'published',
+        ...data,
+        createdAt: offsetIsoFromReference(referenceNow, scenario.referenceNowOffsetHours),
+        updatedAt: offsetIsoFromReference(referenceNow, scenario.referenceNowOffsetHours),
       },
-      draft: false,
-      overrideAccess: true,
+      user: author,
+      overrideAccess: false,
+      depth: 0,
     })
 
-    existingUrls.add(example.url)
-    created += 1
+    assertLinkScenario({ actual: created, author, scenario, subfeedId: subfeed?.id })
+    ids.set(scenario.key, created.id)
+    tally.created += 1
   }
 
-  const targetTotal = 50
-  const remainingRandom = Math.max(0, targetTotal - created)
-
-  for (let i = 0; i < remainingRandom; i += 1) {
-    const author = pickOne(users)
-    const type = pickOne(types)
-    const idea = randomLinkIdeas[type]
-    const targetSubfeed = pickEligibleSubfeed(subfeeds, author.id)
-    const feed = targetSubfeed ? 'subfeed' : chance(0.25) ? 'user' : 'main'
-
-    await payload.create({
-      collection: 'links',
-      data: {
-        title: `${pickOne(idea.prefixes)}: ${faker.company.buzzPhrase()} ${faker.number.int({ min: 100, max: 999 })}`,
-        url: faker.internet.url(),
-        description: `${pickOne(idea.descriptions)} ${faker.helpers.arrayElement([
-          'Share your take in the comments.',
-          'Curious to hear alternative approaches.',
-          'Useful as a reference point for future discussions.',
-        ])}`,
-        type,
-        user: author.id,
-        feed,
-        subfeed: targetSubfeed ? targetSubfeed.id : undefined,
-        tags: faker.helpers.arrayElements([...new Set([...idea.tags, ...sharedTags])], {
-          min: 1,
-          max: 3,
-        }),
-        nsfw: chance(0.1),
-        clickCount: randomInt(0, 300),
-        upvotes: randomInt(0, 220),
-        downvotes: randomInt(0, 40),
-        commentsCount: randomInt(0, 50),
-        sharesCount: randomInt(0, 35),
-        uniqueCommenters: randomInt(0, 24),
-        trustedInteractions: randomInt(0, 20),
-        softDeleted: chance(0.06),
-        _status: 'published',
-      },
-      draft: false,
-      overrideAccess: true,
-    })
-
-    created += 1
-  }
-
-  console.log(`Seeded links: ${created}`)
+  return { tally, ids }
 }

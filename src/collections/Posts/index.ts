@@ -14,8 +14,10 @@ import {
   canManageSubmittedLinks,
   canModerateCommunity,
   canModerateSubfeedContent,
-  canSubmitToSubfeed,
+  enforceContentPublishingPolicy,
   enforceSubfeedContentTargetAccess,
+  normalizeContentDestination,
+  recordDraftIntent,
 } from '@/lib/community/subfeeds'
 import type { SubfeedRosterLike } from '@/lib/community/subfeeds'
 import { createDiscoveryBoostEnforcementHook } from '@/lib/community/discoveryBoostHook'
@@ -156,80 +158,36 @@ const deleteAccess: Access = async ({ req, id }) => {
 
 const preparePost: CollectionBeforeValidateHook = async ({ data, operation, req, originalDoc }) => {
   if (req?.context?.skipHooks) return data
-  const nextData = { ...data }
+
+  const nextData = await enforceContentPublishingPolicy({
+    data: normalizeContentDestination({ data, operation, originalDoc }),
+    operation,
+    originalDoc,
+    req,
+    messages: {
+      missingRelation: 'Posts in subfeed feed must include a subfeed relation',
+      missingAuthor: 'Posts in subfeed feed must include a valid author',
+    },
+  })
 
   if (typeof nextData?.title === 'string' && nextData.title.length > 0) {
     nextData.slug = nextData.slug || slugify(nextData.title)
   }
 
-  if (nextData?.subfeed && (nextData.feed ?? originalDoc?.feed) !== 'subfeed') {
-    nextData.feed = 'subfeed'
-  }
-
-  const effectiveFeed = nextData.feed !== undefined ? nextData.feed : originalDoc?.feed
-  const effectiveSubfeed = nextData.subfeed !== undefined ? nextData.subfeed : originalDoc?.subfeed
-
-  if (effectiveFeed === 'subfeed') {
-    const subfeedId = resolveID(effectiveSubfeed)
-    if (!subfeedId) {
-      if (operation === 'create') {
-        throw new Error('Posts in subfeed feed must include a subfeed relation')
-      }
-      // If the referenced subfeed was cascade-deleted (ON DELETE SET NULL),
-      // demote this post to user feed rather than bricking updates
-      nextData.feed = 'user'
-    } else if (!canModerateCommunity(req.user)) {
-      const authorId =
-        resolveID(nextData.user !== undefined ? nextData.user : originalDoc?.user) ??
-        req.user?.id ??
-        null
-
-      if (!authorId) {
-        throw new Error('Posts in subfeed feed must include a valid author')
-      }
-
-      const subfeed = await req.payload.findByID({
-        collection: 'subfeeds',
-        id: subfeedId,
-        depth: 0,
-        overrideAccess: true,
-        req,
-      })
-
-      if (!canSubmitToSubfeed(subfeed, authorId)) {
-        throw new Error('You must join this subfeed before posting')
-      }
-    }
-  }
-
-  const authorId = resolveID(nextData?.user) ?? resolveID(originalDoc?.user) ?? req.user?.id ?? null
-  let hasEditorialRole = false
-
-  if (req.user && req.user.id === authorId) {
-    hasEditorialRole = canManageSubmittedLinks(req.user)
-  } else if (authorId) {
-    const author = await req.payload.findByID({
-      collection: 'users',
-      id: authorId,
-      depth: 0,
-      overrideAccess: true,
-      req,
-    })
-    hasEditorialRole = Boolean(author && canManageSubmittedLinks(author))
-  }
-
   if (operation === 'create') {
-    const isSubfeedPost = nextData?.feed === 'subfeed'
-
-    if (hasEditorialRole) {
-      // Editorial publishers (admin/moderator/editor/uploader) publish
-      // directly. `status` carries its `pending` defaultValue by the time
-      // hooks run, so an explicit `removed` is the only choice we keep.
-      if (nextData?.status !== 'removed') {
-        nextData.status = 'published'
-      }
-    } else {
-      nextData.status = isSubfeedPost ? 'published' : 'pending'
+    // Personal-first publishing: permitted creations go live immediately.
+    // `pending` remains available for explicitly quarantined content, explicit
+    // draft intent captured by `recordDraftIntent`, or trusted workflows that
+    // pass `context.forcePending`.
+    if (
+      nextData?.status !== 'removed' &&
+      nextData?.quarantined !== true &&
+      req?.context?.forcePending !== true &&
+      !req.context?.explicitDraftIntent
+    ) {
+      nextData.status = 'published'
+    } else if (req?.context?.forcePending === true) {
+      nextData.status = 'pending'
     }
   }
 
@@ -281,9 +239,7 @@ const grantEditorialPriority: CollectionBeforeChangeHook = async ({
   return {
     ...data,
     editorialPriority: true,
-    editorialPriorityUntil: new Date(
-      Date.now() + EDITORIAL_PRIORITY_DURATION_MS,
-    ).toISOString(),
+    editorialPriorityUntil: new Date(Date.now() + EDITORIAL_PRIORITY_DURATION_MS).toISOString(),
   }
 }
 
@@ -316,6 +272,7 @@ const syncDerivedSignals: CollectionBeforeChangeHook = ({ data, originalDoc }) =
     discoveryMomentum,
     editorialPriority,
     editorialPriorityUntil,
+    feed: data.feed ?? originalDoc?.feed,
   })
 
   const score = upvotes - downvotes
@@ -347,8 +304,13 @@ export const Posts: CollectionConfig = {
     delete: deleteAccess,
   },
   hooks: {
+    beforeOperation: [recordDraftIntent],
     beforeValidate: [enforceSubfeedContentTargetAccess, preparePost],
-    beforeChange: [createDiscoveryBoostEnforcementHook(), grantEditorialPriority, syncDerivedSignals],
+    beforeChange: [
+      createDiscoveryBoostEnforcementHook(),
+      grantEditorialPriority,
+      syncDerivedSignals,
+    ],
   },
   fields: [
     {
@@ -538,6 +500,10 @@ export const Posts: CollectionConfig = {
       name: 'featured',
       type: 'checkbox',
       defaultValue: false,
+      access: {
+        create: ({ req: { user } }) => canManageSubmittedLinks(user),
+        update: ({ req: { user } }) => canManageSubmittedLinks(user),
+      },
     },
     {
       name: 'breaking',

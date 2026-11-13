@@ -1,11 +1,8 @@
 import type { Payload, PayloadRequest } from 'payload'
 
-import {
-  TRUST_LEVEL_THRESHOLDS,
-  buildTrustProfile,
-  recencyDecayFactor,
-} from './reputation'
+import { TRUST_LEVEL_THRESHOLDS, buildTrustProfile, recencyDecayFactor } from './reputation'
 import type { CommunityRole, RoleSignals, TrustLevel } from './reputation'
+import { TRUST_DYNAMICS_ACTIVE_WINDOW_DAYS } from './trustDynamics'
 
 /**
  * SubFeed creation is gated behind *earned* community standing rather than open
@@ -36,6 +33,17 @@ import type { CommunityRole, RoleSignals, TrustLevel } from './reputation'
  * reaching into the role-derivation internals.
  */
 
+/**
+ * Community-standing path (Bobhund suggestion: creation should prove both
+ * Contribution *and* Likability, not just role candidacy). A member qualifies
+ * through this path when they clear both point floors and rank inside the top
+ * decile of active members. The relative-rank test is only applied when the
+ * caller supplies population context; pure unit tests keep the point floors.
+ */
+export const SUBFEED_COMMUNITY_CONTRIBUTION_MIN = 80
+export const SUBFEED_LIKABILITY_MIN = 40
+export const SUBFEED_RELATIVE_RANK_TOP_SHARE = 0.1
+
 /** A member within this fraction of a role gate's point thresholds counts as a "candidate". */
 export const SUBFEED_CANDIDACY_FACTOR = 0.7
 
@@ -63,15 +71,10 @@ export const EDITOR_TRUST_GATE: TrustLevel = 'trusted'
 export const RECRUITER_ROLE_GATE = 40
 
 export type SubfeedRequirementKey =
-  | 'uploader-candidacy'
-  | 'editor-candidacy'
-  | 'strong-recruiter'
+  'uploader-candidacy' | 'editor-candidacy' | 'strong-recruiter' | 'community-standing'
 
 export type SubfeedEligibilityReason =
-  | 'admin'
-  | 'uploader-candidacy'
-  | 'editor-candidacy'
-  | 'strong-recruiter'
+  'admin' | 'uploader-candidacy' | 'editor-candidacy' | 'strong-recruiter' | 'community-standing'
 
 export interface SubfeedEligibilityProgressItem {
   /** Stable machine-readable key (also used for tests). */
@@ -104,6 +107,9 @@ export interface SubfeedEligibility {
     discovery: number
     interaction: number
     recruiter: number
+    likability: number
+    /** Share of active members ranked ahead (0 = top); null when unknown. */
+    relativeRank: number | null
   }
   trustLevel: TrustLevel
 }
@@ -118,6 +124,12 @@ export interface SubfeedEligibilityInput {
   standingLocked?: boolean
   /** Injectable clock for deterministic testing. */
   now?: Date
+  /** Optional active-member distribution for the relative-rank test. */
+  population?: {
+    totalActiveMembers: number
+    /** Number of active members whose standing is higher than this member's. */
+    membersAhead: number
+  }
 }
 
 /** Structural subset of the Users doc needed to evaluate eligibility. */
@@ -130,6 +142,8 @@ export interface SubfeedEligibilityUserLike {
   discoveryScore?: number | null
   interactionScore?: number | null
   recruiterScore?: number | null
+  likabilityScore?: number | null
+  totalMemberValue?: number | null
   lastActiveAt?: string | null
 }
 
@@ -151,9 +165,7 @@ const rounded = (value: number): number => Math.round(value * 100) / 100
 
 const whole = (value: number): number => Math.round(value)
 
-export const evaluateSubfeedEligibility = (
-  input: SubfeedEligibilityInput,
-): SubfeedEligibility => {
+export const evaluateSubfeedEligibility = (input: SubfeedEligibilityInput): SubfeedEligibility => {
   const {
     signals,
     trustLevel: providedTrustLevel,
@@ -164,8 +176,7 @@ export const evaluateSubfeedEligibility = (
   const roles = Array.isArray(input.roles) ? input.roles : ['user']
   const isAdmin = roles.includes('admin')
 
-  const trustLevel =
-    providedTrustLevel ?? buildTrustProfile(signals, { now }).trustLevel
+  const trustLevel = providedTrustLevel ?? buildTrustProfile(signals, { now }).trustLevel
 
   // Apply recency decay to the raw signals, matching how `deriveAutomaticRoles`
   // decays point classes before evaluating role gates.
@@ -174,6 +185,12 @@ export const evaluateSubfeedEligibility = (
   const discovery = readNum(signals.discoveryScore) * factor
   const interaction = readNum(signals.interactionScore) * factor
   const recruiter = readNum(signals.recruiterScore) * factor
+  const likability = readNum(signals.likabilityScore) * factor
+
+  const relativeRank =
+    input.population && input.population.totalActiveMembers > 0
+      ? clamp01(input.population.membersAhead / input.population.totalActiveMembers)
+      : null
 
   // Admin-revoked roles block their corresponding candidacy path — a member
   // whose uploader role was revoked is not an uploader candidate, even with
@@ -216,11 +233,19 @@ export const evaluateSubfeedEligibility = (
   const strongRecruiter =
     !revoked.has('recruiter') && (holdsRecruiter || recruiter >= SUBFEED_STRONG_RECRUITER_THRESHOLD)
 
+  // Community standing: high Contribution *and* Likability, optionally gated
+  // by relative rank when population context is available.
+  const communityContributionOk = contribution >= SUBFEED_COMMUNITY_CONTRIBUTION_MIN
+  const communityLikabilityOk = likability >= SUBFEED_LIKABILITY_MIN
+  const relativeRankOk = relativeRank === null || relativeRank <= SUBFEED_RELATIVE_RANK_TOP_SHARE
+  const communityStanding = communityContributionOk && communityLikabilityOk && relativeRankOk
+
   const reasons: SubfeedEligibilityReason[] = []
   if (isAdmin) reasons.push('admin')
   if (uploaderCandidate) reasons.push('uploader-candidacy')
   if (editorCandidate) reasons.push('editor-candidacy')
   if (strongRecruiter) reasons.push('strong-recruiter')
+  if (communityStanding) reasons.push('community-standing')
 
   const locked = !isAdmin && standingLocked
   const eligible = !locked && reasons.length > 0
@@ -250,6 +275,26 @@ export const evaluateSubfeedEligibility = (
       needed: 1,
       met: strongRecruiter,
     },
+    {
+      requirement: 'community-standing',
+      label: 'Community standing',
+      detail: `Earn ${SUBFEED_COMMUNITY_CONTRIBUTION_MIN}+ Contribution and ${SUBFEED_LIKABILITY_MIN}+ Likability Points${
+        relativeRank === null
+          ? ''
+          : `, and rank in the top ${whole(SUBFEED_RELATIVE_RANK_TOP_SHARE * 100)}% of active members`
+      }.`,
+      current: rounded(
+        Math.min(
+          fraction(contribution, SUBFEED_COMMUNITY_CONTRIBUTION_MIN),
+          fraction(likability, SUBFEED_LIKABILITY_MIN),
+          relativeRank === null
+            ? 1
+            : fraction(SUBFEED_RELATIVE_RANK_TOP_SHARE, Math.max(relativeRank, 0.0001)),
+        ),
+      ),
+      needed: 1,
+      met: communityStanding,
+    },
   ]
 
   const missing = progress.filter((item) => !item.met).map((item) => item.requirement)
@@ -265,6 +310,8 @@ export const evaluateSubfeedEligibility = (
       discovery: Math.round(discovery),
       interaction: Math.round(interaction),
       recruiter: Math.round(recruiter),
+      likability: Math.round(likability),
+      relativeRank: relativeRank === null ? null : rounded(relativeRank),
     },
     trustLevel,
   }
@@ -274,6 +321,7 @@ export const evaluateSubfeedEligibility = (
 export const readUserEligibility = (
   user: SubfeedEligibilityUserLike,
   now?: Date,
+  population?: SubfeedEligibilityInput['population'],
 ): SubfeedEligibility =>
   evaluateSubfeedEligibility({
     signals: {
@@ -281,12 +329,14 @@ export const readUserEligibility = (
       discoveryScore: user.discoveryScore ?? undefined,
       interactionScore: user.interactionScore ?? undefined,
       recruiterScore: user.recruiterScore ?? undefined,
+      likabilityScore: user.likabilityScore ?? undefined,
       lastActiveAt: user.lastActiveAt ?? undefined,
     },
     roles: user.roles ?? undefined,
     revokedRoles: user.revokedRoles ?? undefined,
     trustLevel: user.trustLevel ?? undefined,
     standingLocked: user.standingLocked ?? false,
+    population,
     now,
   })
 
@@ -300,24 +350,55 @@ export const getSubfeedEligibilityForUser = async (
   userId: number,
   req?: PayloadRequest,
 ): Promise<SubfeedEligibility | null> => {
+  const reqScope = req ? { req } : {}
   const profile = await payload.findByID({
     collection: 'users',
     id: userId,
     depth: 0,
     overrideAccess: true,
-    ...(req ? { req } : {}),
+    ...reqScope,
   })
 
   if (!profile) return null
 
-  return readUserEligibility(profile as unknown as SubfeedEligibilityUserLike)
+  // Population context for the relative-rank path. Counts are cheap (indexed)
+  // and this only runs on the SubFeed creation page/action.
+  const activeSince = new Date(
+    Date.now() - TRUST_DYNAMICS_ACTIVE_WINDOW_DAYS * 86_400_000,
+  ).toISOString()
+  const standing = profile.totalMemberValue ?? 0
+
+  const [totalActive, membersAhead] = await Promise.all([
+    payload.count({
+      collection: 'users',
+      where: { lastActiveAt: { greater_than: activeSince } },
+      overrideAccess: true,
+      ...reqScope,
+    }),
+    payload.count({
+      collection: 'users',
+      where: {
+        and: [
+          { lastActiveAt: { greater_than: activeSince } },
+          { totalMemberValue: { greater_than: standing } },
+        ],
+      },
+      overrideAccess: true,
+      ...reqScope,
+    }),
+  ])
+
+  return readUserEligibility(profile as unknown as SubfeedEligibilityUserLike, undefined, {
+    totalActiveMembers: totalActive.totalDocs,
+    membersAhead: membersAhead.totalDocs,
+  })
 }
 
 export const SUBFEED_CREATION_LOCKED_MESSAGE =
   'Your community standing is frozen, so SubFeed creation is unavailable right now. Contact a moderator if you believe this is a mistake.'
 
 export const SUBFEED_CREATION_INELIGIBLE_MESSAGE =
-  'You need more community standing to create a SubFeed yet. SubFeeds are exclusive — earn Uploader candidacy, Editor candidacy, or strong Recruiter standing to unlock creation. Keep contributing and inviting members; your own User Feed is always open.'
+  'You need more community standing to create a SubFeed yet. SubFeeds are exclusive — earn Uploader candidacy, Editor candidacy, strong Recruiter standing, or high Contribution and Likability standing to unlock creation. Keep contributing and inviting members; your own User Feed is always open.'
 
 /** Builds the informative error message for a rejected creation attempt. */
 export const buildSubfeedEligibilityMessage = (result: SubfeedEligibility): string =>

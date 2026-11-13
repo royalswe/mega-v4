@@ -25,6 +25,7 @@ import {
   resolveSubfeedOwner,
 } from '@/lib/community/subfeeds'
 import { checkRole } from '@/access/checkRole'
+import { expireEditorialPriority } from '@/lib/community/editorialPriority'
 import { ReorderAwareList } from '@/components/links/ReorderAwareList.client'
 import type { Link as LinkDoc, Post as PostDoc } from '@/payload-types'
 
@@ -218,6 +219,8 @@ export default async function SubfeedDetailsPage({
   const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
   const { user, payload } = await getAuthenticatedUser()
   const { dict, lang } = await getDictionary()
+  // Bobhund #1: clear lapsed editorial boosts before sorting by rankingScore.
+  await expireEditorialPriority({ payload })
   const canQuickEditLinks = user ? checkRole(['admin'], user) : false
   const selectedWindow = parsePulseWindow(resolvedSearchParams.window)
   const selectedContentFilter = parseContentFilter(resolvedSearchParams.type)
@@ -255,7 +258,9 @@ export default async function SubfeedDetailsPage({
     ? canModerateCommunity(user) || canModerateSubfeedContent(subfeed, user.id)
     : false
   const canManageRoster = canEditSubfeed
-  const canCreate = user ? canSubmitToSubfeed(subfeed, user.id) || canModerateCommunity(user) : false
+  const canCreate = user
+    ? canSubmitToSubfeed(subfeed, user.id) || canModerateCommunity(user)
+    : false
   const avatarMedia = typeof subfeed.avatar === 'object' && subfeed.avatar ? subfeed.avatar : null
 
   const rosterModerators = mapRoster(subfeed.moderators)
@@ -761,6 +766,24 @@ export default async function SubfeedDetailsPage({
             </div>
           </div>
         </div>
+
+        {user && !canCreate ? (
+          <div
+            data-testid="subfeed-ineligible-publish-note"
+            className="rounded-md border bg-muted/30 p-3 text-sm"
+          >
+            <p className="font-medium">{dict.subfeeds.publishToYourFeedAction}</p>
+            <p className="text-muted-foreground">{dict.subfeeds.ineligiblePublishNote}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button asChild size="sm">
+                <Link href="/new-link">{dict.pages.contribute.shareLinkAction}</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/new-post">{dict.pages.contribute.startDiscussionAction}</Link>
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         {filteredItems.length > 0 ? (
           <ReorderAwareList itemIds={filteredItems.map((item) => item.id)}>

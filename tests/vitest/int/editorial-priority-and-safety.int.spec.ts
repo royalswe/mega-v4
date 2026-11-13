@@ -10,9 +10,14 @@ import {
   EDITORIAL_PRIORITY_BOOST,
   EDITORIAL_PRIORITY_DURATION_HOURS,
   EDITORIAL_PRIORITY_DURATION_MS,
+  SUBFEED_PRIORITY_BOOST,
 } from '@/lib/community/ranking'
 import { AUTOMATIC_ROLES } from '@/lib/community/reputation'
 import { recalculateTargetSignals } from '@/lib/community/contentSignals'
+import {
+  expireEditorialPriority,
+  resetEditorialPrioritySweepThrottle,
+} from '@/lib/community/editorialPriority'
 
 let payload: Payload
 
@@ -78,7 +83,9 @@ describe('Editorial priority ranking behavior (pure)', () => {
 
     expect(prioritized.editorialPriorityActive).toBe(true)
     expect(prioritized.editorialBoost).toBe(EDITORIAL_PRIORITY_BOOST)
-    expect(prioritized.score).toBe(Math.round((baseline.score + EDITORIAL_PRIORITY_BOOST) * 100) / 100)
+    expect(prioritized.score).toBe(
+      Math.round((baseline.score + EDITORIAL_PRIORITY_BOOST) * 100) / 100,
+    )
   })
 
   it('transitions naturally to standard community ranking after priority window elapses', () => {
@@ -114,16 +121,43 @@ describe('Editorial priority ranking behavior (pure)', () => {
     const future = new Date(FIXED_NOW.getTime() + 10 * HOUR).toISOString()
     const past = new Date(FIXED_NOW.getTime() - 1 * HOUR).toISOString()
 
-    expect(isEditorialPriorityActive({ editorialPriority: true, editorialPriorityUntil: future }, FIXED_NOW)).toBe(
-      true,
-    )
-    expect(isEditorialPriorityActive({ editorialPriority: true, editorialPriorityUntil: past }, FIXED_NOW)).toBe(
-      false,
-    )
-    expect(isEditorialPriorityActive({ editorialPriority: false, editorialPriorityUntil: future }, FIXED_NOW)).toBe(
-      false,
-    )
+    expect(
+      isEditorialPriorityActive(
+        { editorialPriority: true, editorialPriorityUntil: future },
+        FIXED_NOW,
+      ),
+    ).toBe(true)
+    expect(
+      isEditorialPriorityActive(
+        { editorialPriority: true, editorialPriorityUntil: past },
+        FIXED_NOW,
+      ),
+    ).toBe(false)
+    expect(
+      isEditorialPriorityActive(
+        { editorialPriority: false, editorialPriorityUntil: future },
+        FIXED_NOW,
+      ),
+    ).toBe(false)
     expect(isEditorialPriorityActive({}, FIXED_NOW)).toBe(false)
+  })
+
+  it('boosts SubFeed origin above User Feed origin at equal engagement', () => {
+    const createdAt = new Date(FIXED_NOW.getTime() - 2 * HOUR).toISOString()
+    const signals = {
+      createdAt,
+      upvotes: 5,
+      downvotes: 0,
+      commentsCount: 2,
+      now: FIXED_NOW,
+    }
+
+    const userFeed = calculateRanking({ ...signals, feed: 'user' })
+    const subfeed = calculateRanking({ ...signals, feed: 'subfeed' })
+
+    expect(userFeed.subfeedBoost).toBe(0)
+    expect(subfeed.subfeedBoost).toBe(SUBFEED_PRIORITY_BOOST)
+    expect(subfeed.score).toBe(Math.round((userFeed.score + SUBFEED_PRIORITY_BOOST) * 100) / 100)
   })
 })
 
@@ -143,17 +177,22 @@ describe('Direct Main Feed publications and editorial priority (integration)', (
         editorialPriority: true,
         editorialPriorityUntil: new Date(Date.now() + EDITORIAL_PRIORITY_DURATION_MS).toISOString(),
       }
-      const item = collection === 'links'
-        ? await payload.create({
-            collection,
-            data: { ...common, url: `https://example.com/${unique()}`, type: 'article' },
-            overrideAccess: true,
-          })
-        : await payload.create({
-            collection,
-            data: { ...common, content: createRichText('Organic thresholds'), type: 'discussion' },
-            overrideAccess: true,
-          })
+      const item =
+        collection === 'links'
+          ? await payload.create({
+              collection,
+              data: { ...common, url: `https://example.com/${unique()}`, type: 'article' },
+              overrideAccess: true,
+            })
+          : await payload.create({
+              collection,
+              data: {
+                ...common,
+                content: createRichText('Organic thresholds'),
+                type: 'discussion',
+              },
+              overrideAccess: true,
+            })
       const req = await createPayloadRequest({ payload })
       await recalculateTargetSignals({ req, targetCollection: collection, targetId: item.id })
       const recalculated = await payload.findByID({
@@ -566,5 +605,85 @@ describe('Administrator safety controls: Promotion and role rollbacks (integrati
     expect(afterActivity.roles).not.toContain('editor')
     expect(afterActivity.roles).not.toContain('uploader')
     expect(afterActivity.roles).toEqual(['user'])
+  })
+})
+
+describe('Editorial priority expiry sweep (integration)', () => {
+  beforeAll(async () => {
+    payload = await getTestPayload()
+  })
+
+  it('drops the ranking boost and clears the flag after the window lapses', async () => {
+    const author = await createTestUser(payload)
+    const windowEndsAt = new Date(Date.now() + 60_000)
+
+    const link = await payload.create({
+      collection: 'links',
+      data: {
+        title: `Expiry Sweep ${unique()}`,
+        url: `https://example.com/expiry-${unique()}`,
+        type: 'article',
+        feed: 'main',
+        user: author.id,
+        editorialPriority: true,
+        editorialPriorityUntil: windowEndsAt.toISOString(),
+        _status: 'published',
+      },
+      draft: false,
+      overrideAccess: true,
+    })
+
+    expect(link.editorialPriority).toBe(true)
+    const boostedScore = link.rankingScore ?? 0
+    expect(boostedScore).toBeGreaterThan(EDITORIAL_PRIORITY_BOOST)
+
+    resetEditorialPrioritySweepThrottle()
+    const result = await expireEditorialPriority({
+      payload,
+      force: true,
+      now: new Date(windowEndsAt.getTime() + 1_000),
+    })
+    expect(result.processed).toBeGreaterThanOrEqual(1)
+
+    const expired = await payload.findByID({
+      collection: 'links',
+      id: link.id,
+      overrideAccess: true,
+    })
+    expect(expired.editorialPriority).toBe(false)
+    expect(expired.editorialPriorityUntil).toBeNull()
+    expect(expired.rankingScore ?? 0).toBeLessThan(boostedScore)
+  })
+
+  it('leaves active windows untouched', async () => {
+    const author = await createTestUser(payload)
+    const windowEndsAt = new Date(Date.now() + 6 * 3_600_000)
+
+    const link = await payload.create({
+      collection: 'links',
+      data: {
+        title: `Active Window ${unique()}`,
+        url: `https://example.com/active-${unique()}`,
+        type: 'article',
+        feed: 'main',
+        user: author.id,
+        editorialPriority: true,
+        editorialPriorityUntil: windowEndsAt.toISOString(),
+        _status: 'published',
+      },
+      draft: false,
+      overrideAccess: true,
+    })
+
+    resetEditorialPrioritySweepThrottle()
+    await expireEditorialPriority({ payload, force: true })
+
+    const fresh = await payload.findByID({
+      collection: 'links',
+      id: link.id,
+      overrideAccess: true,
+    })
+    expect(fresh.editorialPriority).toBe(true)
+    expect(fresh.editorialPriorityUntil).toBe(windowEndsAt.toISOString())
   })
 })

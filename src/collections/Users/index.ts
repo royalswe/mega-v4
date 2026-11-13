@@ -9,7 +9,10 @@ import {
   buildTrustProfile,
   deriveAutomaticRoles,
   deriveBehavioralTitles,
+  TRUST_LEVEL_THRESHOLDS,
+  type TrustThreshold,
 } from '@/lib/community/reputation'
+import { BASE_TRUST_DYNAMICS, loadTrustDynamics } from '@/lib/community/trustDynamics'
 
 const readNumber = (value: unknown): number => {
   if (typeof value === 'number' && Number.isFinite(value)) return value
@@ -26,7 +29,7 @@ const readDate = (value: unknown): string | Date | undefined => {
   return undefined
 }
 
-const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc, req }) => {
+const syncCommunityProfile: CollectionBeforeChangeHook = async ({ data, originalDoc, req }) => {
   const existingRoles =
     Array.isArray(data?.roles) && data.roles.length > 0
       ? data.roles
@@ -85,10 +88,22 @@ const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc, r
     recruiterScore,
   }
 
-  const trust = buildTrustProfile(
-    { ...signals, lastActiveAt },
-    { previousTrustLevel },
-  )
+  // Bobhund #3: effective thresholds move with the population distribution.
+  // Fall back to the base ladder if the snapshot cannot be read (e.g. a brand
+  // new database before the global table exists).
+  let thresholds: TrustThreshold[] = TRUST_LEVEL_THRESHOLDS
+  try {
+    const dynamics = await loadTrustDynamics(req.payload, req)
+    thresholds = dynamics.thresholds
+  } catch (error) {
+    req.payload.logger.warn({
+      msg: 'Could not load community trust dynamics; using base thresholds.',
+      err: error,
+    })
+    thresholds = BASE_TRUST_DYNAMICS.thresholds
+  }
+
+  const trust = buildTrustProfile({ ...signals, lastActiveAt }, { previousTrustLevel, thresholds })
 
   const roles = deriveAutomaticRoles(
     {
@@ -97,7 +112,7 @@ const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc, r
       lastActiveAt,
     },
     existingRoles,
-    { previousTrustLevel, rolesLocked, revokedRoles },
+    { previousTrustLevel, rolesLocked, revokedRoles, thresholds },
   )
 
   const titles = deriveBehavioralTitles({
@@ -130,8 +145,7 @@ const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc, r
           ? originalDoc.badges
           : [],
     streakDays: Math.max(0, mergeScore(data?.streakDays, originalDoc?.streakDays)),
-    lastActiveAt:
-      lastActiveAt ?? (data && !originalDoc ? new Date().toISOString() : undefined),
+    lastActiveAt: lastActiveAt ?? (data && !originalDoc ? new Date().toISOString() : undefined),
   }
 }
 

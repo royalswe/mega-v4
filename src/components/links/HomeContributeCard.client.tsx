@@ -6,7 +6,6 @@ import { useState, useTransition } from 'react'
 import {
   ChevronDown,
   ChevronUp,
-  Compass,
   Link2,
   MessageSquarePlus,
   PlusCircle,
@@ -16,7 +15,11 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { Modal, ModalClose, ModalContent, ModalTitle } from '@/components/ui/modal'
-import { LinkSubmitForm } from '@/components/links/LinkSubmitForm'
+import {
+  getSubmissionOutcomeCopy,
+  LinkSubmitForm,
+  OUTCOME_BANNER_CLASSES,
+} from '@/components/links/LinkSubmitForm'
 import { PostSubmitForm } from '@/components/posts/PostSubmitForm'
 import { SubfeedAvatar } from '@/components/subfeeds/SubfeedAvatar'
 import {
@@ -24,6 +27,8 @@ import {
   setHomeSubfeedsViewPreference,
 } from '@/app/actions/links'
 import type { AppDictionary, UserLanguage } from '@/lib/dictionaries'
+import type { SubmissionOutcome } from '@/lib/community/subfeeds'
+import { cn } from '@/lib/utils'
 import type { Media } from '@/payload-types'
 
 interface HomeContributeCardSubfeed {
@@ -47,7 +52,8 @@ interface HomeContributeCardProps {
   dict: AppDictionary
   lang: UserLanguage
   variant: 'member' | 'noSubfeeds' | 'guest'
-  joinedSubfeeds?: HomeContributeCardSubfeed[]
+  eligibleSubfeeds?: HomeContributeCardSubfeed[]
+  canPublishToMain?: boolean
   initialCollapsed?: boolean
   stripItems?: HomeContributeStripItem[]
   stripView?: 'trending' | 'joined'
@@ -58,7 +64,8 @@ export function HomeContributeCard({
   dict,
   lang,
   variant,
-  joinedSubfeeds = [],
+  eligibleSubfeeds = [],
+  canPublishToMain = false,
   initialCollapsed = false,
   stripItems = [],
   stripView = 'trending',
@@ -67,6 +74,7 @@ export function HomeContributeCard({
   const router = useRouter()
   const [linkOpen, setLinkOpen] = useState(false)
   const [postOpen, setPostOpen] = useState(false)
+  const [lastOutcome, setLastOutcome] = useState<SubmissionOutcome | null>(null)
   const [collapsed, setCollapsed] = useState(initialCollapsed)
   const [currentView, setCurrentView] = useState<'trending' | 'joined'>(stripView)
   const [, startCollapseTransition] = useTransition()
@@ -79,13 +87,15 @@ export function HomeContributeCard({
   const iconAccent = variant === 'noSubfeeds' ? 'text-sky-500' : 'text-amber-500'
   const accentClass = variant === 'noSubfeeds' ? 'border-l-sky-400' : 'border-l-amber-400'
 
-  const handleLinkSuccess = () => {
-    setLinkOpen(false)
+  const handleLinkSuccess = (outcome: SubmissionOutcome) => {
+    // Keep the modal open so the inline outcome banner stays readable; the
+    // banner in `LinkSubmitForm` and the compact bar below both link to the item.
+    setLastOutcome(outcome)
     router.refresh()
   }
 
-  const handlePostSuccess = () => {
-    setPostOpen(false)
+  const handlePostSuccess = (outcome: SubmissionOutcome) => {
+    setLastOutcome(outcome)
     router.refresh()
   }
 
@@ -120,7 +130,7 @@ export function HomeContributeCard({
     })
   }
 
-  const subfeedOptions = joinedSubfeeds.map((subfeed) => ({ id: subfeed.id, name: subfeed.name }))
+  const subfeedOptions = eligibleSubfeeds.map((subfeed) => ({ id: subfeed.id, name: subfeed.name }))
 
   const renderHeader = () => {
     if (variant === 'guest') {
@@ -139,7 +149,7 @@ export function HomeContributeCard({
       return (
         <>
           <h2 className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
-            <Compass className={`size-4 ${iconAccent}`} aria-hidden="true" />
+            <PlusCircle className={`size-4 ${iconAccent}`} aria-hidden="true" />
             {copy.noSubfeedsTitle}
           </h2>
           <p className="text-sm text-muted-foreground">{copy.noSubfeedsSubtitle}</p>
@@ -174,19 +184,6 @@ export function HomeContributeCard({
       )
     }
 
-    if (variant === 'noSubfeeds') {
-      return (
-        <>
-          <Button asChild size="sm">
-            <Link href="/subfeeds">{copy.browseSubfeedsAction}</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/subfeeds/new">{copy.createSubfeedAction}</Link>
-          </Button>
-        </>
-      )
-    }
-
     return (
       <>
         <Button size="sm" onClick={() => setLinkOpen(true)}>
@@ -197,6 +194,11 @@ export function HomeContributeCard({
           <MessageSquarePlus className="mr-1 size-4" aria-hidden="true" />
           {copy.startDiscussionAction}
         </Button>
+        {variant === 'noSubfeeds' ? (
+          <Button asChild size="sm" variant="ghost">
+            <Link href="/subfeeds">{copy.browseSubfeedsAction}</Link>
+          </Button>
+        ) : null}
       </>
     )
   }
@@ -219,6 +221,51 @@ export function HomeContributeCard({
           )}
         </button>
       </div>
+
+      {lastOutcome
+        ? (() => {
+            const outcomeCopy = getSubmissionOutcomeCopy(dict, lastOutcome)
+
+            return (
+              <div
+                data-testid="home-outcome-bar"
+                className={cn(
+                  'mt-3 rounded-md border p-3 text-sm',
+                  OUTCOME_BANNER_CLASSES[lastOutcome.visibility],
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium">{outcomeCopy.title}</p>
+                    <p className="mt-1 opacity-90">{outcomeCopy.description}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setLastOutcome(null)}
+                    aria-label={dict.submissionOutcome.dismiss}
+                    className="shrink-0 rounded-md p-1 hover:bg-background/40"
+                  >
+                    <XIcon className="size-4" aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {lastOutcome.itemHref ? (
+                    <Button asChild size="sm">
+                      <Link data-testid="home-outcome-item-link" href={lastOutcome.itemHref}>
+                        {outcomeCopy.itemLinkLabel}
+                      </Link>
+                    </Button>
+                  ) : null}
+                  <Button asChild size="sm" variant="outline">
+                    <Link data-testid="home-outcome-feed-link" href={lastOutcome.destinationHref}>
+                      {outcomeCopy.feedLinkLabel}
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            )
+          })()
+        : null}
 
       {!collapsed ? (
         <>
@@ -295,8 +342,9 @@ export function HomeContributeCard({
           <LinkSubmitForm
             dict={dict}
             subfeeds={subfeedOptions}
-            defaultFeed="subfeed"
-            defaultSubfeedId={subfeedOptions[0]?.id}
+            canPublishToMain={canPublishToMain}
+            defaultFeed="user"
+            defaultSubfeedId={undefined}
             onSuccess={handleLinkSuccess}
             onCancel={() => setLinkOpen(false)}
           />
@@ -319,8 +367,9 @@ export function HomeContributeCard({
           <PostSubmitForm
             dict={dict}
             subfeeds={subfeedOptions}
-            defaultFeed="subfeed"
-            defaultSubfeedId={subfeedOptions[0]?.id}
+            canPublishToMain={canPublishToMain}
+            defaultFeed="user"
+            defaultSubfeedId={undefined}
             onSuccess={handlePostSuccess}
             onCancel={() => setPostOpen(false)}
           />

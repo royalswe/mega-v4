@@ -3,41 +3,27 @@ import { redirect } from 'next/navigation'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getDictionary } from '@/lib/dictionaries'
-import {
-  COLD_START_FLOOR,
-  HYSTERESIS_DEMOTE_MARGIN,
-  HYSTERESIS_PROMOTE_MARGIN,
-  RECENCY_HALF_LIFE_DAYS,
-  ROLE_RETENTION_FACTOR,
-  TRUST_LEVEL_THRESHOLDS,
-} from '@/lib/community/reputation'
-import {
-  DISCOVERY_BOOST_MIN_SCORE,
-  MAIN_FEED_PROMOTION_THRESHOLD,
-  PROMOTION_DISCOVERY_MOMENTUM_MIN,
-  PROMOTION_ENGAGEMENT_VELOCITY_MIN,
-} from '@/lib/community/promotion'
-import {
-  EDITORIAL_PRIORITY_BOOST,
-  EDITORIAL_PRIORITY_DURATION_HOURS,
-} from '@/lib/community/ranking'
-import {
-  EDITOR_CONTRIBUTION,
-  EDITOR_CONTRIBUTION_SOLO,
-  EDITOR_INTERACTION,
-  SUBFEED_CANDIDACY_FACTOR,
-  SUBFEED_STRONG_RECRUITER_THRESHOLD,
-  UPLOADER_CONTRIBUTION,
-  UPLOADER_CONTRIBUTION_SOLO,
-  UPLOADER_DISCOVERY,
-} from '@/lib/community/subfeedEligibility'
+import { TRUST_LEVEL_THRESHOLDS } from '@/lib/community/reputation'
 
 export const metadata: Metadata = {
   title: 'Hur V4 funkar',
 }
 
-/** Poängtrösklar som visas i delflödesporten, avrundade för läsbarhet. */
-const candidateThreshold = (value: number): number => Math.round(value * SUBFEED_CANDIDACY_FACTOR)
+/**
+ * Kvalitativa beskrivningar av varje förtroendenivå, i samma ordning som
+ * `TRUST_LEVEL_THRESHOLDS`. Den offentliga sidan undviker medvetet de numeriska
+ * banden så att progression inte reduceras till en poäng att jaga.
+ */
+const trustLevelNotes = [
+  'Har precis börjat — standardnivån för nya konton.',
+  'Ett jämnt deltagande börjar synas.',
+  'En pålitlig bidragsgivare som communityn svarar på.',
+  'Starka och uthålliga bidrag och interaktioner.',
+  'Långvarigt deltagande av hög kvalitet.',
+  'Hjälper till att forma vad communityn ser.',
+  'En definierande röst i communityn.',
+  'Den högsta nivån — exceptionellt uthålligt anseende.',
+]
 
 const pointClassGuides = [
   {
@@ -149,7 +135,8 @@ const localRoleGuides = [
   },
   {
     role: 'Medlem',
-    description: 'Kan skicka in innehåll och delta i delflödets community.',
+    description:
+      'Kan följa delflödet, kommentera, rösta och delta i dess diskussioner. Medlemskap i sig ger inte rätt att publicera.',
   },
 ]
 
@@ -169,6 +156,47 @@ export default async function HurDetFunkarPage() {
           delflöden och lyft till huvudflödet styrs av vad communityn faktiskt gör — inte av en fast
           hierarki eller ett fåtal manuella beslut. Den här sidan förklarar mekaniken bakom.
         </p>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">Publicering börjar i ditt användarflöde</h2>
+        <Card>
+          <CardHeader>
+            <CardTitle>Börja i ditt offentliga användarflöde</CardTitle>
+            <CardDescription>
+              Alla medlemmar kan publicera direkt. Ett delflöde är en redaktionell yta du tjänar in,
+              inte en förutsättning för att bidra.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <ul className="list-disc pl-5 space-y-2">
+              <li>
+                Varje ny länk eller nytt inlägg börjar i ditt eget{' '}
+                <span className="font-medium">offentliga användarflöde</span> så snart
+                säkerhetskontrollerna tillåter. Andra medlemmar kan läsa, rösta och kommentera.
+              </li>
+              <li>
+                Communityns engagemang — röster, kommentarer, klick, upptäcktsboostar eller ett
+                redaktionellt lyft — kan lyfta behörigt innehåll från användarflödet{' '}
+                <span className="font-medium">direkt till huvudflödet</span>. Ett delflöde är inte
+                ett obligatoriskt steg på vägen.
+              </li>
+              <li>
+                Delflöden är intjänade redaktionella ytor.{' '}
+                <span className="font-medium">
+                  Att gå med i ett delflöde som medlem låter dig följa det och delta i diskussioner,
+                  men ger inte rätt att publicera där.
+                </span>{' '}
+                För att publicera i ett delflöde krävs en lokal publiceringsroll: ägare, moderator,
+                redaktör eller uppladdare.
+              </li>
+              <li>
+                Sajtövergripande roller (admin, moderator, redaktör, uppladdare) kan dessutom
+                publicera direkt i huvudflödet.
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
       </section>
 
       <section className="space-y-4">
@@ -214,24 +242,21 @@ export default async function HurDetFunkarPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p>
-              Dolt anseende räknas fram från dina poängklasser med dessa vikter:
-              <br />
-              <span className="font-mono">
-                upptäckt x 1.6 + bidrag x 1.35 + uppskattning x 1.25 + interaktion x 0.85 + städning
-                x 0.55 + värvning x 0.9 + tidigareBidrag x 0.35 + säkerhet x 0.4
-              </span>
+              Dolt anseende väger samman dina poängklasser där upptäckt och bidrag väger tyngst,
+              följt av uppskattning och interaktion, sedan städning, värvning, tidigare bidrag och
+              säkerhetssignaler. De exakta vikterna hålls interna så att systemet inte kan utnyttjas
+              — det som räknas är att uthållig, uppskattad aktivitet höjer ditt anseende.
             </p>
             <ul className="list-disc pl-5 space-y-1">
               <li>
                 <span className="font-medium">Nedtrappning över tid.</span> Ditt effektiva anseende
-                halveras för varje {RECENCY_HALF_LIFE_DAYS} dagars inaktivitet. När du kommer
-                tillbaka och bidrar igen stiger det.
+                fortsätter att halveras ju längre du är inaktiv. När du kommer tillbaka och bidrar
+                igen stiger det.
               </li>
               <li>
                 <span className="font-medium">Golv för nya konton.</span> Alla medlemmar med genuin
-                aktivitet de senaste 30 dagarna behåller minst {COLD_START_FLOOR} effektivt anseende
-                — tillräckligt för att etablera en basnivå utan att nya konton kan farma högre
-                nivåer.
+                aktivitet de senaste 30 dagarna behåller en blygsam bas av effektivt anseende —
+                tillräckligt för att komma igång utan att nya konton kan farma högre nivåer.
               </li>
               <li>
                 <span className="font-medium">Ingen permanent platå.</span> Eftersom anseendet
@@ -255,14 +280,14 @@ export default async function HurDetFunkarPage() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-2 pr-4">Nivå</th>
-                    <th className="text-left py-2">Minsta effektiva anseende</th>
+                    <th className="text-left py-2">Vad den speglar</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {TRUST_LEVEL_THRESHOLDS.map((level) => (
+                  {TRUST_LEVEL_THRESHOLDS.map((level, index) => (
                     <tr key={level.value} className="border-b last:border-0">
                       <td className="py-2 pr-4">{level.label}</td>
-                      <td className="py-2">{level.min}</td>
+                      <td className="py-2">{trustLevelNotes[index]}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -270,7 +295,9 @@ export default async function HurDetFunkarPage() {
             </div>
             <p className="text-muted-foreground">
               Etiketterna är desamma som visas i gränssnittet. Det är ditt effektiva anseende efter
-              nedtrappning som avgör din nivå i dag — inte en permanent poäng.
+              nedtrappning som avgör din nivå i dag — inte en permanent poäng. Trösklarna anpassas
+              också efter hur många medlemmar som har varje nivå, så en överbefolkad nivå blir
+              svårare att nå och mjukas upp igen när aktiviteten faller.
             </p>
           </CardContent>
         </Card>
@@ -286,17 +313,16 @@ export default async function HurDetFunkarPage() {
           <CardContent className="space-y-2 text-sm">
             <ul className="list-disc pl-5 space-y-1">
               <li>
-                Uppflyttning till en högre förtroendenivå kräver att du passerar tröskeln med{' '}
-                {HYSTERESIS_PROMOTE_MARGIN} poäng.
+                Uppflyttning till en högre förtroendenivå kräver att du passerar tröskeln med en
+                liten marginal.
               </li>
               <li>
-                Nedflyttning sker först när ditt anseende faller {HYSTERESIS_DEMOTE_MARGIN} poäng
-                under din nuvarande nivås tröskel.
+                Nedflyttning sker först när ditt anseende faller tydligt under din nuvarande nivås
+                tröskel.
               </li>
               <li>
-                Intjänade roller har egen marginal: en roll behålls så länge du har minst{' '}
-                {Math.round(ROLE_RETENTION_FACTOR * 100)} % av dess uppflyttningskrav, med en
-                förtroendenivås lättnad.
+                Intjänade roller har egen marginal: en roll behålls så länge du har större delen av
+                dess uppflyttningskrav kvar, med en förtroendenivås lättnad.
               </li>
               <li>
                 Om en rolls signaler faller under marginalen släpps rollen automatiskt — den
@@ -376,20 +402,16 @@ export default async function HurDetFunkarPage() {
             </p>
             <ul className="list-disc pl-5 space-y-1">
               <li>
-                <span className="font-medium">Uppladdarkandidatur:</span>{' '}
-                {candidateThreshold(UPLOADER_CONTRIBUTION_SOLO)}+ Bidragspoäng, eller{' '}
-                {candidateThreshold(UPLOADER_CONTRIBUTION)}+ Bidrag och{' '}
-                {candidateThreshold(UPLOADER_DISCOVERY)}+ Upptäcktspoäng med Recognized-nivå.
+                <span className="font-medium">Uppladdarkandidatur:</span> starka bidragspoäng, eller
+                en kombination av bidrags- och upptäcktspoäng på Recognized-nivå.
               </li>
               <li>
-                <span className="font-medium">Redaktörskandidatur:</span>{' '}
-                {candidateThreshold(EDITOR_CONTRIBUTION_SOLO)}+ Bidragspoäng, eller{' '}
-                {candidateThreshold(EDITOR_CONTRIBUTION)}+ Bidrag och{' '}
-                {candidateThreshold(EDITOR_INTERACTION)}+ Interaktionspoäng med Trusted-nivå.
+                <span className="font-medium">Redaktörskandidatur:</span> starkare bidragspoäng,
+                eller en kombination av bidrags- och interaktionspoäng på Trusted-nivå.
               </li>
               <li>
-                <span className="font-medium">Stark värvarställning:</span>{' '}
-                {SUBFEED_STRONG_RECRUITER_THRESHOLD}+ Värvningspoäng.
+                <span className="font-medium">Stark värvarställning:</span> en uthållig historik av
+                att ta in nya medlemmar i delflöden.
               </li>
             </ul>
             <p>
@@ -440,8 +462,8 @@ export default async function HurDetFunkarPage() {
             <ul className="list-disc pl-5 space-y-1">
               <li>Användare kan gå med i eller lämna delflöden från delflödets sidor.</li>
               <li>
-                Att posta i ett delflöde kräver medlemskap eller en lokal roll som uppladdare,
-                redaktör, moderator eller ägare.
+                Att posta i ett delflöde kräver en lokal publiceringsroll — uppladdare, redaktör,
+                moderator eller ägare. Att gå med som medlem ger bara deltagande.
               </li>
               <li>
                 Länkar och inlägg i delflöden rankas med samma rankningslogik som resten av
@@ -482,12 +504,8 @@ export default async function HurDetFunkarPage() {
             <ul className="list-disc pl-5 space-y-1">
               <li>Det är utvalt (featured) av en behörig medlem, eller</li>
               <li>
-                det klarar den organiska engagemangströskeln: poäng{' '}
-                {MAIN_FEED_PROMOTION_THRESHOLD.score}+, uppröster{' '}
-                {MAIN_FEED_PROMOTION_THRESHOLD.upvotes}+, rankningspoäng{' '}
-                {MAIN_FEED_PROMOTION_THRESHOLD.rankingScore}+, och antingen upptäcktsmomentum{' '}
-                {PROMOTION_DISCOVERY_MOMENTUM_MIN}+ eller engagemangshastighet{' '}
-                {PROMOTION_ENGAGEMENT_VELOCITY_MIN}+, eller
+                det klarar den organiska engagemangströskeln: tillräckligt med poäng, uppröster och
+                rankningsstyrka, plus antingen upptäcktsmomentum eller engagemangshastighet, eller
               </li>
               <li>det får en kurerad upptäcktsboost från en medlem med upptäcktsanseende.</li>
             </ul>
@@ -514,12 +532,10 @@ export default async function HurDetFunkarPage() {
             <ul className="list-disc pl-5 space-y-1">
               <li>
                 När en sajtadmin, moderator, redaktör eller uppladdare publicerar direkt i
-                huvudflödet får innehållet ett redaktionellt prioritetsfönster på{' '}
-                {EDITORIAL_PRIORITY_DURATION_HOURS} timmar.
+                huvudflödet får innehållet ett kort redaktionellt prioritetsfönster.
               </li>
               <li>
-                Medan fönstret är aktivt får innehållet en rankningsboost på +
-                {EDITORIAL_PRIORITY_BOOST} och en etikett med texten{' '}
+                Medan fönstret är aktivt får innehållet en rankningsboost och en etikett med texten{' '}
                 <span className="font-medium">Editorial Priority</span> på kortet.
               </li>
               <li>
@@ -547,7 +563,7 @@ export default async function HurDetFunkarPage() {
             <ul className="list-disc pl-5 space-y-1">
               <li>
                 Sajtens admins, moderatorer och redaktörer kan alltid boosta. Andra medlemmar
-                behöver {DISCOVERY_BOOST_MIN_SCORE}+ nedtrappat upptäcktsanseende.
+                behöver en betydande mängd nedtrappat upptäcktsanseende.
               </li>
               <li>
                 En boost fungerar bara på publicerat, icke-kontroversiellt, icke-karantänsatt och

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import type { Page, Locator } from '@playwright/test'
+import type { Browser, Page, Locator } from '@playwright/test'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -7,6 +7,22 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const FIXTURE_FILE = path.join(__dirname, '.fixtures', 'progression.json')
 const AUTH = (name: string) => path.join(__dirname, '..', '.auth', `${name}.json`)
+const BASE_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000'
+
+/** A browser context with no auth state, for asserting anonymous public reads. */
+async function anonymousContext(
+  browser: Browser,
+  cookies: Array<{ name: string; value: string }> = [],
+) {
+  const context = await browser.newContext({
+    baseURL: BASE_URL,
+    storageState: { cookies: [], origins: [] },
+  })
+  if (cookies.length > 0) {
+    await context.addCookies(cookies.map((cookie) => ({ ...cookie, url: BASE_URL })))
+  }
+  return context
+}
 
 interface FixtureUser {
   id: number
@@ -163,9 +179,7 @@ test.describe('Progression & promotion lifecycle', () => {
         await expect(page).toHaveURL(/\/subfeeds\/[a-z0-9-]+/, { timeout: 60_000 })
         await expect(page.getByText('Roles & Roster')).toBeVisible()
         await expect(
-          page.getByText(
-            'Promote members to local roles, revoke roles, or remove members below.',
-          ),
+          page.getByText('Promote members to local roles, revoke roles, or remove members below.'),
         ).toBeVisible()
       })
     })
@@ -179,9 +193,7 @@ test.describe('Progression & promotion lifecycle', () => {
         await page.goto(`/subfeeds/${fixtures.subfeeds.qualifiedSubfeed.slug}`)
 
         await expect(
-          page.getByText(
-            'Promote members to local roles, revoke roles, or remove members below.',
-          ),
+          page.getByText('Promote members to local roles, revoke roles, or remove members below.'),
         ).toBeVisible()
 
         const localmodRow = page.locator('li').filter({ hasText: fixtures.users.localmod.username })
@@ -192,7 +204,7 @@ test.describe('Progression & promotion lifecycle', () => {
         await expect(localmodRow.getByText('Moderator', { exact: true })).toBeVisible()
       })
 
-      test('has no management controls on another member\'s Subfeed', async ({ page }) => {
+      test("has no management controls on another member's Subfeed", async ({ page }) => {
         await page.goto(`/subfeeds/${fixtures.subfeeds.adminSubfeed.slug}`)
 
         await expect(
@@ -211,9 +223,7 @@ test.describe('Progression & promotion lifecycle', () => {
         // Local moderator can manage the Subfeed they govern.
         await page.goto(`/subfeeds/${fixtures.subfeeds.qualifiedSubfeed.slug}`)
         await expect(
-          page.getByText(
-            'Promote members to local roles, revoke roles, or remove members below.',
-          ),
+          page.getByText('Promote members to local roles, revoke roles, or remove members below.'),
         ).toBeVisible()
 
         // No admin standing/role safety controls on any profile.
@@ -308,6 +318,198 @@ test.describe('Progression & promotion lifecycle', () => {
       await expect(
         page.getByRole('link', { name: fixtures.links.quarantined.title, exact: true }),
       ).toHaveCount(0)
+    })
+  })
+
+  test.describe('Personal-first publishing journeys (#26)', () => {
+    test.describe('newcomer with no joined SubFeeds', () => {
+      test.use({ storageState: AUTH('newcomer') })
+
+      test('publishes a link from Home and exposes a publicly readable item', async ({
+        page,
+        browser,
+      }) => {
+        const suffix = `${fixtures.runId}-${Date.now()}`
+        const title = `Newcomer personal link ${suffix}`
+        const url = `https://example.com/e2e/${suffix}`
+
+        await page.goto('/')
+
+        const contributeCard = page
+          .locator('section')
+          .filter({ has: page.getByRole('button', { name: 'Share a link', exact: true }) })
+          .first()
+
+        await expect(contributeCard).toBeVisible()
+        await expect(
+          contributeCard.getByRole('button', { name: 'Start a discussion', exact: true }),
+        ).toBeVisible()
+
+        // The Home route is server-rendered; retry the click until the client
+        // bundle has hydrated and Radix mounts the dialog.
+        await expect(async () => {
+          await contributeCard.getByRole('button', { name: 'Share a link', exact: true }).click()
+          await expect(page.getByRole('dialog')).toBeVisible({ timeout: 3_000 })
+        }).toPass({ timeout: 30_000 })
+
+        const dialog = page.getByRole('dialog')
+        await expect(dialog).toBeVisible()
+        await expect(dialog.getByTestId('destination-user-feed-summary')).toContainText('Your Feed')
+        // A membership-only member is offered no SubFeed or Main Feed destination.
+        await expect(dialog.getByText('Main Feed', { exact: true })).toHaveCount(0)
+        await expect(dialog.getByText('SubFeed', { exact: true })).toHaveCount(0)
+
+        await dialog.getByLabel('URL', { exact: true }).fill(url)
+        await dialog.getByLabel('Title', { exact: true }).fill(title)
+        await dialog.getByRole('button', { name: 'Submit', exact: true }).click()
+
+        const banner = dialog.getByTestId('submission-outcome-banner')
+        await expect(banner).toBeVisible()
+        await expect(banner).toContainText('Published to your User Feed')
+
+        const itemLink = banner.getByTestId('submission-outcome-item-link')
+        await expect(itemLink).toHaveAttribute('href', /^\/link\/\d+$/)
+        const itemHref = await itemLink.getAttribute('href')
+
+        // Closing the modal must leave a compact bar on Home with the same links.
+        await dialog.getByRole('button', { name: 'Close form modal' }).click()
+        await expect(dialog).toHaveCount(0)
+
+        const homeBar = page.getByTestId('home-outcome-bar')
+        await expect(homeBar).toBeVisible()
+        await expect(homeBar).toContainText('Published to your User Feed')
+        await expect(homeBar.getByTestId('home-outcome-item-link')).toHaveAttribute(
+          'href',
+          itemHref ?? '',
+        )
+
+        await homeBar.getByTestId('home-outcome-item-link').click()
+        await page.waitForURL(/\/link\/\d+$/)
+
+        const linkPath = new URL(page.url()).pathname
+        await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
+
+        // Public readability is asserted separately from the success banner.
+        const anon = await anonymousContext(browser)
+        try {
+          const anonPage = await anon.newPage()
+          await anonPage.goto(linkPath)
+          await expect(anonPage.getByRole('heading', { level: 1, name: title })).toBeVisible()
+          await anonPage.goto('/user/e2e-newcomer?tab=links')
+          await expect(anonPage.getByRole('link', { name: title, exact: true })).toBeVisible()
+        } finally {
+          await anon.close()
+        }
+      })
+
+      test('publishes a post from /new-post and exposes a publicly readable item', async ({
+        page,
+        browser,
+      }) => {
+        const suffix = `${fixtures.runId}-${Date.now()}`
+        const title = `Newcomer personal post ${suffix}`
+
+        await page.goto('/new-post')
+
+        await expect(page.getByTestId('destination-user-feed-summary')).toContainText('Your Feed')
+        await expect(page.getByText('Main Feed', { exact: true })).toHaveCount(0)
+
+        await page.getByLabel('Title', { exact: true }).fill(title)
+        const editor = page.locator('[contenteditable="true"]').first()
+        await editor.click()
+        await editor.fill(`A personal-first post body for the newcomer journey ${suffix}.`)
+
+        await page.getByRole('button', { name: 'Submit Post', exact: true }).click()
+
+        const banner = page.getByTestId('submission-outcome-banner')
+        await expect(banner).toBeVisible()
+        await expect(banner).toContainText('Published to your User Feed')
+
+        const itemLink = banner.getByTestId('submission-outcome-item-link')
+        await expect(itemLink).toHaveAttribute('href', /^\/post\/\d+$/)
+        await itemLink.click()
+        await page.waitForURL(/\/post\/\d+$/)
+
+        const postPath = new URL(page.url()).pathname
+        await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
+
+        const anon = await anonymousContext(browser)
+        try {
+          const anonPage = await anon.newPage()
+          await anonPage.goto(postPath)
+          await expect(anonPage.getByRole('heading', { level: 1, name: title })).toBeVisible()
+          await anonPage.goto('/user/e2e-newcomer?tab=posts')
+          await expect(anonPage.getByRole('link', { name: title, exact: true })).toBeVisible()
+        } finally {
+          await anon.close()
+        }
+      })
+    })
+
+    test.describe('membership-only participant', () => {
+      test.use({ storageState: AUTH('localmod') })
+
+      test('membership alone does not grant SubFeed publishing', async ({ page }) => {
+        await page.goto(`/subfeeds/${fixtures.subfeeds.adminSubfeed.slug}`)
+
+        const note = page.getByTestId('subfeed-ineligible-publish-note')
+        await expect(note).toBeVisible()
+        await expect(note).toContainText('local SubFeed role')
+        await expect(note.getByRole('link', { name: 'Share a link', exact: true })).toHaveAttribute(
+          'href',
+          '/new-link',
+        )
+        await expect(
+          note.getByRole('link', { name: 'Start a discussion', exact: true }),
+        ).toHaveAttribute('href', '/new-post')
+        await expect(page.getByRole('button', { name: 'Submit Link' })).toHaveCount(0)
+        await expect(page.getByRole('button', { name: 'Create Post' })).toHaveCount(0)
+      })
+    })
+
+    test.describe('authorised local publisher', () => {
+      test.use({ storageState: AUTH('qualified') })
+
+      test('can publish into their own SubFeed', async ({ page }) => {
+        await page.goto(`/subfeeds/${fixtures.subfeeds.qualifiedSubfeed.slug}`)
+
+        await expect(page.getByTestId('subfeed-ineligible-publish-note')).toHaveCount(0)
+        await expect(page.getByRole('button', { name: 'Submit Link' })).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Create Post' })).toBeVisible()
+      })
+    })
+
+    test('documents the personal-first model without numeric thresholds', async ({ browser }) => {
+      const en = await anonymousContext(browser)
+      try {
+        const enPage = await en.newPage()
+        await enPage.goto('/how-it-works')
+        await expect(
+          enPage.getByRole('heading', { name: 'Personal-First Publishing', exact: true }),
+        ).toBeVisible()
+        await expect(enPage.getByText('public User Feed').first()).toBeVisible()
+        await expect(enPage.getByText('discovery x 1.6')).toHaveCount(0)
+        await expect(enPage.getByText('Minimum Effective Standing')).toHaveCount(0)
+      } finally {
+        await en.close()
+      }
+
+      const sv = await anonymousContext(browser, [{ name: 'lang', value: 'sv' }])
+      try {
+        const svPage = await sv.newPage()
+        await svPage.goto('/hur-det-funkar')
+        await expect(
+          svPage.getByRole('heading', {
+            name: 'Publicering börjar i ditt användarflöde',
+            exact: true,
+          }),
+        ).toBeVisible()
+        await expect(svPage.getByText('offentliga användarflöde').first()).toBeVisible()
+        await expect(svPage.getByText('upptäckt x 1.6')).toHaveCount(0)
+        await expect(svPage.getByText('Minsta effektiva anseende')).toHaveCount(0)
+      } finally {
+        await sv.close()
+      }
     })
   })
 })

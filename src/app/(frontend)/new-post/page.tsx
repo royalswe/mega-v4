@@ -2,7 +2,7 @@ import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 import { PostSubmitForm } from '@/components/posts/PostSubmitForm'
 import { redirect } from 'next/navigation'
-import { canModerateCommunity, canSubmitToSubfeed } from '@/lib/community/subfeeds'
+import { getPublishingDestinationEligibility } from '@/lib/community/subfeeds'
 
 export default async function NewPostPage() {
   const { user, payload } = await getAuthenticatedUser()
@@ -21,18 +21,18 @@ export default async function NewPostPage() {
     overrideAccess: false,
   })
 
-  const availableSubfeeds = canModerateCommunity(user)
-    ? subfeeds
-    : subfeeds.filter((subfeed) => canSubmitToSubfeed(subfeed, user.id))
+  const eligibility = getPublishingDestinationEligibility(user, subfeeds)
 
   return (
     <div className="space-y-4">
       <PostSubmitForm
         dict={dict}
-        subfeeds={availableSubfeeds.map((subfeed) => ({
+        subfeeds={eligibility.eligibleSubfeeds.map((subfeed) => ({
           id: subfeed.id,
           name: subfeed.name,
         }))}
+        canPublishToMain={eligibility.canPublishToMain}
+        defaultFeed={eligibility.defaultFeed}
       />
     </div>
   )

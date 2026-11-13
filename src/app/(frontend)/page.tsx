@@ -13,12 +13,11 @@ import { FeedMixFilter } from '@/components/links/FeedMixFilter'
 import { HomeContributeCard } from '@/components/links/HomeContributeCard.client'
 import { MainFeedHighlights } from '@/components/links/MainFeedHighlights'
 import { ReorderAwareList } from '@/components/links/ReorderAwareList.client'
-import { readRelationshipIds } from '@/lib/community/subfeeds'
+import { readRelationshipIds, getPublishingDestinationEligibility } from '@/lib/community/subfeeds'
+import type { Subfeed } from '@/payload-types'
 import { checkRole } from '@/access/checkRole'
-import {
-  MAIN_FEED_PROMOTION_THRESHOLD,
-  buildMainFeedWhere,
-} from '@/lib/community/promotion'
+import { MAIN_FEED_PROMOTION_THRESHOLD, buildMainFeedWhere } from '@/lib/community/promotion'
+import { expireEditorialPriority } from '@/lib/community/editorialPriority'
 
 type FeedSignal = 'trending' | 'subfeeds' | 'discussions'
 type FeedMode = 'best' | 'new' | 'rising'
@@ -73,6 +72,9 @@ export default async function HomePage({
   const { dict, lang } = await getDictionary()
   const cookieStore = await cookies()
   const resolvedSearchParams = await searchParams
+
+  // Bobhund #1: a lapsed editorial window must stop boosting ranking order.
+  await expireEditorialPriority({ payload })
 
   const showNSFW = user?.settings?.nsfw === true
   const showBookmarksOnly = resolvedSearchParams?.bookmarks === 'true'
@@ -224,6 +226,7 @@ export default async function HomePage({
   }
 
   let joinedSubfeedIds: number[] = []
+  let allSubfeeds: Subfeed[] = []
 
   if (user) {
     const { docs: subfeeds } = await payload.find({
@@ -234,6 +237,8 @@ export default async function HomePage({
       user,
       overrideAccess: false,
     })
+
+    allSubfeeds = subfeeds
 
     joinedSubfeedIds = subfeeds
       .filter((subfeed) => readRelationshipIds(subfeed.members).includes(user.id))
@@ -784,10 +789,7 @@ export default async function HomePage({
       ? 'member'
       : 'noSubfeeds'
 
-  const contributeSubfeeds = joinedSubfeeds.map((subfeed) => ({
-    id: subfeed.id,
-    name: subfeed.name,
-  }))
+  const publishingEligibility = getPublishingDestinationEligibility(user, allSubfeeds)
 
   const contributeCardCollapsed = cookieStore.get('contributeCardCollapsed')?.value === 'true'
 
@@ -811,7 +813,8 @@ export default async function HomePage({
         dict={dict}
         lang={lang}
         variant={contributeVariant}
-        joinedSubfeeds={contributeSubfeeds}
+        eligibleSubfeeds={publishingEligibility.eligibleSubfeeds}
+        canPublishToMain={publishingEligibility.canPublishToMain}
         initialCollapsed={contributeCardCollapsed}
         stripItems={activeSubfeedStrip}
         stripView={selectedSubfeedStripView}

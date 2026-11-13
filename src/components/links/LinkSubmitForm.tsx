@@ -3,9 +3,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import * as z from 'zod'
+import Link from 'next/link'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Modal, ModalContent, ModalTitle, ModalDescription } from '@/components/ui/modal'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { getEmbedType } from '@/lib/media'
 import { cn } from '@/lib/utils'
@@ -32,8 +34,81 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { submitLink, updateLinkAsAdmin } from '@/app/actions/links'
 import type { AppDictionary } from '@/lib/dictionaries'
+import type { SubmissionOutcome } from '@/lib/community/subfeeds'
 import { SubmissionActionRow } from '@/components/subfeeds/SubmissionActionRow'
 import { SubmissionDestinationFields } from '@/components/subfeeds/SubmissionDestinationFields'
+
+/**
+ * Localises the persisted outcome returned by `submitLink` / `submitPost`.
+ * Visibility and destination come from the action contract; only presentation
+ * copy is translated here.
+ */
+export function getSubmissionOutcomeCopy(dict: AppDictionary, outcome: SubmissionOutcome) {
+  const copy = dict.submissionOutcome
+  const destinationName =
+    outcome.feed === 'subfeed'
+      ? (outcome.subfeed?.name ?? outcome.destinationLabel)
+      : outcome.destinationLabel
+  const headline = copy[outcome.visibility][outcome.feed]
+
+  return {
+    title: headline.title.replace('{destination}', destinationName),
+    description: headline.description
+      .replace('{kind}', copy.itemKinds[outcome.kind])
+      .replace('{destination}', destinationName),
+    itemLinkLabel: outcome.kind === 'link' ? copy.viewSubmittedLink : copy.viewSubmittedPost,
+    feedLinkLabel:
+      outcome.feed === 'main'
+        ? copy.openMainFeed
+        : outcome.feed === 'subfeed'
+          ? copy.openSubfeed
+          : copy.openUserFeed,
+  }
+}
+
+export const OUTCOME_BANNER_CLASSES: Record<SubmissionOutcome['visibility'], string> = {
+  published: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200',
+  pending: 'border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200',
+  blocked: 'border-destructive/40 bg-destructive/10 text-destructive',
+}
+
+/** Truthful post-submission banner shared by the link and post forms. */
+export function SubmissionOutcomeBanner({
+  dict,
+  outcome,
+}: {
+  dict: AppDictionary
+  outcome: SubmissionOutcome
+}) {
+  const copy = getSubmissionOutcomeCopy(dict, outcome)
+
+  return (
+    <div
+      data-testid="submission-outcome-banner"
+      className={cn(
+        'mb-6 rounded-md border p-3 text-sm',
+        OUTCOME_BANNER_CLASSES[outcome.visibility],
+      )}
+    >
+      <p className="font-medium">{copy.title}</p>
+      <p className="mt-1 opacity-90">{copy.description}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {outcome.itemHref ? (
+          <Button asChild size="sm">
+            <Link data-testid="submission-outcome-item-link" href={outcome.itemHref}>
+              {copy.itemLinkLabel}
+            </Link>
+          </Button>
+        ) : null}
+        <Button asChild size="sm" variant="outline">
+          <Link data-testid="submission-outcome-feed-link" href={outcome.destinationHref}>
+            {copy.feedLinkLabel}
+          </Link>
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 interface SubfeedOption {
   id: number
@@ -66,6 +141,7 @@ export function LinkSubmitForm({
   subfeeds,
   defaultSubfeedId,
   defaultFeed,
+  canPublishToMain,
   lockDestination,
   mode = 'create',
   linkId,
@@ -76,7 +152,8 @@ export function LinkSubmitForm({
   dict: AppDictionary
   subfeeds: SubfeedOption[]
   defaultSubfeedId?: number
-  defaultFeed?: 'main' | 'subfeed'
+  defaultFeed?: 'user' | 'main' | 'subfeed'
+  canPublishToMain?: boolean
   lockDestination?: boolean
   mode?: 'create' | 'edit'
   linkId?: number
@@ -86,14 +163,16 @@ export function LinkSubmitForm({
     description?: string
     nsfw?: boolean
     type?: 'article' | 'video' | 'image' | 'audio' | 'game'
-    feed?: 'main' | 'subfeed'
+    feed?: 'user' | 'main' | 'subfeed'
     subfeedId?: number
   }
-  onSuccess?: () => void
+  onSuccess?: (outcome: SubmissionOutcome) => void
   onCancel?: () => void
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+  const [lastOutcome, setLastOutcome] = useState<SubmissionOutcome | null>(null)
+  const [submitErrorMessage, setSubmitErrorMessage] = useState<string | null>(null)
 
   const formSchema = z
     .object({
@@ -104,7 +183,7 @@ export function LinkSubmitForm({
       description: z.string().optional(),
       nsfw: z.boolean().optional(),
       type: z.enum(['article', 'video', 'image', 'audio', 'game']).optional(),
-      feed: z.enum(['main', 'subfeed']),
+      feed: z.enum(['user', 'main', 'subfeed']),
       subfeedId: z.string().optional(),
     })
     .superRefine((data, ctx) => {
@@ -127,7 +206,7 @@ export function LinkSubmitForm({
       description: initialValues?.description ?? '',
       nsfw: initialValues?.nsfw ?? false,
       type: initialValues?.type ?? 'article',
-      feed: initialValues?.feed ?? defaultFeed ?? 'main',
+      feed: initialValues?.feed ?? defaultFeed ?? 'user',
       subfeedId:
         typeof initialValues?.subfeedId === 'number'
           ? String(initialValues.subfeedId)
@@ -139,6 +218,16 @@ export function LinkSubmitForm({
 
   const selectedFeed = form.watch('feed')
   const lastPreviewedUrlRef = useRef('')
+
+  const feedOptions = [
+    { value: 'user', label: dict.linkForm.destinationOptions.user },
+    ...(subfeeds.length > 0 || mode === 'edit'
+      ? [{ value: 'subfeed', label: dict.linkForm.destinationOptions.subfeed }]
+      : []),
+    ...(canPublishToMain || mode === 'edit'
+      ? [{ value: 'main', label: dict.linkForm.destinationOptions.main }]
+      : []),
+  ]
 
   const [isCheckingMedia, setIsCheckingMedia] = useState(false)
   const [suggestionState, setSuggestionState] = useState<{
@@ -248,6 +337,8 @@ export function LinkSubmitForm({
 
   async function proceedSubmit(values: FormSchema) {
     setIsSubmitting(true)
+    setSubmitErrorMessage(null)
+    setLastOutcome(null)
     try {
       if (mode === 'edit') {
         if (typeof linkId !== 'number') {
@@ -261,12 +352,16 @@ export function LinkSubmitForm({
           description: values.description,
           nsfw: values.nsfw,
           type: values.type,
+          // `'user'` keeps the link in its own User Feed.
           feed: values.feed,
           subfeedId: values.subfeedId ? Number(values.subfeedId) : undefined,
         })
         toast.success('Link updated')
+        // Edit mode is the privileged quick-edit flow and produces no
+        // submission outcome; callers only use the callback to close the modal.
+        ;(onSuccess as (() => void) | undefined)?.()
       } else {
-        await submitLink({
+        const outcome = await submitLink({
           title: values.title,
           url: values.url,
           description: values.description,
@@ -275,24 +370,38 @@ export function LinkSubmitForm({
           feed: values.feed,
           subfeedId: values.subfeedId ? Number(values.subfeedId) : undefined,
         })
-        toast.success(dict.linkForm.submitSuccess)
+        const outcomeCopy = getSubmissionOutcomeCopy(dict, outcome)
+
+        setLastOutcome(outcome)
+        setSubmitErrorMessage(null)
         form.reset({
           title: '',
           url: '',
           description: '',
           nsfw: false,
           type: 'article',
-          feed: defaultFeed ?? 'main',
+          feed: defaultFeed ?? 'user',
           subfeedId: defaultSubfeedId ? String(defaultSubfeedId) : '',
         })
         setLinkPreview(null)
         lastPreviewedUrlRef.current = ''
-      }
 
-      onSuccess?.()
+        if (outcome.isPublic) {
+          toast.success(outcomeCopy.title)
+        } else if (outcome.visibility === 'blocked') {
+          toast.warning(outcomeCopy.title)
+        } else {
+          toast.info(outcomeCopy.title)
+        }
+
+        onSuccess?.(outcome)
+      }
     } catch (error) {
       console.error(error)
-      toast.error(mode === 'edit' ? 'Failed to update link' : dict.linkForm.submitError)
+      const fallback = mode === 'edit' ? 'Failed to update link' : dict.linkForm.submitError
+      const message = error instanceof Error && error.message ? error.message : fallback
+      setSubmitErrorMessage(message)
+      toast.error(message)
     } finally {
       setIsSubmitting(false)
     }
@@ -363,6 +472,18 @@ export function LinkSubmitForm({
         <CardTitle>{mode === 'edit' ? 'Edit Link' : dict.linkForm.title}</CardTitle>
       </CardHeader>
       <CardContent>
+        {lastOutcome ? <SubmissionOutcomeBanner dict={dict} outcome={lastOutcome} /> : null}
+
+        {submitErrorMessage ? (
+          <Alert variant="destructive" data-testid="submission-error-alert" className="mb-6">
+            <AlertTriangle aria-hidden="true" />
+            <AlertTitle>
+              {mode === 'edit' ? 'Failed to update link' : dict.linkForm.submitError}
+            </AlertTitle>
+            <AlertDescription>{submitErrorMessage}</AlertDescription>
+          </Alert>
+        ) : null}
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <fieldset disabled={isFormBusy} className="space-y-8">
@@ -525,11 +646,9 @@ export function LinkSubmitForm({
                   subfeedPlaceholder: dict.linkForm.subfeedPlaceholder,
                   subfeedDesc: dict.linkForm.subfeedDesc,
                   noSubfeeds: dict.linkForm.noSubfeeds,
+                  personalFeedOnlyNote: dict.linkForm.personalFeedOnlyNote,
                 }}
-                feedOptions={[
-                  { value: 'main', label: dict.linkForm.destinationOptions.main },
-                  { value: 'subfeed', label: dict.linkForm.destinationOptions.subfeed },
-                ]}
+                feedOptions={feedOptions}
               />
               <FormField
                 control={form.control}

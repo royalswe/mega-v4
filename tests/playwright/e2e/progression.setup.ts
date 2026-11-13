@@ -233,7 +233,7 @@ setup('prepare progression fixtures and per-role auth states', async ({ browser 
       moderators: [admin.id],
       editors: [],
       uploaders: [],
-      members: [admin.id],
+      members: [admin.id, localmod.id],
     },
     overrideAccess: true,
   })
@@ -358,24 +358,9 @@ setup('prepare progression fixtures and per-role auth states', async ({ browser 
   fs.writeFileSync(FIXTURE_FILE, JSON.stringify(fixture, null, 2))
 
   // 6. Per-role auth states (admin storage state is produced by global.setup.ts).
-  await loginAndSave(
-    browser,
-    newcomer.email,
-    E2E_PASSWORD,
-    path.join(AUTH_DIR, 'newcomer.json'),
-  )
-  await loginAndSave(
-    browser,
-    qualified.email,
-    E2E_PASSWORD,
-    path.join(AUTH_DIR, 'qualified.json'),
-  )
-  await loginAndSave(
-    browser,
-    localmod.email,
-    E2E_PASSWORD,
-    path.join(AUTH_DIR, 'localmod.json'),
-  )
+  await loginAndSave(browser, newcomer.email, E2E_PASSWORD, path.join(AUTH_DIR, 'newcomer.json'))
+  await loginAndSave(browser, qualified.email, E2E_PASSWORD, path.join(AUTH_DIR, 'qualified.json'))
+  await loginAndSave(browser, localmod.email, E2E_PASSWORD, path.join(AUTH_DIR, 'localmod.json'))
 
   console.log(`[progression.setup] fixtures written to ${FIXTURE_FILE}`)
 })

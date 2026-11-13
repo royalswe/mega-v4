@@ -1,93 +1,83 @@
 import type { Payload } from 'payload'
+import type { Bookmark } from '@/payload-types'
 
-import { pickOne } from './utils.seed'
+import {
+  SEED_INTERACTION_SCENARIOS,
+  createSeedTally,
+  offsetIsoFromReference,
+  readRelationId,
+  type SeedStepTally,
+  type SeededContentIndex,
+} from './utils.seed'
+import { requirePersona } from './links.seed'
+import type { SeedUsers } from './users.seed'
 
-type BookmarkTarget =
-  | {
-      type: 'link'
-      id: number
-    }
-  | {
-      type: 'post'
-      id: number
-    }
+const bookmarkKey = (userId: number, kind: 'link' | 'post', targetId: number) =>
+  `${userId}:${kind}:${targetId}`
 
-export async function seedBookmarks(payload: Payload) {
-  const [{ docs: users }, { docs: links }, { docs: posts }] = await Promise.all([
-    payload.find({
-      collection: 'users',
-      limit: 1000,
-      depth: 0,
-      overrideAccess: true,
-    }),
-    payload.find({
-      collection: 'links',
-      where: {
-        softDeleted: {
-          not_equals: true,
-        },
-      },
-      limit: 400,
-      depth: 0,
-      overrideAccess: true,
-    }),
-    payload.find({
-      collection: 'posts',
-      where: {
-        status: {
-          not_equals: 'removed',
-        },
-      },
-      limit: 400,
-      depth: 0,
-      overrideAccess: true,
-    }),
-  ])
+/** Creates the authored bookmark scenarios, skipping rows that already exist. */
+export async function seedBookmarks(
+  payload: Payload,
+  users: SeedUsers,
+  content: SeededContentIndex,
+  referenceNow: Date,
+): Promise<SeedStepTally> {
+  const tally = createSeedTally('bookmarks')
+  const scenarios = SEED_INTERACTION_SCENARIOS.filter((scenario) => scenario.kind === 'bookmark')
 
-  if (users.length === 0) {
-    console.log('Skipping bookmark seed: no users available')
-    return
+  const { docs: existingBookmarks } = await payload.find({
+    collection: 'bookmarks',
+    limit: 10_000,
+    depth: 0,
+    overrideAccess: true,
+  })
+
+  const seen = new Set<string>()
+
+  for (const bookmark of existingBookmarks) {
+    const userId = readRelationId(bookmark.user)
+    const targetId = readRelationId(bookmark.link) ?? readRelationId(bookmark.post)
+    const kind = bookmark.link ? 'link' : bookmark.post ? 'post' : null
+
+    if (!userId || !targetId || !kind) continue
+    seen.add(bookmarkKey(userId, kind, targetId))
   }
 
-  const targets: BookmarkTarget[] = [
-    ...links.map((link) => ({ type: 'link' as const, id: link.id })),
-    ...posts.map((post) => ({ type: 'post' as const, id: post.id })),
-  ]
+  for (const scenario of scenarios) {
+    const actor = requirePersona(users, scenario.actor)
+    const target = content.get(scenario.target)
 
-  if (targets.length === 0) {
-    console.log('Skipping bookmark seed: no targets available')
-    return
-  }
+    if (!target) {
+      throw new Error(
+        `Seed bookmark "${scenario.key}" targets unknown content scenario "${scenario.target}".`,
+      )
+    }
 
-  const existing = new Set<string>()
-  let created = 0
-  let attempts = 0
-  const desired = 180
+    const key = bookmarkKey(actor.id, target.kind, target.id)
 
-  while (created < desired && attempts < desired * 5) {
-    attempts += 1
-
-    const user = pickOne(users)
-    const target = pickOne(targets)
-    const key = `${user.id}:${target.type}:${target.id}`
-
-    if (existing.has(key)) {
+    if (seen.has(key)) {
+      tally.skipped += 1
       continue
     }
 
+    const createdAt = offsetIsoFromReference(referenceNow, scenario.referenceNowOffsetHours)
     await payload.create({
       collection: 'bookmarks',
       data: {
-        user: user.id,
-        link: target.type === 'link' ? target.id : undefined,
-        post: target.type === 'post' ? target.id : undefined,
+        user: actor.id,
+        link: target.kind === 'link' ? target.id : undefined,
+        post: target.kind === 'post' ? target.id : undefined,
+        createdAt,
+        updatedAt: createdAt,
       },
-      overrideAccess: true,
+      user: actor,
+      overrideAccess: false,
+      depth: 0,
     })
 
-    existing.add(key)
-    created += 1
+    seen.add(key)
+    tally.created += 1
   }
 
-  console.log(`Seeded bookmarks: ${created}`)
+  return tally
 }

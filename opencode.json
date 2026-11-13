@@ -1,0 +1,36 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/deepseek-v4.1-flash-free",
+  "small_model": "opencode/deepseek-v4.1-flash-free",
+  "default_agent": "build",
+  "agent": {
+    "plan": {
+      "description": "Read-only planning and design reasoning (Gemini 4 Argon). Use for architecture, policy decisions, task decomposition and plan reviews before code is written.",
+      "model": "opencode-go/gemini-4-argon"
+    },
+    "build": {
+      "description": "Implementation agent (DeepSeek V4.1 Flash). Executes an approved plan, writes code, runs targeted tests.",
+      "model": "opencode-go/deepseek-v4.1-flash"
+    },
+    "planner": {
+      "description": "Subagent that researches a spec or issue against the current codebase and writes a step-by-step implementation plan. Reasoning-heavy.",
+      "mode": "subagent",
+      "model": "opencode-go/gemini-4-argon"
+    },
+    "implementer": {
+      "description": "Subagent that executes one approved plan step: code edits, migrations, targeted tests. Cheap model; needs a precise handoff prompt.",
+      "mode": "subagent",
+      "model": "opencode-go/deepseek-v4.1-flash"
+    },
+    "explore": {
+      "description": "Fast read-only codebase search and summaries",
+      "mode": "subagent",
+      "model": "opencode-go/claude-haiku-5-5"
+    },
+    "reviewer": {
+      "description": "Reviews diffs for correctness, types and regressions",
+      "mode": "subagent",
+      "model": "opencode-go/gemini-4-argon"
+    }
+  }
+}

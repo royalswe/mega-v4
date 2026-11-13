@@ -3,11 +3,15 @@ import { describe, it, beforeAll, expect } from 'vitest'
 import { faker } from '@faker-js/faker'
 
 import {
+  FOREIGN_USER_FEED_UNAUTHORIZED_MESSAGE,
+  SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE,
   canCurateSubfeedContent,
   canManageSubmittedLinks,
   canModerateCommunity,
   canModerateSubfeedContent,
   canSubmitToSubfeed,
+  derivePersistedPublicationState,
+  getPublishingDestinationEligibility,
   getSubfeedLocalRoles,
   readRelationshipIds,
   resolveSubfeedOwner,
@@ -96,7 +100,12 @@ const assignLocalRole = async (
   role: LocalRole,
 ) => {
   const current = await loadSubfeed(subfeedId)
-  const field = role === 'moderator' ? current.moderators : role === 'editor' ? current.editors : current.uploaders
+  const field =
+    role === 'moderator'
+      ? current.moderators
+      : role === 'editor'
+        ? current.editors
+        : current.uploaders
   const nextIds = Array.from(new Set([...readRelationshipIds(field), targetId]))
   const nextMembers = Array.from(new Set([...readRelationshipIds(current.members), targetId]))
 
@@ -117,7 +126,12 @@ const revokeLocalRole = async (
   role: LocalRole,
 ) => {
   const current = await loadSubfeed(subfeedId)
-  const field = role === 'moderator' ? current.moderators : role === 'editor' ? current.editors : current.uploaders
+  const field =
+    role === 'moderator'
+      ? current.moderators
+      : role === 'editor'
+        ? current.editors
+        : current.uploaders
   const nextIds = readRelationshipIds(field).filter((id) => id !== targetId)
 
   return payload.update({
@@ -179,7 +193,13 @@ describe('SubFeed local roles (pure helpers)', () => {
   })
 
   it('derives local roles across the roster', () => {
-    const subfeed = { owner: 1, moderators: [1, 2], editors: [3], uploaders: [4], members: [1, 2, 3, 4, 5] }
+    const subfeed = {
+      owner: 1,
+      moderators: [1, 2],
+      editors: [3],
+      uploaders: [4],
+      members: [1, 2, 3, 4, 5],
+    }
 
     expect(getSubfeedLocalRoles(subfeed, 1)).toEqual({
       owner: true,
@@ -200,9 +220,9 @@ describe('SubFeed local roles (pure helpers)', () => {
     })
   })
 
-  it('allows members and any local role to submit, but not outsiders', () => {
+  it('allows local publishing roles to submit, but not plain members or outsiders', () => {
     const subfeed = { owner: 1, moderators: [1], editors: [3], uploaders: [4], members: [5] }
-    expect(canSubmitToSubfeed(subfeed, 5)).toBe(true)
+    expect(canSubmitToSubfeed(subfeed, 5)).toBe(false)
     expect(canSubmitToSubfeed(subfeed, 3)).toBe(true)
     expect(canSubmitToSubfeed(subfeed, 4)).toBe(true)
     expect(canSubmitToSubfeed(subfeed, 1)).toBe(true)
@@ -228,6 +248,150 @@ describe('SubFeed local roles (pure helpers)', () => {
     const siteModerator = { roles: ['user', 'moderator'] }
     expect(canModerateCommunity(siteModerator)).toBe(true)
     expect(canManageSubmittedLinks(siteModerator)).toBe(true)
+  })
+
+  it('defaults every member to their User Feed and hides SubFeeds without a role', () => {
+    const subfeeds = [
+      {
+        id: 10,
+        name: 'Joined Only',
+        slug: 'joined-only',
+        owner: 1,
+        moderators: [1],
+        members: [1, 5],
+      },
+      {
+        id: 11,
+        name: 'Uploader Here',
+        slug: 'uploader-here',
+        moderators: [1],
+        uploaders: [5],
+        members: [1],
+      },
+    ]
+
+    const plainMember = getPublishingDestinationEligibility({ id: 5, roles: ['user'] }, subfeeds)
+    expect(plainMember.defaultFeed).toBe('user')
+    expect(plainMember.canPublishToMain).toBe(false)
+    expect(plainMember.eligibleSubfeeds.map((subfeed) => subfeed.id)).toEqual([11])
+    expect(plainMember.allowedFeeds).toEqual(['user', 'subfeed'])
+    expect(plainMember.hasMultipleDestinations).toBe(true)
+
+    const newcomer = getPublishingDestinationEligibility({ id: 99, roles: ['user'] }, subfeeds)
+    expect(newcomer.allowedFeeds).toEqual(['user'])
+    expect(newcomer.eligibleSubfeeds).toEqual([])
+    expect(newcomer.hasMultipleDestinations).toBe(false)
+  })
+
+  it('grants site publishers the Main Feed and every SubFeed', () => {
+    const subfeeds = [{ id: 10, name: 'Anything', slug: 'anything', moderators: [1], members: [1] }]
+
+    const editor = getPublishingDestinationEligibility(
+      { id: 7, roles: ['user', 'editor'] },
+      subfeeds,
+    )
+    expect(editor.canPublishToMain).toBe(true)
+    expect(editor.eligibleSubfeeds.map((subfeed) => subfeed.id)).toEqual([10])
+    expect(editor.allowedFeeds).toEqual(['user', 'subfeed', 'main'])
+
+    const uploader = getPublishingDestinationEligibility(
+      { id: 8, roles: ['user', 'uploader'] },
+      subfeeds,
+    )
+    expect(uploader.canPublishToMain).toBe(true)
+
+    const localModerator = getPublishingDestinationEligibility({ id: 9, roles: ['user'] }, [
+      { id: 12, name: 'Local', slug: 'local', moderators: [9], members: [9] },
+    ])
+    expect(localModerator.canPublishToMain).toBe(false)
+    expect(localModerator.allowedFeeds).toEqual(['user', 'subfeed'])
+  })
+
+  it('derives publication state from the persisted document', () => {
+    expect(derivePersistedPublicationState('link', { _status: 'published' })).toBe('published')
+    expect(derivePersistedPublicationState('link', { _status: 'draft' })).toBe('pending')
+    expect(
+      derivePersistedPublicationState('link', { _status: 'published', softDeleted: true }),
+    ).toBe('blocked')
+    expect(
+      derivePersistedPublicationState('link', { _status: 'published', quarantined: true }),
+    ).toBe('blocked')
+
+    expect(derivePersistedPublicationState('post', { status: 'published' })).toBe('published')
+    expect(derivePersistedPublicationState('post', { status: 'pending' })).toBe('pending')
+    expect(derivePersistedPublicationState('post', { status: 'removed' })).toBe('blocked')
+    expect(
+      derivePersistedPublicationState('post', { status: 'published', quarantined: true }),
+    ).toBe('blocked')
+  })
+})
+
+describe('Publishing destination eligibility (unit)', () => {
+  const subfeed = (
+    id: number,
+    overrides: Partial<{
+      owner: number
+      moderators: number[]
+      editors: number[]
+      uploaders: number[]
+      members: number[]
+    }> = {},
+  ) => ({
+    id,
+    name: `Eligibility SubFeed ${id}`,
+    slug: `eligibility-subfeed-${id}`,
+    owner: overrides.owner ?? 900,
+    moderators: overrides.moderators ?? [900],
+    editors: overrides.editors ?? [],
+    uploaders: overrides.uploaders ?? [],
+    members: overrides.members ?? [900],
+  })
+
+  it('gives a newcomer with no SubFeeds only their User Feed', () => {
+    const eligibility = getPublishingDestinationEligibility({ id: 1, roles: ['user'] }, [])
+
+    expect(eligibility.defaultFeed).toBe('user')
+    expect(eligibility.allowedFeeds).toEqual(['user'])
+    expect(eligibility.eligibleSubfeeds).toEqual([])
+    expect(eligibility.canPublishToMain).toBe(false)
+    expect(eligibility.hasMultipleDestinations).toBe(false)
+  })
+
+  it('keeps a plain member of multiple SubFeeds on their User Feed only', () => {
+    const eligibility = getPublishingDestinationEligibility({ id: 2, roles: ['user'] }, [
+      subfeed(10, { members: [900, 2] }),
+      subfeed(11, { members: [900, 2] }),
+    ])
+
+    expect(eligibility.defaultFeed).toBe('user')
+    expect(eligibility.allowedFeeds).toEqual(['user'])
+    expect(eligibility.eligibleSubfeeds).toEqual([])
+    expect(eligibility.canPublishToMain).toBe(false)
+    expect(eligibility.hasMultipleDestinations).toBe(false)
+  })
+
+  it('offers only the SubFeeds where the member holds a local publishing role', () => {
+    const eligibility = getPublishingDestinationEligibility({ id: 3, roles: ['user'] }, [
+      subfeed(20, { uploaders: [3], members: [900, 3] }),
+      subfeed(21, { members: [900, 3] }),
+    ])
+
+    expect(eligibility.defaultFeed).toBe('user')
+    expect(eligibility.allowedFeeds).toEqual(['user', 'subfeed'])
+    expect(eligibility.eligibleSubfeeds.map((option) => option.id)).toEqual([20])
+    expect(eligibility.canPublishToMain).toBe(false)
+    expect(eligibility.hasMultipleDestinations).toBe(true)
+  })
+
+  it('includes the Main Feed for site editors and uploaders', () => {
+    for (const role of ['editor', 'uploader'] as const) {
+      const eligibility = getPublishingDestinationEligibility({ id: 4, roles: ['user', role] }, [])
+
+      expect(eligibility.defaultFeed).toBe('user')
+      expect(eligibility.canPublishToMain).toBe(true)
+      expect(eligibility.allowedFeeds).toContain('main')
+      expect(eligibility.hasMultipleDestinations).toBe(true)
+    }
   })
 })
 
@@ -260,9 +424,7 @@ describe('SubFeed local roles (integration)', () => {
       data: { owner: null },
       overrideAccess: true,
     })
-    await expect(
-      revokeLocalRole(subfeed.id, localMod, owner.id, 'moderator'),
-    ).rejects.toThrow()
+    await expect(revokeLocalRole(subfeed.id, localMod, owner.id, 'moderator')).rejects.toThrow()
 
     const admin = await payload.update({
       collection: 'users',
@@ -352,14 +514,17 @@ describe('SubFeed local roles (integration)', () => {
       const author = await createTestUser(payload)
       const subfeed = await createTestSubfeed(owner.id, {
         editors: [editor.id],
+        uploaders: [author.id],
         members: [owner.id, editor.id, author.id],
       })
       const destination = await createTestSubfeed(owner.id, {
+        uploaders: [author.id],
         members: [owner.id, author.id],
       })
-      const item = collection === 'links'
-        ? await createSubfeedLink(author, subfeed.id)
-        : await createSubfeedPost(author, subfeed.id)
+      const item =
+        collection === 'links'
+          ? await createSubfeedLink(author, subfeed.id)
+          : await createSubfeedPost(author, subfeed.id)
 
       for (const data of [
         { feed: 'user' as const, subfeed: null },
@@ -411,15 +576,19 @@ describe('SubFeed local roles (integration)', () => {
   )
 
   it.each(['links', 'posts'] as const)(
-    'rejects moving %s to a subfeed where its author has no membership',
+    'rejects moving %s to a subfeed where its author has no publishing role',
     async (collection) => {
       const owner = await createTestUser(payload)
       const author = await createTestUser(payload)
-      const source = await createTestSubfeed(owner.id, { members: [owner.id, author.id] })
+      const source = await createTestSubfeed(owner.id, {
+        uploaders: [author.id],
+        members: [owner.id, author.id],
+      })
       const destination = await createTestSubfeed(owner.id)
-      const item = collection === 'links'
-        ? await createSubfeedLink(author, source.id)
-        : await createSubfeedPost(author, source.id)
+      const item =
+        collection === 'links'
+          ? await createSubfeedLink(author, source.id)
+          : await createSubfeedPost(author, source.id)
       await expect(
         payload.update({
           collection,
@@ -428,7 +597,7 @@ describe('SubFeed local roles (integration)', () => {
           user: owner,
           overrideAccess: false,
         }),
-      ).rejects.toThrow('You must join this subfeed before posting')
+      ).rejects.toThrow(SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE)
     },
   )
 
@@ -439,7 +608,12 @@ describe('SubFeed local roles (integration)', () => {
 
     for (const role of ['moderator', 'editor', 'uploader'] as LocalRole[]) {
       const updated = await assignLocalRole(subfeed.id, owner, member.id, role)
-      const field = role === 'moderator' ? updated.moderators : role === 'editor' ? updated.editors : updated.uploaders
+      const field =
+        role === 'moderator'
+          ? updated.moderators
+          : role === 'editor'
+            ? updated.editors
+            : updated.uploaders
       expect(readRelationshipIds(field)).toContain(member.id)
       expect(readRelationshipIds(updated.members)).toContain(member.id)
     }
@@ -447,7 +621,12 @@ describe('SubFeed local roles (integration)', () => {
     // Revoke each role; membership is preserved.
     for (const role of ['uploader', 'editor', 'moderator'] as LocalRole[]) {
       const updated = await revokeLocalRole(subfeed.id, owner, member.id, role)
-      const field = role === 'moderator' ? updated.moderators : role === 'editor' ? updated.editors : updated.uploaders
+      const field =
+        role === 'moderator'
+          ? updated.moderators
+          : role === 'editor'
+            ? updated.editors
+            : updated.uploaders
       expect(readRelationshipIds(field)).not.toContain(member.id)
     }
   })
@@ -504,6 +683,7 @@ describe('SubFeed local roles (integration)', () => {
     const subfeed = await createTestSubfeed(owner.id, {
       moderators: [owner.id, localMod.id],
       editors: [editor.id],
+      uploaders: [author.id],
       members: [owner.id, localMod.id, editor.id, author.id],
     })
 
@@ -537,7 +717,12 @@ describe('SubFeed local roles (integration)', () => {
     ).rejects.toThrow()
 
     // Local moderator can delete.
-    await payload.delete({ collection: 'links', id: modLink.id, user: localMod, overrideAccess: false })
+    await payload.delete({
+      collection: 'links',
+      id: modLink.id,
+      user: localMod,
+      overrideAccess: false,
+    })
     await expect(
       payload.findByID({ collection: 'links', id: modLink.id, overrideAccess: true }),
     ).rejects.toThrow()
@@ -552,6 +737,7 @@ describe('SubFeed local roles (integration)', () => {
     const subfeed = await createTestSubfeed(owner.id, {
       moderators: [owner.id, localMod.id],
       editors: [editor.id],
+      uploaders: [author.id],
       members: [owner.id, localMod.id, editor.id, author.id],
     })
 
@@ -580,7 +766,12 @@ describe('SubFeed local roles (integration)', () => {
       payload.delete({ collection: 'posts', id: editPost.id, user: editor, overrideAccess: false }),
     ).rejects.toThrow()
 
-    await payload.delete({ collection: 'posts', id: modPost.id, user: localMod, overrideAccess: false })
+    await payload.delete({
+      collection: 'posts',
+      id: modPost.id,
+      user: localMod,
+      overrideAccess: false,
+    })
   })
 
   it('prevents a plain member from moderating others content', async () => {
@@ -589,6 +780,7 @@ describe('SubFeed local roles (integration)', () => {
     const plainMember = await createTestUser(payload)
 
     const subfeed = await createTestSubfeed(owner.id, {
+      uploaders: [author.id],
       members: [owner.id, author.id, plainMember.id],
     })
 
@@ -616,6 +808,7 @@ describe('SubFeed local roles (integration)', () => {
       members: [ownerA.id, localModA.id],
     })
     const subfeedB = await createTestSubfeed(ownerB.id, {
+      uploaders: [authorB.id],
       members: [ownerB.id, authorB.id],
     })
 
@@ -650,7 +843,12 @@ describe('SubFeed local roles (integration)', () => {
 
     // Local moderator of A cannot delete subfeed B (nor any subfeed).
     await expect(
-      payload.delete({ collection: 'subfeeds', id: subfeedB.id, user: localModA, overrideAccess: false }),
+      payload.delete({
+        collection: 'subfeeds',
+        id: subfeedB.id,
+        user: localModA,
+        overrideAccess: false,
+      }),
     ).rejects.toThrow()
 
     // Local moderator of A gains no site roles.
@@ -697,4 +895,77 @@ describe('SubFeed local roles (integration)', () => {
     })
     expect(updated.description).toBe(`Legacy updated ${unique}`)
   })
+
+  it.each(['links', 'posts'] as const)(
+    'prevents a local moderator from reassigning %s to a third-party author',
+    async (collection) => {
+      const owner = await createTestUser(payload)
+      const localMod = await createTestUser(payload)
+      const author = await createTestUser(payload)
+      const thirdParty = await createTestUser(payload)
+
+      const subfeed = await createTestSubfeed(owner.id, {
+        moderators: [owner.id, localMod.id],
+        uploaders: [author.id],
+        members: [owner.id, localMod.id, author.id],
+      })
+
+      const item =
+        collection === 'links'
+          ? await createSubfeedLink(author, subfeed.id, 'Reassign')
+          : await createSubfeedPost(author, subfeed.id, 'Reassign')
+
+      await expect(
+        payload.update({
+          collection,
+          id: item.id,
+          data: { user: thirdParty.id },
+          user: localMod,
+          overrideAccess: false,
+        }),
+      ).rejects.toThrow(FOREIGN_USER_FEED_UNAUTHORIZED_MESSAGE)
+
+      const reloaded = await payload.findByID({
+        collection,
+        id: item.id,
+        depth: 0,
+        overrideAccess: true,
+      })
+      expect(reloaded.user).toBe(author.id)
+    },
+  )
+
+  it.each(['links', 'posts'] as const)(
+    'allows in-place %s updates after the author loses their local publishing role',
+    async (collection) => {
+      const owner = await createTestUser(payload)
+      const author = await createTestUser(payload)
+
+      const subfeed = await createTestSubfeed(owner.id, {
+        uploaders: [author.id],
+        members: [owner.id, author.id],
+      })
+
+      const item =
+        collection === 'links'
+          ? await createSubfeedLink(author, subfeed.id, 'Revoked')
+          : await createSubfeedPost(author, subfeed.id, 'Revoked')
+
+      await payload.update({
+        collection: 'subfeeds',
+        id: subfeed.id,
+        data: { uploaders: [], members: [owner.id] },
+        overrideAccess: true,
+      })
+
+      const updated = await payload.update({
+        collection,
+        id: item.id,
+        data: { nsfw: true },
+        user: author,
+        overrideAccess: false,
+      })
+      expect(updated.nsfw).toBe(true)
+    },
+  )
 })

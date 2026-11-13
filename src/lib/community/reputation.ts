@@ -1,14 +1,33 @@
 export type TrustLevel =
-  | 'newcomer'
-  | 'regular'
-  | 'recognized'
-  | 'trusted'
-  | 'veteran'
-  | 'curator'
-  | 'pillar'
-  | 'legend'
+  'newcomer' | 'regular' | 'recognized' | 'trusted' | 'veteran' | 'curator' | 'pillar' | 'legend'
 
-export const TRUST_LEVEL_THRESHOLDS: Array<{ min: number; value: TrustLevel; label: string }> = [
+export interface TrustThreshold {
+  min: number
+  value: TrustLevel
+  label: string
+}
+
+/**
+ * Base trust ladder.
+ *
+ * Derivation (Bobhund suggestion: "what do 40 / 120 / 280 mean?"):
+ *
+ *   - `COLD_START_FLOOR` (40) is the minimum effective standing granted to an
+ *     active member with any genuine activity, so `regular` must sit exactly at
+ *     that floor — otherwise the floor would grant no level at all.
+ *   - Each subsequent band grows by roughly 2.2–2.5× (`40 → 120 → 280 → 520 →
+ *     900 → 1400 → 2100`). That ratio was chosen so a consistently active member
+ *     (a few quality contributions or votes per day) advances one band every
+ *     few weeks, while a burst-only account cannot skip a band. The bands are
+ *     geometric rather than linear because engagement opportunity grows with
+ *     reach: higher bands require *sustained* activity, not just more clicks.
+ *   - These are **base** values. On a live community the effective thresholds
+ *     are scaled per level by `trustDynamics.ts` from the observed population
+ *     distribution (exponential moving average), so a level that becomes too
+ *     crowded automatically becomes harder to reach and relaxes again as
+ *     members go inactive.
+ */
+export const TRUST_LEVEL_THRESHOLDS: TrustThreshold[] = [
   { min: 0, value: 'newcomer', label: 'Newcomer' },
   { min: 40, value: 'regular', label: 'Regular' },
   { min: 120, value: 'recognized', label: 'Recognized' },
@@ -79,13 +98,7 @@ export interface TrustProfile {
 }
 
 export type CommunityRole =
-  | 'admin'
-  | 'editor'
-  | 'moderator'
-  | 'cleaner'
-  | 'uploader'
-  | 'recruiter'
-  | 'user'
+  'admin' | 'editor' | 'moderator' | 'cleaner' | 'uploader' | 'recruiter' | 'user'
 
 /** Roles that are earned automatically (excludes the base `user` and manual `admin`). */
 export const AUTOMATIC_ROLES: Array<Exclude<CommunityRole, 'admin' | 'user'>> = [
@@ -190,7 +203,10 @@ const scaleProfile = (profile: PointClassProfile, factor: number): PointClassPro
 })
 
 /** Whole (fractional) days elapsed since `lastActiveAt` (or `null` if unknown). */
-export const daysSince = (lastActiveAt?: string | Date | null, now: Date = new Date()): number | null => {
+export const daysSince = (
+  lastActiveAt?: string | Date | null,
+  now: Date = new Date(),
+): number | null => {
   if (!lastActiveAt) return null
 
   const lastActive = new Date(lastActiveAt)
@@ -217,6 +233,7 @@ export const calculateEffectiveScore = (
   rawScore: number,
   lastActiveAt?: string | Date | null,
   now: Date = new Date(),
+  coldStartFloor: number = COLD_START_FLOOR,
 ): EffectiveScore => {
   const raw = clamp(rawScore)
   const factor = recencyDecayFactor(lastActiveAt, now)
@@ -228,7 +245,7 @@ export const calculateEffectiveScore = (
   let floored = false
 
   if (raw > 0 && recentlyActive) {
-    const flooredRaw = Math.max(decayed, COLD_START_FLOOR)
+    const flooredRaw = Math.max(decayed, coldStartFloor)
     if (flooredRaw > decayed) {
       effectiveRaw = flooredRaw
       floored = true
@@ -248,10 +265,13 @@ export const calculateEffectiveScore = (
 const trustIndex = (level: TrustLevel): number =>
   TRUST_LEVEL_THRESHOLDS.findIndex((entry) => entry.value === level)
 
-const trustFromScore = (score: number): TrustLevel => {
+const trustFromScore = (
+  score: number,
+  thresholds: TrustThreshold[] = TRUST_LEVEL_THRESHOLDS,
+): TrustLevel => {
   const safeScore = clamp(score)
-  let selected = TRUST_LEVEL_THRESHOLDS[0]
-  for (const level of TRUST_LEVEL_THRESHOLDS) {
+  let selected = thresholds[0]
+  for (const level of thresholds) {
     if (safeScore >= level.min) selected = level
   }
   return selected.value
@@ -272,9 +292,13 @@ const trustLabel = (level: TrustLevel): string =>
  * - Promotions out of the unestablished `newcomer` baseline are exempt so the
  *   cold-start floor (and any first large jump) can establish initial standing.
  */
-export const resolveTrustLevel = (score: number, previous?: TrustLevel): TrustLevel => {
+export const resolveTrustLevel = (
+  score: number,
+  previous?: TrustLevel,
+  thresholds: TrustThreshold[] = TRUST_LEVEL_THRESHOLDS,
+): TrustLevel => {
   const safe = clamp(score)
-  const raw = trustFromScore(safe)
+  const raw = trustFromScore(safe, thresholds)
 
   if (!previous) return raw
 
@@ -287,14 +311,14 @@ export const resolveTrustLevel = (score: number, previous?: TrustLevel): TrustLe
     // Promotion — require margin above the target threshold, except cold-start.
     const isColdStart = prevIdx === 0
     if (!isColdStart) {
-      const targetMin = TRUST_LEVEL_THRESHOLDS[rawIdx].min
+      const targetMin = thresholds[rawIdx].min
       if (safe < targetMin + HYSTERESIS_PROMOTE_MARGIN) return previous
     }
     return raw
   }
 
   // Demotion — require falling below the current threshold by the demote margin.
-  const currentMin = TRUST_LEVEL_THRESHOLDS[prevIdx].min
+  const currentMin = thresholds[prevIdx].min
   if (safe < currentMin - HYSTERESIS_DEMOTE_MARGIN) return raw
   return previous
 }
@@ -304,16 +328,29 @@ export interface TrustProfileOptions {
   now?: Date
   /** Previous trust level, used for transition hysteresis. */
   previousTrustLevel?: TrustLevel
+  /** Effective ladder (base thresholds, or a population-scaled snapshot). */
+  thresholds?: TrustThreshold[]
+  /** Cold-start floor; defaults to the base `COLD_START_FLOOR`. */
+  coldStartFloor?: number
 }
 
 export const buildTrustProfile = (
   signals: TrustSignals,
   options: TrustProfileOptions = {},
 ): TrustProfile => {
-  const { now = new Date(), previousTrustLevel } = options
+  const { now = new Date(), previousTrustLevel, thresholds = TRUST_LEVEL_THRESHOLDS } = options
+  const coldStartFloor =
+    options.coldStartFloor ??
+    Math.max(
+      0,
+      Math.round(
+        (COLD_START_FLOOR * (thresholds[1]?.min ?? TRUST_LEVEL_THRESHOLDS[1].min)) /
+          TRUST_LEVEL_THRESHOLDS[1].min,
+      ),
+    )
   const raw = buildPointClassProfile(signals).totalMemberValue
-  const { effective } = calculateEffectiveScore(raw, signals.lastActiveAt, now)
-  const trustLevel = resolveTrustLevel(effective, previousTrustLevel)
+  const { effective } = calculateEffectiveScore(raw, signals.lastActiveAt, now, coldStartFloor)
+  const trustLevel = resolveTrustLevel(effective, previousTrustLevel, thresholds)
 
   return {
     reputationHidden: effective,
@@ -345,6 +382,8 @@ export interface DeriveRolesOptions {
   rolesLocked?: boolean
   /** Roles explicitly revoked by an admin; never re-granted automatically. */
   revokedRoles?: CommunityRole[]
+  /** Effective ladder (base thresholds, or a population-scaled snapshot). */
+  thresholds?: TrustThreshold[]
 }
 
 const normalizeRoles = (roles: CommunityRole[]): CommunityRole[] => {
@@ -377,7 +416,8 @@ const canUploadPromote = (ctx: RoleContext): boolean =>
 
 const canUploadRetain = (ctx: RoleContext): boolean =>
   (isAtLeast(ctx.trustLevel, relaxTrust('recognized')) &&
-    (ctx.contribution >= 80 * ROLE_RETENTION_FACTOR || ctx.discovery >= 60 * ROLE_RETENTION_FACTOR)) ||
+    (ctx.contribution >= 80 * ROLE_RETENTION_FACTOR ||
+      ctx.discovery >= 60 * ROLE_RETENTION_FACTOR)) ||
   ctx.contribution >= 120 * ROLE_RETENTION_FACTOR
 
 const canEditPromote = (ctx: RoleContext): boolean =>
@@ -463,6 +503,7 @@ export const deriveAutomaticRoles = (
     previousTrustLevel,
     rolesLocked = false,
     revokedRoles = [],
+    thresholds = TRUST_LEVEL_THRESHOLDS,
   } = options
 
   const revoked = new Set(revokedRoles)
@@ -481,7 +522,7 @@ export const deriveAutomaticRoles = (
   const rawProfile = buildPointClassProfile(signals)
   const factor = recencyDecayFactor(signals.lastActiveAt, now)
   const decayedProfile = scaleProfile(rawProfile, factor)
-  const trust = buildTrustProfile(signals, { now, previousTrustLevel })
+  const trust = buildTrustProfile(signals, { now, previousTrustLevel, thresholds })
 
   const ctx: RoleContext = {
     trustLevel: trust.trustLevel,

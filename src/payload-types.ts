@@ -168,9 +168,11 @@ export interface Config {
   };
   fallbackLocale: null;
   globals: {
+    'community-dynamics': CommunityDynamic;
     'payload-jobs-stats': PayloadJobsStat;
   };
   globalsSelect: {
+    'community-dynamics': CommunityDynamicsSelect<false> | CommunityDynamicsSelect<true>;
     'payload-jobs-stats': PayloadJobsStatsSelect<false> | PayloadJobsStatsSelect<true>;
   };
   locale: null;
@@ -1259,6 +1261,37 @@ export interface PayloadLlmInstructionsSelect<T extends boolean = true> {
   createdAt?: T;
 }
 /**
+ * Population-relative trust thresholds. Recomputed automatically from active-member distribution (exponential moving average).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "community-dynamics".
+ */
+export interface CommunityDynamic {
+  id: number;
+  computedAt?: string | null;
+  totalActiveMembers?: number | null;
+  levels?:
+    | {
+        level: string;
+        count?: number | null;
+        share?: number | null;
+        threshold: number;
+        scale?: number | null;
+        id?: string | null;
+      }[]
+    | null;
+  createdBy?: {
+    relationTo: 'users';
+    value: number | User;
+  } | null;
+  updatedBy?: {
+    relationTo: 'users';
+    value: number | User;
+  } | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-jobs-stats".
  */
@@ -1275,6 +1308,29 @@ export interface PayloadJobsStat {
     | null;
   updatedAt?: string | null;
   createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "community-dynamics_select".
+ */
+export interface CommunityDynamicsSelect<T extends boolean = true> {
+  computedAt?: T;
+  totalActiveMembers?: T;
+  levels?:
+    | T
+    | {
+        level?: T;
+        count?: T;
+        share?: T;
+        threshold?: T;
+        scale?: T;
+        id?: T;
+      };
+  createdBy?: T;
+  updatedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

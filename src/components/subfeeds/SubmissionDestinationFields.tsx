@@ -31,6 +31,7 @@ interface Labels {
   subfeedPlaceholder: string
   subfeedDesc: string
   noSubfeeds: string
+  personalFeedOnlyNote?: string
 }
 
 interface FeedOption {
@@ -63,7 +64,22 @@ export function SubmissionDestinationFields<T extends FieldValues>({
 }: Props<T>) {
   return (
     <>
-      {!lockDestination ? (
+      {!lockDestination && feedOptions.length === 1 && feedOptions[0]?.value === 'user' ? (
+        <div className="grid gap-2">
+          <p className="text-sm leading-none font-medium">{labels.destinationLabel}</p>
+          <div
+            data-testid="destination-user-feed-summary"
+            className="rounded-md border bg-muted/30 p-3 text-sm"
+          >
+            <p className="font-medium">{feedOptions[0].label}</p>
+            <p className="text-muted-foreground">
+              {labels.personalFeedOnlyNote ?? labels.destinationDesc}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {!lockDestination && feedOptions.length > 1 ? (
         <FormField
           control={form.control}
           name={feedName}

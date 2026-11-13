@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { AlertTriangle } from 'lucide-react'
 
 import {
   Form,
@@ -15,12 +16,18 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { RichTextEditor } from '@/components/ui/RichTextEditor'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { submitPost } from '@/app/actions/posts'
 import type { AppDictionary } from '@/lib/dictionaries'
+import type { SubmissionOutcome } from '@/lib/community/subfeeds'
+import {
+  getSubmissionOutcomeCopy,
+  SubmissionOutcomeBanner,
+} from '@/components/links/LinkSubmitForm'
 import { SubmissionActionRow } from '@/components/subfeeds/SubmissionActionRow'
 import { SubmissionDestinationFields } from '@/components/subfeeds/SubmissionDestinationFields'
 
@@ -34,6 +41,7 @@ export function PostSubmitForm({
   subfeeds,
   defaultSubfeedId,
   defaultFeed,
+  canPublishToMain,
   lockDestination,
   onSuccess,
   onCancel,
@@ -41,12 +49,15 @@ export function PostSubmitForm({
   dict: AppDictionary
   subfeeds: SubfeedOption[]
   defaultSubfeedId?: number
-  defaultFeed?: 'user' | 'subfeed'
+  defaultFeed?: 'user' | 'main' | 'subfeed'
+  canPublishToMain?: boolean
   lockDestination?: boolean
-  onSuccess?: () => void
+  onSuccess?: (outcome: SubmissionOutcome) => void
   onCancel?: () => void
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [lastOutcome, setLastOutcome] = useState<SubmissionOutcome | null>(null)
+  const [submitErrorMessage, setSubmitErrorMessage] = useState<string | null>(null)
 
   const formSchema = z
     .object({
@@ -57,7 +68,7 @@ export function PostSubmitForm({
         message: dict.postForm.contentRequired,
       }),
       nsfw: z.boolean().optional(),
-      feed: z.enum(['user', 'subfeed']),
+      feed: z.enum(['user', 'main', 'subfeed']),
       subfeedId: z.string().optional(),
     })
     .superRefine((data, ctx) => {
@@ -84,18 +95,30 @@ export function PostSubmitForm({
   })
 
   const selectedFeed = form.watch('feed')
+  const feedOptions = [
+    { value: 'user', label: dict.postForm.destinationOptions.user },
+    ...(subfeeds.length > 0
+      ? [{ value: 'subfeed', label: dict.postForm.destinationOptions.subfeed }]
+      : []),
+    ...(canPublishToMain ? [{ value: 'main', label: dict.postForm.destinationOptions.main }] : []),
+  ]
 
   async function onSubmit(values: FormSchema) {
     setIsSubmitting(true)
+    setSubmitErrorMessage(null)
+    setLastOutcome(null)
     try {
-      await submitPost({
+      const outcome = await submitPost({
         title: values.title,
         content: values.content,
         nsfw: values.nsfw,
         feed: values.feed,
         subfeedId: values.subfeedId ? Number(values.subfeedId) : undefined,
       })
-      toast.success(dict.postForm.submitSuccess)
+      const outcomeCopy = getSubmissionOutcomeCopy(dict, outcome)
+
+      setLastOutcome(outcome)
+      setSubmitErrorMessage(null)
       form.reset({
         title: '',
         content: '',
@@ -103,10 +126,22 @@ export function PostSubmitForm({
         feed: defaultFeed ?? 'user',
         subfeedId: defaultSubfeedId ? String(defaultSubfeedId) : '',
       })
-      onSuccess?.()
+
+      if (outcome.isPublic) {
+        toast.success(outcomeCopy.title)
+      } else if (outcome.visibility === 'blocked') {
+        toast.warning(outcomeCopy.title)
+      } else {
+        toast.info(outcomeCopy.title)
+      }
+
+      onSuccess?.(outcome)
     } catch (error) {
       console.error(error)
-      toast.error(dict.postForm.submitError)
+      const message =
+        error instanceof Error && error.message ? error.message : dict.postForm.submitError
+      setSubmitErrorMessage(message)
+      toast.error(message)
     } finally {
       setIsSubmitting(false)
     }
@@ -118,6 +153,16 @@ export function PostSubmitForm({
         <CardTitle>{dict.postForm.title}</CardTitle>
       </CardHeader>
       <CardContent>
+        {lastOutcome ? <SubmissionOutcomeBanner dict={dict} outcome={lastOutcome} /> : null}
+
+        {submitErrorMessage ? (
+          <Alert variant="destructive" data-testid="submission-error-alert" className="mb-6">
+            <AlertTriangle aria-hidden="true" />
+            <AlertTitle>{dict.postForm.submitError}</AlertTitle>
+            <AlertDescription>{submitErrorMessage}</AlertDescription>
+          </Alert>
+        ) : null}
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <FormField
@@ -169,11 +214,9 @@ export function PostSubmitForm({
                 subfeedPlaceholder: dict.postForm.subfeedPlaceholder,
                 subfeedDesc: dict.postForm.subfeedDesc,
                 noSubfeeds: dict.postForm.noSubfeeds,
+                personalFeedOnlyNote: dict.postForm.personalFeedOnlyNote,
               }}
-              feedOptions={[
-                { value: 'user', label: dict.postForm.destinationOptions.user },
-                { value: 'subfeed', label: dict.postForm.destinationOptions.subfeed },
-              ]}
+              feedOptions={feedOptions}
             />
             <FormField
               control={form.control}

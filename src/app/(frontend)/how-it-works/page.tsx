@@ -3,37 +3,23 @@ import { redirect } from 'next/navigation'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getDictionary } from '@/lib/dictionaries'
-import {
-  COLD_START_FLOOR,
-  HYSTERESIS_DEMOTE_MARGIN,
-  HYSTERESIS_PROMOTE_MARGIN,
-  RECENCY_HALF_LIFE_DAYS,
-  ROLE_RETENTION_FACTOR,
-  TRUST_LEVEL_THRESHOLDS,
-} from '@/lib/community/reputation'
-import {
-  DISCOVERY_BOOST_MIN_SCORE,
-  MAIN_FEED_PROMOTION_THRESHOLD,
-  PROMOTION_DISCOVERY_MOMENTUM_MIN,
-  PROMOTION_ENGAGEMENT_VELOCITY_MIN,
-} from '@/lib/community/promotion'
-import {
-  EDITORIAL_PRIORITY_BOOST,
-  EDITORIAL_PRIORITY_DURATION_HOURS,
-} from '@/lib/community/ranking'
-import {
-  EDITOR_CONTRIBUTION,
-  EDITOR_CONTRIBUTION_SOLO,
-  EDITOR_INTERACTION,
-  SUBFEED_CANDIDACY_FACTOR,
-  SUBFEED_STRONG_RECRUITER_THRESHOLD,
-  UPLOADER_CONTRIBUTION,
-  UPLOADER_CONTRIBUTION_SOLO,
-  UPLOADER_DISCOVERY,
-} from '@/lib/community/subfeedEligibility'
+import { TRUST_LEVEL_THRESHOLDS } from '@/lib/community/reputation'
 
-/** Point thresholds shown in the SubFeed gate, rounded for readability. */
-const candidateThreshold = (value: number): number => Math.round(value * SUBFEED_CANDIDACY_FACTOR)
+/**
+ * Qualitative descriptions for each trust level, in the same order as
+ * `TRUST_LEVEL_THRESHOLDS`. The public page deliberately avoids exposing the
+ * numeric bands so progression cannot be reduced to a target to grind.
+ */
+const trustLevelNotes = [
+  'Just getting started — the default for new accounts.',
+  'Consistent participation is starting to show.',
+  'A dependable contributor the community responds to.',
+  'Strong, sustained contribution and interaction.',
+  'Long-running, high-quality participation.',
+  'Helps shape what the community sees.',
+  'A defining voice in the community.',
+  'The highest level — exceptional sustained standing.',
+]
 
 const pointClassGuides = [
   {
@@ -143,7 +129,8 @@ const localRoleGuides = [
   },
   {
     role: 'Member',
-    description: 'Can submit content and take part in the SubFeed community.',
+    description:
+      'Can follow the SubFeed, comment, vote, and take part in its discussions. Membership alone does not grant publishing permission.',
   },
 ]
 
@@ -167,6 +154,47 @@ export default async function HowItWorksPage() {
           Main Feed promotion are all driven by what the community actually does — not by a fixed
           hierarchy or a handful of manual decisions. This page explains the mechanics behind that.
         </p>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">Personal-First Publishing</h2>
+        <Card>
+          <CardHeader>
+            <CardTitle>Start in Your Public User Feed</CardTitle>
+            <CardDescription>
+              Every member can publish right away. A SubFeed is an editorial space you earn, not a
+              prerequisite for contributing.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <ul className="list-disc pl-5 space-y-2">
+              <li>
+                Every new link or post starts in your own{' '}
+                <span className="font-medium">public User Feed</span> as soon as safety checks
+                allow. Other members can read it, vote on it, and comment on it.
+              </li>
+              <li>
+                Community engagement — votes, comments, clicks, discovery boosts, or an editorial
+                feature — can lift eligible User Feed content{' '}
+                <span className="font-medium">directly into the Main Feed</span>. A SubFeed is not a
+                mandatory rung on the way up.
+              </li>
+              <li>
+                SubFeeds are earned editorial spaces.{' '}
+                <span className="font-medium">
+                  Joining a SubFeed as a member lets you follow it and take part in discussions, but
+                  does not grant publishing permission there.
+                </span>{' '}
+                Publishing into a SubFeed requires a local publishing role: Owner, Moderator,
+                Editor, or Uploader.
+              </li>
+              <li>
+                Site-wide roles (Admin, Moderator, Editor, Uploader) can additionally publish
+                straight to the Main Feed.
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
       </section>
 
       <section className="space-y-4">
@@ -212,23 +240,22 @@ export default async function HowItWorksPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p>
-              Hidden standing is calculated from your point classes with these weights:
-              <br />
-              <span className="font-mono">
-                discovery x 1.6 + contribution x 1.35 + likability x 1.25 + interaction x 0.85 +
-                cleaning x 0.55 + recruiter x 0.9 + legacyContribution x 0.35 + security x 0.4
-              </span>
+              Hidden standing blends your point classes with discovery and contribution weighted
+              most heavily, followed by likability and interaction, then cleaning, recruiter, legacy
+              contribution, and security signals. The exact weights stay internal so the system
+              cannot be gamed; what matters is that sustained, well-received activity raises your
+              standing.
             </p>
             <ul className="list-disc pl-5 space-y-1">
               <li>
-                <span className="font-medium">Recency decay.</span> Your effective standing halves
-                for every {RECENCY_HALF_LIFE_DAYS} days of inactivity. Returning and contributing
-                again brings it back up.
+                <span className="font-medium">Recency decay.</span> Your effective standing keeps
+                halving the longer you stay inactive. Returning and contributing again brings it
+                back up.
               </li>
               <li>
                 <span className="font-medium">Cold-start floor.</span> Any member with genuine
-                activity in the last 30 days keeps at least {COLD_START_FLOOR} effective standing —
-                enough to establish a baseline without letting fresh accounts farm higher levels.
+                activity in the last 30 days keeps a modest baseline of effective standing — enough
+                to get started without letting fresh accounts farm higher levels.
               </li>
               <li>
                 <span className="font-medium">No permanent plateau.</span> Because standing decays,
@@ -252,14 +279,14 @@ export default async function HowItWorksPage() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-2 pr-4">Level</th>
-                    <th className="text-left py-2">Minimum Effective Standing</th>
+                    <th className="text-left py-2">What It Reflects</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {TRUST_LEVEL_THRESHOLDS.map((level) => (
+                  {TRUST_LEVEL_THRESHOLDS.map((level, index) => (
                     <tr key={level.value} className="border-b last:border-0">
                       <td className="py-2 pr-4">{level.label}</td>
-                      <td className="py-2">{level.min}</td>
+                      <td className="py-2">{trustLevelNotes[index]}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -267,7 +294,9 @@ export default async function HowItWorksPage() {
             </div>
             <p className="text-muted-foreground">
               These are reference points, not permanent achievements. Your effective standing after
-              decay is what decides your level today.
+              decay is what decides your level today. Thresholds also adapt to how many members hold
+              each level, so a crowded level becomes harder to reach and relaxes again as activity
+              drops.
             </p>
           </CardContent>
         </Card>
@@ -283,17 +312,16 @@ export default async function HowItWorksPage() {
           <CardContent className="space-y-2 text-sm">
             <ul className="list-disc pl-5 space-y-1">
               <li>
-                Promotion to a higher trust level requires clearing its threshold by{' '}
-                {HYSTERESIS_PROMOTE_MARGIN} points.
+                Promotion to a higher trust level requires clearing its threshold with a small
+                margin to spare.
               </li>
               <li>
-                Demotion only happens once your standing falls {HYSTERESIS_DEMOTE_MARGIN} points
-                below your current level&apos;s threshold.
+                Demotion only happens once your standing falls clearly below your current
+                level&apos;s threshold.
               </li>
               <li>
                 Earned roles have their own grace margin: an existing role is retained while you
-                keep at least {Math.round(ROLE_RETENTION_FACTOR * 100)}% of its promotion gate, with
-                one trust level of relaxation.
+                keep most of its promotion gate, with one trust level of relaxation.
               </li>
               <li>
                 If a role&apos;s signals fade past that margin, the role relaxes back automatically
@@ -332,7 +360,9 @@ export default async function HowItWorksPage() {
               point classes, effective standing, and recent activity.
             </p>
             <ul className="list-disc pl-5 space-y-1">
-              <li>Inactivity decays your standing and can relax earned roles if you go inactive.</li>
+              <li>
+                Inactivity decays your standing and can relax earned roles if you go inactive.
+              </li>
               <li>
                 Roles are retained with a grace margin before relaxing, so short quiet spells do not
                 cost you your standing.
@@ -369,20 +399,16 @@ export default async function HowItWorksPage() {
             </p>
             <ul className="list-disc pl-5 space-y-1">
               <li>
-                <span className="font-medium">Uploader candidacy:</span>{' '}
-                {candidateThreshold(UPLOADER_CONTRIBUTION_SOLO)}+ Contribution Points, or{' '}
-                {candidateThreshold(UPLOADER_CONTRIBUTION)}+ Contribution and{' '}
-                {candidateThreshold(UPLOADER_DISCOVERY)}+ Discovery Points with Recognized standing.
+                <span className="font-medium">Uploader candidacy:</span> strong Contribution Points,
+                or a blend of Contribution and Discovery Points at Recognized standing.
               </li>
               <li>
-                <span className="font-medium">Editor candidacy:</span>{' '}
-                {candidateThreshold(EDITOR_CONTRIBUTION_SOLO)}+ Contribution Points, or{' '}
-                {candidateThreshold(EDITOR_CONTRIBUTION)}+ Contribution and{' '}
-                {candidateThreshold(EDITOR_INTERACTION)}+ Interaction Points with Trusted standing.
+                <span className="font-medium">Editor candidacy:</span> stronger Contribution Points,
+                or a blend of Contribution and Interaction Points at Trusted standing.
               </li>
               <li>
-                <span className="font-medium">Strong Recruiter standing:</span>{' '}
-                {SUBFEED_STRONG_RECRUITER_THRESHOLD}+ Recruiter Points.
+                <span className="font-medium">Strong Recruiter standing:</span> a sustained record
+                of bringing new members into SubFeeds.
               </li>
             </ul>
             <p>
@@ -431,8 +457,8 @@ export default async function HowItWorksPage() {
             <ul className="list-disc pl-5 space-y-1">
               <li>Users can join or leave SubFeeds from SubFeed pages.</li>
               <li>
-                Posting to a SubFeed requires membership or a local uploader, editor, moderator, or
-                owner role.
+                Posting to a SubFeed requires a local publishing role — Uploader, Editor, Moderator,
+                or Owner. Joining as a member only grants participation.
               </li>
               <li>
                 SubFeed links and posts are ranked with the same ranking logic as the rest of the
@@ -474,11 +500,8 @@ export default async function HowItWorksPage() {
             <ul className="list-disc pl-5 space-y-1">
               <li>It is featured by an authorised member, or</li>
               <li>
-                it clears the organic engagement gate: score {MAIN_FEED_PROMOTION_THRESHOLD.score}+,
-                upvotes {MAIN_FEED_PROMOTION_THRESHOLD.upvotes}+, ranking score{' '}
-                {MAIN_FEED_PROMOTION_THRESHOLD.rankingScore}+, and either discovery momentum{' '}
-                {PROMOTION_DISCOVERY_MOMENTUM_MIN}+ or engagement velocity{' '}
-                {PROMOTION_ENGAGEMENT_VELOCITY_MIN}+, or
+                it clears the organic engagement gate: enough score, upvotes, and ranking strength,
+                plus either discovery momentum or engagement velocity, or
               </li>
               <li>it receives a curated discovery boost from a member with discovery standing.</li>
             </ul>
@@ -505,13 +528,11 @@ export default async function HowItWorksPage() {
             <ul className="list-disc pl-5 space-y-1">
               <li>
                 When a site admin, moderator, editor, or uploader publishes directly to the Main
-                Feed, the item receives an editorial priority window of{' '}
-                {EDITORIAL_PRIORITY_DURATION_HOURS} hours.
+                Feed, the item receives a short editorial priority window.
               </li>
               <li>
-                While the window is active, the item gets a +{EDITORIAL_PRIORITY_BOOST} ranking
-                boost and an <span className="font-medium">Editorial Priority</span> badge on its
-                card.
+                While the window is active, the item gets a ranking boost and an{' '}
+                <span className="font-medium">Editorial Priority</span> badge on its card.
               </li>
               <li>
                 When the window expires, the badge disappears and the boost is no longer applied the
@@ -536,8 +557,8 @@ export default async function HowItWorksPage() {
           <CardContent className="space-y-2 text-sm">
             <ul className="list-disc pl-5 space-y-1">
               <li>
-                Site admins, moderators, and editors can always boost. Other members need{' '}
-                {DISCOVERY_BOOST_MIN_SCORE}+ decayed Discovery standing.
+                Site admins, moderators, and editors can always boost. Other members need a
+                meaningful amount of decayed Discovery standing.
               </li>
               <li>
                 A boost only works on published, non-controversial, non-quarantined, non-deleted

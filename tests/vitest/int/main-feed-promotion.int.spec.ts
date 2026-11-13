@@ -14,6 +14,7 @@ import {
   buildMainFeedWhere,
   hasDiscoveryBoostStanding,
   isEligibleForMainFeedPromotion,
+  promotionThresholdForFeed,
 } from '@/lib/community/promotion'
 
 let payload: Payload
@@ -212,19 +213,31 @@ describe('Main Feed promotion policy (pure)', () => {
     ).toBe(false)
   })
 
+  it('lets SubFeed content promote below the User Feed threshold (origin priority)', () => {
+    const signals = { score: 4, upvotes: 4, rankingScore: 76, discoveryMomentum: 6 }
+
+    expect(promotionThresholdForFeed('subfeed')).toEqual({
+      score: 3,
+      upvotes: 4,
+      rankingScore: 75,
+    })
+    expect(isEligibleForMainFeedPromotion({ feed: 'subfeed', ...signals })).toBe(true)
+    expect(isEligibleForMainFeedPromotion({ feed: 'user', ...signals })).toBe(false)
+  })
+
   it('rejects featured-but-controversial items (safety wins over the fast path)', () => {
-    expect(isEligibleForMainFeedPromotion({ feed: 'subfeed', featured: true, controversial: true })).toBe(
-      false,
-    )
+    expect(
+      isEligibleForMainFeedPromotion({ feed: 'subfeed', featured: true, controversial: true }),
+    ).toBe(false)
   })
 
   it('rejects soft-deleted and quarantined items regardless of featured', () => {
-    expect(isEligibleForMainFeedPromotion({ feed: 'subfeed', featured: true, softDeleted: true })).toBe(
-      false,
-    )
-    expect(isEligibleForMainFeedPromotion({ feed: 'subfeed', featured: true, quarantined: true })).toBe(
-      false,
-    )
+    expect(
+      isEligibleForMainFeedPromotion({ feed: 'subfeed', featured: true, softDeleted: true }),
+    ).toBe(false)
+    expect(
+      isEligibleForMainFeedPromotion({ feed: 'subfeed', featured: true, quarantined: true }),
+    ).toBe(false)
   })
 
   it('does not treat discoveryBoosted as an organic eligibility factor', () => {

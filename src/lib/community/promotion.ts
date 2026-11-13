@@ -32,6 +32,34 @@ export const MAIN_FEED_PROMOTION_THRESHOLD = {
 } as const
 
 /**
+ * SubFeed priority (Bobhund suggestion #2): a SubFeed is an independent
+ * editorial desk, so its content needs less raw engagement to compete for a
+ * Main Feed slot than ordinary User Feed content. 0.75 means a SubFeed item
+ * clears the gate with three quarters of the score/upvotes/ranking, while still
+ * requiring real traction (the gate is never zero).
+ */
+export const SUBFEED_PROMOTION_DISCOUNT = 0.75
+
+/** The promotion gate for a given origin feed. */
+export const promotionThresholdForFeed = (feed?: string | null) => {
+  if (feed !== 'subfeed') return MAIN_FEED_PROMOTION_THRESHOLD
+
+  return {
+    score: Math.max(
+      1,
+      Math.round(MAIN_FEED_PROMOTION_THRESHOLD.score * SUBFEED_PROMOTION_DISCOUNT),
+    ),
+    upvotes: Math.max(
+      1,
+      Math.round(MAIN_FEED_PROMOTION_THRESHOLD.upvotes * SUBFEED_PROMOTION_DISCOUNT),
+    ),
+    rankingScore: Math.round(
+      MAIN_FEED_PROMOTION_THRESHOLD.rankingScore * SUBFEED_PROMOTION_DISCOUNT,
+    ),
+  } as const
+}
+
+/**
  * Discovery-momentum gate for organic promotion.
  *
  * For links, `discoveryMomentum` is `clickCount * 0.35`, so a gate of 5 maps to
@@ -107,14 +135,15 @@ const isRemoved = (item: PromotableItemLike): boolean =>
 
 /** True when the item passes the organic engagement/momentum threshold gate. */
 export const passesOrganicThreshold = (item: PromotableItemLike): boolean => {
+  const threshold = promotionThresholdForFeed(item.feed)
   const hasMomentum =
     readNum(item.discoveryMomentum) >= PROMOTION_DISCOVERY_MOMENTUM_MIN ||
     readNum(item.engagementVelocity) >= PROMOTION_ENGAGEMENT_VELOCITY_MIN
 
   return (
-    readNum(item.score) >= MAIN_FEED_PROMOTION_THRESHOLD.score &&
-    readNum(item.upvotes) >= MAIN_FEED_PROMOTION_THRESHOLD.upvotes &&
-    readNum(item.rankingScore) >= MAIN_FEED_PROMOTION_THRESHOLD.rankingScore &&
+    readNum(item.score) >= threshold.score &&
+    readNum(item.upvotes) >= threshold.upvotes &&
+    readNum(item.rankingScore) >= threshold.rankingScore &&
     hasMomentum
   )
 }
@@ -154,25 +183,29 @@ export const buildSafetyExclusions = (options: PromotionWhereOptions = {}): Wher
   return exclusions
 }
 
-/** The organic threshold gate, expressed as a Payload query fragment. */
-const thresholdGate: Where = {
-  and: [
-    { score: { greater_than_equal: MAIN_FEED_PROMOTION_THRESHOLD.score } },
-    { upvotes: { greater_than_equal: MAIN_FEED_PROMOTION_THRESHOLD.upvotes } },
-    { rankingScore: { greater_than_equal: MAIN_FEED_PROMOTION_THRESHOLD.rankingScore } },
-    {
-      or: [
-        { discoveryMomentum: { greater_than_equal: PROMOTION_DISCOVERY_MOMENTUM_MIN } },
-        { engagementVelocity: { greater_than_equal: PROMOTION_ENGAGEMENT_VELOCITY_MIN } },
-      ],
-    },
-  ],
+/** The organic threshold gate for one origin, expressed as a Payload query fragment. */
+const buildThresholdGate = (feed: 'subfeed' | 'user'): Where => {
+  const threshold = promotionThresholdForFeed(feed)
+  return {
+    and: [
+      { score: { greater_than_equal: threshold.score } },
+      { upvotes: { greater_than_equal: threshold.upvotes } },
+      { rankingScore: { greater_than_equal: threshold.rankingScore } },
+      {
+        or: [
+          { discoveryMomentum: { greater_than_equal: PROMOTION_DISCOVERY_MOMENTUM_MIN } },
+          { engagementVelocity: { greater_than_equal: PROMOTION_ENGAGEMENT_VELOCITY_MIN } },
+        ],
+      },
+    ],
+  }
 }
 
 /**
  * Builds the promotable-origins filter: SubFeed + User Feed items that pass the
  * safety exclusions AND at least one promotion branch (featured, organic
- * threshold, or curated discovery boost).
+ * threshold, or curated discovery boost). SubFeed items use the discounted
+ * origin threshold so they outrank User Feed content at equal engagement.
  */
 export const buildPromotableOriginFilter = (options: PromotionWhereOptions = {}): Where => ({
   and: [
@@ -182,7 +215,8 @@ export const buildPromotableOriginFilter = (options: PromotionWhereOptions = {})
       or: [
         { featured: { equals: true } },
         { discoveryBoosted: { equals: true } },
-        thresholdGate,
+        { and: [{ feed: { equals: 'subfeed' } }, buildThresholdGate('subfeed')] },
+        { and: [{ feed: { equals: 'user' } }, buildThresholdGate('user')] },
       ],
     },
   ],

@@ -1,138 +1,136 @@
 import type { Payload } from 'payload'
-import { faker } from '@faker-js/faker'
+import type { Report } from '@/payload-types'
 
-import { chance, pickOne } from './utils.seed'
+import {
+  SEED_INTERACTION_SCENARIOS,
+  createSeedTally,
+  offsetIsoFromReference,
+  readRelationId,
+  type SeedStepTally,
+  type SeededContentIndex,
+} from './utils.seed'
+import { requirePersona } from './links.seed'
+import type { SeedUsers } from './users.seed'
 
-type ReportReason = 'spam' | 'abuse' | 'broken_link' | 'harassment' | 'nsfw' | 'other'
-type ReportStatus = 'pending' | 'approved' | 'rejected'
+export type ReportTargetType = 'post' | 'comment' | 'link' | 'user'
 
-const reasons: ReportReason[] = ['spam', 'abuse', 'broken_link', 'harassment', 'nsfw', 'other']
+const reportKey = ({
+  reporterId,
+  targetType,
+  targetId,
+  reason,
+}: {
+  reporterId: number
+  targetType: string
+  targetId: string
+  reason: string
+}) => `${reporterId}:${targetType}:${targetId}:${reason}`
 
-const pickStatus = (): ReportStatus => {
-  if (chance(0.1)) return 'approved'
-  if (chance(0.3)) return 'rejected'
-  return 'pending'
+const resolveReportTarget = (
+  report: Report,
+): { targetType: ReportTargetType; targetId: string } => {
+  if (report.targetPost) {
+    return { targetType: 'post', targetId: String(readRelationId(report.targetPost)) }
+  }
+
+  if (report.targetComment) {
+    return { targetType: 'comment', targetId: String(readRelationId(report.targetComment)) }
+  }
+
+  if (report.targetLink) {
+    return { targetType: 'link', targetId: String(readRelationId(report.targetLink)) }
+  }
+
+  return { targetType: 'user', targetId: String(readRelationId(report.targetUser)) }
 }
 
-export async function seedReports(payload: Payload) {
-  const [{ docs: users }, { docs: posts }, { docs: comments }, { docs: links }] = await Promise.all(
-    [
-      payload.find({
-        collection: 'users',
-        limit: 1000,
-        depth: 0,
-        overrideAccess: true,
-      }),
-      payload.find({
-        collection: 'posts',
-        limit: 400,
-        depth: 0,
-        overrideAccess: true,
-      }),
-      payload.find({
-        collection: 'comments',
-        limit: 400,
-        depth: 0,
-        overrideAccess: true,
-      }),
-      payload.find({
-        collection: 'links',
-        limit: 400,
-        depth: 0,
-        overrideAccess: true,
-      }),
-    ],
-  )
+/**
+ * Creates the authored moderation reports. Reports are append-only scenario
+ * records, so an existing row is skipped rather than rewritten (rewriting a
+ * reporter's account would change the moderation narrative).
+ */
+export async function seedReports(
+  payload: Payload,
+  users: SeedUsers,
+  content: SeededContentIndex,
+  referenceNow: Date,
+): Promise<SeedStepTally> {
+  const tally = createSeedTally('reports')
+  const scenarios = SEED_INTERACTION_SCENARIOS.filter((scenario) => scenario.kind === 'report')
 
-  if (users.length === 0) {
-    console.log('Skipping reports seed: no users available')
-    return
+  const { docs: existingReports } = await payload.find({
+    collection: 'reports',
+    limit: 10_000,
+    depth: 0,
+    overrideAccess: true,
+  })
+
+  const seen = new Set<string>()
+
+  for (const report of existingReports) {
+    const reporterId = readRelationId(report.reporter)
+    if (!reporterId) continue
+
+    const target = resolveReportTarget(report)
+    seen.add(
+      reportKey({
+        reporterId,
+        targetType: target.targetType,
+        targetId: target.targetId,
+        reason: report.reason,
+      }),
+    )
   }
 
-  const reviewerCandidates = users.filter((user) =>
-    Array.isArray(user.roles)
-      ? user.roles.some((role) => role === 'admin' || role === 'moderator' || role === 'editor')
-      : false,
-  )
+  for (const scenario of scenarios) {
+    const actor = requirePersona(users, scenario.actor)
+    const target = content.get(scenario.target)
 
-  const availableTypes = [
-    ...(posts.length > 0 ? (['post'] as const) : []),
-    ...(comments.length > 0 ? (['comment'] as const) : []),
-    ...(links.length > 0 ? (['link'] as const) : []),
-    ...(users.length > 1 ? (['user'] as const) : []),
-  ]
-
-  if (availableTypes.length === 0) {
-    console.log('Skipping reports seed: no reportable targets found')
-    return
-  }
-
-  let created = 0
-
-  for (let i = 0; i < 35; i += 1) {
-    const reporter = pickOne(users)
-    const targetType = pickOne([...availableTypes])
-    const status = pickStatus()
-
-    const reportData: {
-      reporter: number
-      targetType: 'post' | 'comment' | 'link' | 'user'
-      targetId: string
-      reason: ReportReason
-      details?: string
-      status: ReportStatus
-      reviewedBy?: number
-      fastTracked?: boolean
-      targetPost?: number
-      targetComment?: number
-      targetLink?: number
-      targetUser?: number
-    } = {
-      reporter: reporter.id,
-      targetType,
-      targetId: '',
-      reason: pickOne(reasons),
-      details: chance(0.7) ? faker.lorem.sentences({ min: 1, max: 2 }) : undefined,
-      status,
-      fastTracked: chance(0.25),
+    if (!target) {
+      throw new Error(
+        `Seed report "${scenario.key}" targets unknown content scenario "${scenario.target}".`,
+      )
     }
 
-    if (targetType === 'post') {
-      const post = pickOne(posts)
-      reportData.targetPost = post.id
-      reportData.targetId = String(post.id)
+    if (!scenario.reason) {
+      throw new Error(`Seed report "${scenario.key}" has no reason.`)
     }
 
-    if (targetType === 'comment') {
-      const comment = pickOne(comments)
-      reportData.targetComment = comment.id
-      reportData.targetId = String(comment.id)
-    }
-
-    if (targetType === 'link') {
-      const link = pickOne(links)
-      reportData.targetLink = link.id
-      reportData.targetId = String(link.id)
-    }
-
-    if (targetType === 'user') {
-      const userTarget = pickOne(users.filter((candidate) => candidate.id !== reporter.id))
-      reportData.targetUser = userTarget.id
-      reportData.targetId = String(userTarget.id)
-    }
-
-    if (status !== 'pending' && reviewerCandidates.length > 0) {
-      reportData.reviewedBy = pickOne(reviewerCandidates).id
-    }
-
-    await payload.create({
-      collection: 'reports',
-      data: reportData,
-      overrideAccess: true,
+    const key = reportKey({
+      reporterId: actor.id,
+      targetType: target.kind,
+      targetId: String(target.id),
+      reason: scenario.reason,
     })
 
-    created += 1
+    if (seen.has(key)) {
+      tally.skipped += 1
+      continue
+    }
+
+    const createdAt = offsetIsoFromReference(referenceNow, scenario.referenceNowOffsetHours)
+    await payload.create({
+      collection: 'reports',
+      data: {
+        reporter: actor.id,
+        targetType: target.kind,
+        targetId: String(target.id),
+        targetLink: target.kind === 'link' ? target.id : undefined,
+        targetPost: target.kind === 'post' ? target.id : undefined,
+        reason: scenario.reason,
+        details: scenario.details,
+        status: 'pending',
+        createdAt,
+        updatedAt: createdAt,
+      },
+      user: actor,
+      overrideAccess: false,
+      depth: 0,
+    })
+
+    seen.add(key)
+    tally.created += 1
   }
 
-  console.log(`Seeded reports: ${created}`)
+  return tally
 }

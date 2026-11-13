@@ -3,9 +3,13 @@ import { Payload } from 'payload'
 import { faker } from '@faker-js/faker'
 
 export const createTestUser = async (payload: Payload) => {
-  const email = faker.internet.email()
+  // Usernames and emails are unique across the whole database, not just this
+  // run, so a faker-only value eventually collides against the accumulated test
+  // data and fails the suite intermittently.
+  const unique = faker.string.alphanumeric(12).toLowerCase()
+  const email = `${unique}-${faker.internet.email()}`
   const password = faker.internet.password()
-  const username = faker.internet.username()
+  const username = `${faker.internet.username()}-${unique}`
 
   const user = await payload.create({
     collection: 'users',

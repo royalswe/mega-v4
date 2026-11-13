@@ -2,6 +2,10 @@ import { Payload } from 'payload'
 import { describe, it, beforeAll, expect } from 'vitest'
 import { faker } from '@faker-js/faker'
 
+import {
+  MAIN_FEED_PUBLISH_UNAUTHORIZED_MESSAGE,
+  SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE,
+} from '@/lib/community/subfeeds'
 import { getTestPayload, getTestUser } from '../utils/test-user'
 import { createTestUser } from './helpers'
 
@@ -52,7 +56,15 @@ const createRichText = (text: string) => ({
   },
 })
 
-const createTestSubfeed = async (userId: number) => {
+interface TestSubfeedOpts {
+  owner?: number
+  moderators?: number[]
+  editors?: number[]
+  uploaders?: number[]
+  members?: number[]
+}
+
+const createTestSubfeed = async (userId: number, opts: TestSubfeedOpts = {}) => {
   const unique = faker.string.alphanumeric(8).toLowerCase()
 
   return payload.create({
@@ -61,8 +73,11 @@ const createTestSubfeed = async (userId: number) => {
       name: `Test SubFeed ${unique}`,
       slug: `test-subfeed-${unique}`,
       description: `Integration test subfeed ${unique}`,
-      moderators: [userId],
-      members: [userId],
+      ...(opts.owner !== undefined ? { owner: opts.owner } : {}),
+      moderators: opts.moderators ?? [userId],
+      editors: opts.editors ?? [],
+      uploaders: opts.uploaders ?? [],
+      members: opts.members ?? [userId],
     },
     draft: false,
     overrideAccess: true,
@@ -171,7 +186,7 @@ describe('SubFeed Targeting Integration', () => {
     ).rejects.toThrow('Posts in subfeed feed must include a subfeed relation')
   })
 
-  it('rejects creating a link in subfeed feed when author is not a member', async () => {
+  it('rejects creating a link in subfeed feed when author has no local publishing role', async () => {
     const owner = await getTestUser()
     const outsider = await createTestUser(payload)
     const subfeed = await createTestSubfeed(owner.id)
@@ -191,10 +206,10 @@ describe('SubFeed Targeting Integration', () => {
         draft: false,
         overrideAccess: true,
       }),
-    ).rejects.toThrow('You must join this subfeed before posting')
+    ).rejects.toThrow(SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE)
   })
 
-  it('rejects creating a post in subfeed feed when author is not a member', async () => {
+  it('rejects creating a post in subfeed feed when author has no local publishing role', async () => {
     const owner = await getTestUser()
     const outsider = await createTestUser(payload)
     const subfeed = await createTestSubfeed(owner.id)
@@ -213,7 +228,214 @@ describe('SubFeed Targeting Integration', () => {
         draft: false,
         overrideAccess: true,
       }),
-    ).rejects.toThrow('You must join this subfeed before posting')
+    ).rejects.toThrow(SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE)
+  })
+
+  it('rejects a joined member without a local publishing role creating SubFeed content', async () => {
+    const owner = await createTestUser(payload)
+    const joinedMember = await createTestUser(payload)
+    const subfeed = await createTestSubfeed(owner.id, {
+      members: [owner.id, joinedMember.id],
+    })
+
+    await expect(
+      payload.create({
+        collection: 'links',
+        data: {
+          title: `Joined Member Link ${faker.string.alphanumeric(10).toLowerCase()}`,
+          url: `https://example.com/joined-${faker.string.alphanumeric(10).toLowerCase()}`,
+          type: 'article',
+          user: joinedMember.id,
+          feed: 'subfeed',
+          subfeed: subfeed.id,
+          _status: 'published',
+        },
+        draft: false,
+        user: joinedMember,
+        overrideAccess: false,
+      }),
+    ).rejects.toThrow(SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE)
+
+    await expect(
+      payload.create({
+        collection: 'posts',
+        data: {
+          title: `Joined Member Post ${faker.string.alphanumeric(10).toLowerCase()}`,
+          content: createRichText(faker.lorem.sentence()),
+          type: 'discussion',
+          user: joinedMember.id,
+          feed: 'subfeed',
+          subfeed: subfeed.id,
+        },
+        draft: false,
+        user: joinedMember,
+        overrideAccess: false,
+      }),
+    ).rejects.toThrow(SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE)
+  })
+
+  it.each(['owner', 'moderator', 'editor', 'uploader'] as const)(
+    'lets a local %s publish links and posts to their SubFeed only',
+    async (role) => {
+      const owner = await createTestUser(payload)
+      const publisher = await createTestUser(payload)
+      const reader = await createTestUser(payload)
+
+      const roster: TestSubfeedOpts =
+        role === 'owner'
+          ? { owner: publisher.id, moderators: [owner.id], members: [owner.id, publisher.id] }
+          : role === 'moderator'
+            ? {
+                owner: owner.id,
+                moderators: [owner.id, publisher.id],
+                members: [owner.id, publisher.id],
+              }
+            : role === 'editor'
+              ? {
+                  owner: owner.id,
+                  moderators: [owner.id],
+                  editors: [publisher.id],
+                  members: [owner.id, publisher.id],
+                }
+              : {
+                  owner: owner.id,
+                  moderators: [owner.id],
+                  uploaders: [publisher.id],
+                  members: [owner.id, publisher.id],
+                }
+
+      const subfeed = await createTestSubfeed(owner.id, roster)
+      const unrelated = await createTestSubfeed(owner.id)
+
+      const link = await payload.create({
+        collection: 'links',
+        data: {
+          title: `Local ${role} Link ${faker.string.alphanumeric(10).toLowerCase()}`,
+          url: `https://example.com/local-${faker.string.alphanumeric(10).toLowerCase()}`,
+          type: 'article',
+          user: publisher.id,
+          feed: 'subfeed',
+          subfeed: subfeed.id,
+          _status: 'published',
+        },
+        draft: false,
+        user: publisher,
+        overrideAccess: false,
+      })
+
+      const post = await payload.create({
+        collection: 'posts',
+        data: {
+          title: `Local ${role} Post ${faker.string.alphanumeric(10).toLowerCase()}`,
+          content: createRichText(faker.lorem.sentence()),
+          type: 'discussion',
+          user: publisher.id,
+          feed: 'subfeed',
+          subfeed: subfeed.id,
+        },
+        draft: false,
+        user: publisher,
+        overrideAccess: false,
+      })
+
+      expect(link.feed).toBe('subfeed')
+      expect(link._status).toBe('published')
+      expect(post.feed).toBe('subfeed')
+      expect(post.status).toBe('published')
+
+      // The freshly published items are publicly readable.
+      const publicLinks = await payload.find({
+        collection: 'links',
+        where: { id: { equals: link.id } },
+        user: reader,
+        overrideAccess: false,
+      })
+      expect(publicLinks.docs).toHaveLength(1)
+
+      const publicPosts = await payload.find({
+        collection: 'posts',
+        where: { id: { equals: post.id } },
+        user: reader,
+        overrideAccess: false,
+      })
+      expect(publicPosts.docs).toHaveLength(1)
+
+      // Local authority does not leak into unrelated SubFeeds.
+      await expect(
+        payload.create({
+          collection: 'links',
+          data: {
+            title: `Cross SubFeed ${faker.string.alphanumeric(10).toLowerCase()}`,
+            url: `https://example.com/cross-${faker.string.alphanumeric(10).toLowerCase()}`,
+            type: 'article',
+            user: publisher.id,
+            feed: 'subfeed',
+            subfeed: unrelated.id,
+            _status: 'published',
+          },
+          draft: false,
+          user: publisher,
+          overrideAccess: false,
+        }),
+      ).rejects.toThrow(SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE)
+
+      // Local authority never grants Main Feed publishing.
+      await expect(
+        payload.create({
+          collection: 'posts',
+          data: {
+            title: `Local Main ${faker.string.alphanumeric(10).toLowerCase()}`,
+            content: createRichText(faker.lorem.sentence()),
+            type: 'discussion',
+            user: publisher.id,
+            feed: 'main',
+          },
+          draft: false,
+          user: publisher,
+          overrideAccess: false,
+        }),
+      ).rejects.toThrow(MAIN_FEED_PUBLISH_UNAUTHORIZED_MESSAGE)
+    },
+  )
+
+  it('persists moving a SubFeed link out to the Main Feed', async () => {
+    const owner = await createTestUser(payload)
+    const uploader = await createTestUser(payload)
+    const sitePublisher = await getTestUser()
+    const subfeed = await createTestSubfeed(owner.id, {
+      uploaders: [uploader.id],
+      members: [owner.id, uploader.id],
+    })
+
+    const link = await payload.create({
+      collection: 'links',
+      data: {
+        title: `Move Out Link ${faker.string.alphanumeric(10).toLowerCase()}`,
+        url: `https://example.com/move-out-${faker.string.alphanumeric(10).toLowerCase()}`,
+        type: 'article',
+        user: uploader.id,
+        feed: 'subfeed',
+        subfeed: subfeed.id,
+        _status: 'published',
+      },
+      draft: false,
+      user: uploader,
+      overrideAccess: false,
+    })
+    expect(link.feed).toBe('subfeed')
+
+    // `subfeed` is omitted deliberately: the destination change must detach it.
+    const moved = await payload.update({
+      collection: 'links',
+      id: link.id,
+      data: { feed: 'main' },
+      user: sitePublisher,
+      overrideAccess: false,
+      depth: 0,
+    })
+
+    expect(moved.feed).toBe('main')
+    expect(moved.subfeed).toBeNull()
   })
 
   it('allows subfeed moderator to edit subfeed profile fields', async () => {

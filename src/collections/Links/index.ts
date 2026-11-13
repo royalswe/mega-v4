@@ -15,8 +15,10 @@ import {
   canManageSubmittedLinks,
   canModerateCommunity,
   canModerateSubfeedContent,
-  canSubmitToSubfeed,
+  enforceContentPublishingPolicy,
   enforceSubfeedContentTargetAccess,
+  normalizeContentDestination,
+  recordDraftIntent,
 } from '@/lib/community/subfeeds'
 import type { SubfeedRosterLike } from '@/lib/community/subfeeds'
 import { createDiscoveryBoostEnforcementHook } from '@/lib/community/discoveryBoostHook'
@@ -222,7 +224,17 @@ const deleteAccess: Access = async ({ req, id }) => {
 
 const prepareLink: CollectionBeforeValidateHook = async ({ data, operation, req, originalDoc }) => {
   if (req?.context?.skipHooks) return data
-  const nextData = { ...data }
+
+  const nextData = await enforceContentPublishingPolicy({
+    data: normalizeContentDestination({ data, operation, originalDoc }),
+    operation,
+    originalDoc,
+    req,
+    messages: {
+      missingRelation: 'Links in subfeed feed must include a subfeed relation',
+      missingAuthor: 'Links in subfeed feed must include a valid author',
+    },
+  })
 
   if (typeof nextData?.title === 'string' && nextData.title.length > 0) {
     const preferredSlugSource =
@@ -238,46 +250,29 @@ const prepareLink: CollectionBeforeValidateHook = async ({ data, operation, req,
     })
   }
 
-  if (nextData?.subfeed && (nextData.feed ?? originalDoc?.feed) !== 'subfeed') {
-    nextData.feed = 'subfeed'
-  }
-
-  const effectiveFeed = nextData.feed !== undefined ? nextData.feed : originalDoc?.feed
-  const effectiveSubfeed = nextData.subfeed !== undefined ? nextData.subfeed : originalDoc?.subfeed
-
-  if (effectiveFeed === 'subfeed') {
-    const subfeedId = resolveID(effectiveSubfeed)
-    if (!subfeedId) {
-      if (operation === 'create') {
-        throw new Error('Links in subfeed feed must include a subfeed relation')
-      }
-      nextData.feed = 'user'
-    } else if (!canModerateCommunity(req.user)) {
-      const authorId =
-        resolveID(nextData.user !== undefined ? nextData.user : originalDoc?.user) ??
-        req.user?.id ??
-        null
-
-      if (!authorId) {
-        throw new Error('Links in subfeed feed must include a valid author')
-      }
-
-      const subfeed = await req.payload.findByID({
-        collection: 'subfeeds',
-        id: subfeedId,
-        depth: 0,
-        overrideAccess: true,
-        req,
-      })
-
-      if (!canSubmitToSubfeed(subfeed, authorId)) {
-        throw new Error('You must join this subfeed before posting')
-      }
-    }
-  }
-
   if (operation === 'create' && typeof nextData?.softDeleted !== 'boolean') {
     nextData.softDeleted = false
+  }
+
+  // Authors without publishing authority cannot change the persisted
+  // publication state (e.g. flipping a historical or moderator-unpublished
+  // draft back to published).
+  if (operation === 'update' && req.user && !canManageSubmittedLinks(req.user)) {
+    nextData._status = originalDoc?._status
+  }
+
+  // Personal-first publishing: permitted creations go live immediately. An
+  // explicit draft request is captured by `recordDraftIntent` before Payload's
+  // `_status` default ('draft') makes intent indistinguishable from the
+  // machinery's own fallback.
+  if (
+    operation === 'create' &&
+    req.user &&
+    !req.context?.explicitDraftIntent &&
+    req.context?.forcePending !== true &&
+    (nextData._status === undefined || nextData._status === 'draft')
+  ) {
+    nextData._status = 'published'
   }
 
   return nextData
@@ -328,9 +323,7 @@ const grantEditorialPriority: CollectionBeforeChangeHook = async ({
   return {
     ...data,
     editorialPriority: true,
-    editorialPriorityUntil: new Date(
-      Date.now() + EDITORIAL_PRIORITY_DURATION_MS,
-    ).toISOString(),
+    editorialPriorityUntil: new Date(Date.now() + EDITORIAL_PRIORITY_DURATION_MS).toISOString(),
   }
 }
 
@@ -363,6 +356,7 @@ const syncDerivedSignals: CollectionBeforeChangeHook = ({ data, originalDoc }) =
     discoveryMomentum: clickCount * 0.35,
     editorialPriority,
     editorialPriorityUntil,
+    feed: data.feed ?? originalDoc?.feed,
   })
 
   const score = upvotes - downvotes
@@ -413,8 +407,13 @@ export const Links: CollectionConfig = {
     },
   },
   hooks: {
+    beforeOperation: [recordDraftIntent],
     beforeValidate: [enforceSubfeedContentTargetAccess, prepareLink],
-    beforeChange: [createDiscoveryBoostEnforcementHook(), grantEditorialPriority, syncDerivedSignals],
+    beforeChange: [
+      createDiscoveryBoostEnforcementHook(),
+      grantEditorialPriority,
+      syncDerivedSignals,
+    ],
     beforeDelete: [deleteRelatedLinkClicks],
   },
   fields: [
@@ -476,7 +475,7 @@ export const Links: CollectionConfig = {
     {
       name: 'feed',
       type: 'select',
-      defaultValue: 'main',
+      defaultValue: 'user',
       options: [
         {
           label: 'Main Feed',
@@ -631,6 +630,10 @@ export const Links: CollectionConfig = {
       name: 'featured',
       type: 'checkbox',
       defaultValue: false,
+      access: {
+        create: ({ req: { user } }) => canManageSubmittedLinks(user),
+        update: ({ req: { user } }) => canManageSubmittedLinks(user),
+      },
     },
     {
       name: 'breaking',
