@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Menu } from 'lucide-react'
+import { ServerIcon, MENU } from '@/components/ui/ServerIcon'
 
 import { logout } from '@/app/actions/auth'
 import { Button } from '@/components/ui/button'
@@ -51,7 +51,7 @@ export async function Header() {
           <LanguageSelector currentLang={lang} />
           <details className="relative">
             <summary className="flex size-9 cursor-pointer list-none items-center justify-center rounded-md border bg-muted/40 text-muted-foreground [&::-webkit-details-marker]:hidden">
-              <Menu className="size-4" aria-hidden="true" />
+              <ServerIcon icon={MENU} className="size-4" aria-hidden="true" />
               <span className="sr-only">Open menu</span>
             </summary>
             <div className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-md border bg-background p-3 shadow-md">

@@ -39,6 +39,7 @@ export function CommentForm({
   dict: AppDictionary
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [editorResetKey, setEditorResetKey] = useState(0)
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -56,6 +57,9 @@ export function CommentForm({
       }
       toast.success(dict.common.commentAdded)
       form.reset()
+      // The RichTextEditor captures its Lexical state at mount and ignores
+      // later `initialValue` changes, so remount it to clear the text.
+      setEditorResetKey((key) => key + 1)
     } catch (error) {
       console.error(error)
       toast.error(dict.common.failedToAddComment)
@@ -87,6 +91,7 @@ export function CommentForm({
               <FormLabel>{dict.common.addComment}</FormLabel>
               <FormControl>
                 <RichTextEditor
+                  key={editorResetKey}
                   placeholder="What are your thoughts?"
                   onChange={field.onChange}
                   initialValue={field.value}

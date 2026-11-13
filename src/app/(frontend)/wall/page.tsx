@@ -9,17 +9,22 @@ import { getAuthenticatedUser } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 
 import { BookmarksFilter } from '@/components/links/BookmarksFilter'
+import { LazyFeedLoader } from '@/components/links/LazyFeedLoader.client'
+import { FEED_MAX_PAGES, FEED_PAGE_SIZE, parseFeedPage } from '@/app/(frontend)/data/feedPaging'
+import type { Subfeed, User } from '@/payload-types'
 
 export default async function WallPage({
   searchParams,
 }: {
-  searchParams: Promise<{ bookmarks?: string }>
+  searchParams: Promise<{ bookmarks?: string; page?: string }>
 }) {
   const { user, payload } = await getAuthenticatedUser()
 
   // Use optional chaining for safe access
   const showNSFW = user?.settings?.nsfw === true
-  const showBookmarksOnly = (await searchParams)?.bookmarks === 'true'
+  const resolvedSearchParams = (await searchParams) ?? {}
+  const showBookmarksOnly = resolvedSearchParams?.bookmarks === 'true'
+  const feedPage = parseFeedPage(resolvedSearchParams?.page)
 
   const andFilters: Where[] = [
     {
@@ -72,18 +77,103 @@ export default async function WallPage({
 
   const where: Where = andFilters.length > 0 ? { and: andFilters } : {}
 
-  const { docs: posts } = await payload.find({
+  const feed = await payload.find({
     collection: 'posts',
     where,
     sort: '-rankingScore',
-    limit: 100, // Add reasonable limit and implement pagination
+    limit: feedPage * FEED_PAGE_SIZE,
+    // Card-level relations (subfeed chip, author username) are hydrated with
+    // two targeted queries below instead of deep population.
+    depth: 0,
+    select: {
+      id: true,
+      votes: true,
+      title: true,
+      content: true,
+      type: true,
+      feed: true,
+      subfeed: true,
+      user: true,
+      editorialPriority: true,
+      editorialPriorityUntil: true,
+      commentsCount: true,
+      createdAt: true,
+      updatedAt: true,
+      nsfw: true,
+    },
     user: user || undefined,
     overrideAccess: false,
   })
+  const postDocs = feed.docs
+
+  const subfeedIdsOnPosts = Array.from(
+    new Set(postDocs.map((post) => (typeof post.subfeed === 'number' ? post.subfeed : null))),
+  ).filter((id): id is number => id !== null)
+
+  const userIdsOnPosts = Array.from(
+    new Set(postDocs.map((post) => (typeof post.user === 'number' ? post.user : null))),
+  ).filter((id): id is number => id !== null)
+
+  const [postSubfeeds, postUsers] = await Promise.all([
+    subfeedIdsOnPosts.length > 0
+      ? payload.find({
+          collection: 'subfeeds',
+          where: {
+            id: {
+              in: subfeedIdsOnPosts,
+            },
+          },
+          depth: 0,
+          limit: subfeedIdsOnPosts.length,
+          select: { name: true, slug: true },
+          overrideAccess: false,
+        })
+      : Promise.resolve({ docs: [] as Subfeed[] }),
+    userIdsOnPosts.length > 0
+      ? payload.find({
+          collection: 'users',
+          where: {
+            id: {
+              in: userIdsOnPosts,
+            },
+          },
+          depth: 0,
+          limit: userIdsOnPosts.length,
+          select: { username: true },
+          overrideAccess: false,
+        })
+      : Promise.resolve({ docs: [] as User[] }),
+  ])
+
+  // PostCard only reads `name` and `slug` from the subfeed object, and
+  // `username` from the author. Cast the selected docs to the full entity
+  // types to satisfy the card props without fetching entire rosters.
+  const subfeedById = new Map<number, Subfeed>(
+    postSubfeeds.docs.map((subfeed) => [subfeed.id, subfeed as Subfeed]),
+  )
+  const userById = new Map<number, User>(
+    postUsers.docs.map((author) => [author.id, author as User]),
+  )
+
+  const posts = postDocs.map((post) => ({
+    ...post,
+    subfeed:
+      typeof post.subfeed === 'number'
+        ? (subfeedById.get(post.subfeed) ?? post.subfeed)
+        : post.subfeed,
+    user: typeof post.user === 'number' ? (userById.get(post.user) ?? post.user) : post.user,
+  }))
 
   // Fetch user interactions (votes/bookmarks)
   const postIds = posts.map((post) => post.id)
   const { votes, bookmarks } = await getPostInteractions(user, postIds)
+
+  // Lazy feed paging (same contract as the Home feed).
+  const hasMorePosts = feed.totalDocs > postDocs.length && feedPage < FEED_MAX_PAGES
+  const nextPageQuery = new URLSearchParams()
+  if (resolvedSearchParams?.bookmarks) nextPageQuery.set('bookmarks', resolvedSearchParams.bookmarks)
+  nextPageQuery.set('page', String(feedPage + 1))
+  const nextFeedHref = `/wall?${nextPageQuery.toString()}`
 
   return (
     <div className="space-y-4">
@@ -100,16 +190,21 @@ export default async function WallPage({
       </div>
       <div className="flex flex-col gap-4">
         {posts.length > 0 ? (
-          posts.map((post) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              userId={user?.id}
-              userVote={votes[post.id]}
-              isBookmarked={bookmarks[post.id]}
-              className={post.nsfw ? 'nsfw-text' : ''}
-            />
-          ))
+          <>
+            {posts.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                userId={user?.id}
+                userVote={votes[post.id]}
+                isBookmarked={bookmarks[post.id]}
+                className={post.nsfw ? 'nsfw-text' : ''}
+              />
+            ))}
+            {hasMorePosts ? (
+              <LazyFeedLoader nextHref={nextFeedHref} pendingLabel="Loading more…" />
+            ) : null}
+          </>
         ) : (
           <p className="text-muted-foreground text-center py-8">
             {showBookmarksOnly

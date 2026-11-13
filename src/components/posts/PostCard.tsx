@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Card, CardTitle } from '@/components/ui/card'
-import { MessageCircle } from 'lucide-react'
+import { ServerIcon, MESSAGE_CIRCLE } from '@/components/ui/ServerIcon'
 import { VoteButtons } from '@/components/posts/VoteButtons'
 import { BookmarkButton } from '@/components/posts/BookmarkButton'
 import { getDictionary } from '@/lib/dictionaries'
@@ -59,8 +59,8 @@ export async function PostCard({
             </span>
           ) : null}
           <Link href={`/post/${post.id}`} className="flex items-center hover:underline">
-            <MessageCircle className="w-4 h-4 mr-1" />
-            {post.relatedComments?.docs?.length || 0} {dict.common.comments}
+            <ServerIcon icon={MESSAGE_CIRCLE} className="w-4 h-4 mr-1" />
+            {post.commentsCount || 0} {dict.common.comments}
           </Link>
           <BookmarkButton
             postId={post.id}

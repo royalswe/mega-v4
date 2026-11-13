@@ -56,6 +56,7 @@ export function PostSubmitForm({
   onCancel?: () => void
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [editorResetKey, setEditorResetKey] = useState(0)
   const [lastOutcome, setLastOutcome] = useState<SubmissionOutcome | null>(null)
   const [submitErrorMessage, setSubmitErrorMessage] = useState<string | null>(null)
 
@@ -126,6 +127,9 @@ export function PostSubmitForm({
         feed: defaultFeed ?? 'user',
         subfeedId: defaultSubfeedId ? String(defaultSubfeedId) : '',
       })
+      // The RichTextEditor captures its Lexical state at mount and ignores
+      // later `initialValue` changes, so remount it to clear the content.
+      setEditorResetKey((key) => key + 1)
 
       if (outcome.isPublic) {
         toast.success(outcomeCopy.title)
@@ -187,6 +191,7 @@ export function PostSubmitForm({
                   <FormLabel>{dict.postForm.contentLabel}</FormLabel>
                   <FormControl>
                     <RichTextEditor
+                      key={editorResetKey}
                       placeholder={dict.postForm.contentPlaceholder}
                       onChange={field.onChange}
                       initialValue={field.value}

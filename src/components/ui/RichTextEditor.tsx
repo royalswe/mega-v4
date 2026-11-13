@@ -27,7 +27,7 @@ const theme = {
   ltr: 'ltr',
   rtl: 'rtl',
   placeholder: 'editor-placeholder',
-  paragraph: 'mb-2',
+  paragraph: 'mb-3',
   quote: 'border-l-4 border-muted pl-4 italic mb-2',
   heading: {
     h1: 'text-2xl font-bold mb-3',

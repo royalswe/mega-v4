@@ -9,6 +9,11 @@ vi.mock('@/lib/auth', () => ({ getAuthenticatedUser: vi.fn() }))
 vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({ get: () => undefined })),
 }))
+// Run `after()` callbacks synchronously so the sweep call and its error
+// handling stay assertable in this direct-render test environment.
+vi.mock('next/server', () => ({
+  after: vi.fn((callback: () => void) => callback()),
+}))
 vi.mock('@/lib/community/editorialPriority', () => ({ expireEditorialPriority: vi.fn() }))
 
 describe('Home maintenance isolation', () => {

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Card, CardTitle } from '@/components/ui/card'
-import { MessageCircle, Eye, ExternalLink } from 'lucide-react'
+import { ServerIcon, MESSAGE_CIRCLE, EYE, EXTERNAL_LINK } from '@/components/ui/ServerIcon'
 import { VoteButtons } from '@/components/links/VoteButtons'
 import { BookmarkButton } from '@/components/links/BookmarkButton'
 import { LinkIcon } from '@/components/links/LinkIcon'
@@ -78,7 +78,7 @@ export async function LinkCard({
                 rel="noopener noreferrer"
                 className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
               >
-                <ExternalLink className="size-3" aria-hidden="true" />
+                <ServerIcon icon={EXTERNAL_LINK} className="size-3" aria-hidden="true" />
                 <span className="truncate max-w-[16rem]">{hostname}</span>
               </a>
             ) : null}
@@ -118,11 +118,11 @@ export async function LinkCard({
             </span>
           ) : null}
           <Link href={`/link/${link.id}`} className="flex items-center hover:underline">
-            <MessageCircle className="mr-1 h-4 w-4" />
-            {link.relatedComments?.docs?.length || 0} {dict.common.comments}
+            <ServerIcon icon={MESSAGE_CIRCLE} className="mr-1 h-4 w-4" />
+            {link.commentsCount || 0} {dict.common.comments}
           </Link>
           <div className="flex items-center gap-1">
-            <Eye className="h-4 w-4" />
+            <ServerIcon icon={EYE} className="h-4 w-4" />
             <span>{link.clickCount || 0}</span>
           </div>
           <BookmarkButton

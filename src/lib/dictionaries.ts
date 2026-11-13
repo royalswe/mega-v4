@@ -1,5 +1,6 @@
 import type { User } from '@/payload-types'
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 import { getAuthenticatedUser } from './auth'
 
 export type UserLanguage = NonNullable<NonNullable<User['settings']>['language']>
@@ -65,6 +66,7 @@ const dictionaries = {
       },
       noBookmarks: 'No bookmarks found',
       noLinks: 'No links found',
+      loadingMore: 'Loading more…',
       submittedTitle: 'All Submitted Links',
       contribute: {
         memberTitle: 'Add to your feed',
@@ -521,6 +523,7 @@ const dictionaries = {
       },
       noBookmarks: 'Inga bokmärken hittades',
       noLinks: 'Inga länkar hittades',
+      loadingMore: 'Laddar fler…',
       submittedTitle: 'Alla inskickade länkar',
       contribute: {
         memberTitle: 'Lägg till i ditt flöde',
@@ -923,7 +926,9 @@ const dictionaries = {
 
 export type AppDictionary = (typeof dictionaries)['en']
 
-export const getDictionary = async () => {
+// Wrapped in `React.cache` so the 100+ card components in a feed share one
+// auth + cookie read per request instead of each hitting the database.
+export const getDictionary = cache(async () => {
   const { user } = await getAuthenticatedUser()
   const cookieStore = await cookies()
 
@@ -937,4 +942,4 @@ export const getDictionary = async () => {
     dict: dictionaries[lang] || dictionaries.en,
     lang: lang as UserLanguage,
   }
-}
+})

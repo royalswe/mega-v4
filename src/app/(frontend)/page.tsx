@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic' // This stops the build-time DB check
 
 import Link from 'next/link'
+import { after } from 'next/server'
 import { cookies } from 'next/headers'
 import type { Where } from 'payload'
 
@@ -13,11 +14,16 @@ import { FeedMixFilter } from '@/components/links/FeedMixFilter'
 import { HomeContributeCard } from '@/components/links/HomeContributeCard.client'
 import { MainFeedHighlights } from '@/components/links/MainFeedHighlights'
 import { ReorderAwareList } from '@/components/links/ReorderAwareList.client'
-import { readRelationshipIds, getPublishingDestinationEligibility } from '@/lib/community/subfeeds'
-import type { Subfeed } from '@/payload-types'
+import {
+  getPublishingDestinationEligibility,
+  loadPublishingDestinationEligibility,
+} from '@/lib/community/subfeeds'
+import type { Link as LinkType, Subfeed, User } from '@/payload-types'
 import { checkRole } from '@/access/checkRole'
 import { MAIN_FEED_PROMOTION_THRESHOLD, buildMainFeedWhere } from '@/lib/community/promotion'
 import { expireEditorialPriority } from '@/lib/community/editorialPriority'
+import { FEED_MAX_PAGES, FEED_PAGE_SIZE, parseFeedPage } from '@/app/(frontend)/data/feedPaging'
+import { LazyFeedLoader } from '@/components/links/LazyFeedLoader.client'
 
 type FeedSignal = 'trending' | 'subfeeds' | 'discussions'
 type FeedMode = 'best' | 'new' | 'rising'
@@ -66,19 +72,26 @@ export default async function HomePage({
     mixSubfeeds?: string
     signal?: string
     mode?: string
+    page?: string
   }>
 }) {
   const { user, payload } = await getAuthenticatedUser()
   const { dict, lang } = await getDictionary()
   const cookieStore = await cookies()
   const resolvedSearchParams = await searchParams
+  const feedPage = parseFeedPage(resolvedSearchParams?.page)
 
   // Bobhund #1: a lapsed editorial window must stop boosting ranking order.
-  try {
-    await expireEditorialPriority({ payload })
-  } catch (error) {
-    payload.logger.error({ err: error, msg: 'Failed to expire editorial priority on Home feed' })
-  }
+  // The sweep runs after the response (`after`): a large expiry backlog (it
+  // costs ~5 queries per expired item) never blocks a visitor's render.
+  // Ranking already treats expired windows as inactive at read time — the
+  // sweep only persists that state, so deferring it costs seconds of
+  // ordering staleness, not correctness.
+  after(() => {
+    expireEditorialPriority({ payload }).catch((error: unknown) => {
+      payload.logger.error({ err: error, msg: 'Failed to expire editorial priority on Home feed' })
+    })
+  })
 
   const showNSFW = user?.settings?.nsfw === true
   const showBookmarksOnly = resolvedSearchParams?.bookmarks === 'true'
@@ -230,23 +243,29 @@ export default async function HomePage({
   }
 
   let joinedSubfeedIds: number[] = []
-  let allSubfeeds: Subfeed[] = []
+  let publishingEligibility = getPublishingDestinationEligibility(user, [])
 
   if (user) {
-    const { docs: subfeeds } = await payload.find({
+    // Membership lookup targeted at the current user. The previous approach
+    // fetched every subfeed (limit 500) with its member roster on each render
+    // just to derive the joined IDs.
+    const { docs: joinedDocs } = await payload.find({
       collection: 'subfeeds',
-      sort: 'name',
+      where: {
+        members: {
+          in: [user.id],
+        },
+      },
       depth: 0,
       limit: 500,
+      select: { name: true }, // `id` is always returned; this keeps member rosters unread
       user,
       overrideAccess: false,
     })
 
-    allSubfeeds = subfeeds
+    joinedSubfeedIds = joinedDocs.map((subfeed) => subfeed.id)
 
-    joinedSubfeedIds = subfeeds
-      .filter((subfeed) => readRelationshipIds(subfeed.members).includes(user.id))
-      .map((subfeed) => subfeed.id)
+    publishingEligibility = await loadPublishingDestinationEligibility(payload, user)
 
     if (includeSubfeeds && joinedSubfeedIds.length > 0) {
       andFilters.push({
@@ -282,6 +301,7 @@ export default async function HomePage({
       sort: 'name',
       depth: 0,
       limit: 200,
+      select: { name: true },
       user,
       overrideAccess: false,
     })
@@ -344,26 +364,83 @@ export default async function HomePage({
         overrideAccess: false as const,
       }
 
-  const { docs: links } = await payload.find({
+  const feed = await payload.find({
     collection: 'links',
     where,
     sort: modeSortBy[mode],
-    limit: 100,
+    limit: feedPage * FEED_PAGE_SIZE,
+    // Card-level relations (subfeed chip, author username) are hydrated with
+    // two targeted queries below. Default depth would populate each link's
+    // subfeed roster and comments — hundreds of rows per feed render.
+    depth: 0,
+    select: {
+      id: true,
+      votes: true,
+      url: true,
+      title: true,
+      type: true,
+      description: true,
+      feed: true,
+      subfeed: true,
+      user: true,
+      clickCount: true,
+      nsfw: true,
+      editorialPriority: true,
+      editorialPriorityUntil: true,
+      commentsCount: true,
+      createdAt: true,
+      updatedAt: true,
+    },
     ...withAccess,
   })
+  const linkDocs = feed.docs
 
-  const { docs: discoverSubfeeds } = await payload.find({
-    collection: 'subfeeds',
-    sort: '-reputation',
-    limit: 12,
-    depth: 1,
-    ...withAccess,
-  })
+  // Sidebar subfeeds: discover (top reputation) + joined. `select` keeps member
+  // rosters out of the result so the subfeed relationship tables are not read
+  // for every doc; `depth: 1` only populates the avatar media.
+  const subfeedSelect = {
+    name: true,
+    slug: true,
+    avatar: true,
+    reputation: true,
+    featured: true,
+  } as const
 
-  const discoverSubfeedIds = discoverSubfeeds.map((subfeed) => subfeed.id)
+  const [discoverSubfeeds, joinedSubfeeds] = await Promise.all([
+    payload.find({
+      collection: 'subfeeds',
+      sort: '-reputation',
+      limit: 12,
+      depth: 1,
+      select: subfeedSelect,
+      ...withAccess,
+    }),
+    user && joinedSubfeedIds.length > 0
+      ? payload.find({
+          collection: 'subfeeds',
+          where: {
+            id: {
+              in: joinedSubfeedIds,
+            },
+          },
+          sort: '-reputation',
+          limit: 30,
+          depth: 1,
+          select: subfeedSelect,
+          ...withAccess,
+        })
+      : Promise.resolve({ docs: [] as Subfeed[] }),
+  ])
 
-  const [discoverLinks, discoverPosts] =
-    discoverSubfeedIds.length > 0
+  // "Activity today" per subfeed: one links query + one posts query covering
+  // both sidebar groups, bucketed in memory (previously four separate
+  // thousand-row fetches).
+  const activitySubfeedIds = Array.from(
+    new Set([...discoverSubfeeds.docs.map((subfeed) => subfeed.id), ...joinedSubfeedIds]),
+  )
+
+  const [activityLinks, activityPosts] =
+    activitySubfeedIds.length > 0
       ? await Promise.all([
           payload.find({
             collection: 'links',
@@ -376,7 +453,7 @@ export default async function HomePage({
                 },
                 {
                   subfeed: {
-                    in: discoverSubfeedIds,
+                    in: activitySubfeedIds,
                   },
                 },
                 {
@@ -412,7 +489,7 @@ export default async function HomePage({
                 },
                 {
                   subfeed: {
-                    in: discoverSubfeedIds,
+                    in: activitySubfeedIds,
                   },
                 },
                 {
@@ -433,28 +510,33 @@ export default async function HomePage({
             ...withAccess,
           }),
         ])
-      : [{ docs: [] }, { docs: [] }]
+      : [
+          { docs: [] as Array<Pick<LinkType, 'subfeed'>> },
+          { docs: [] as Array<Pick<LinkType, 'subfeed'>> },
+        ]
 
-  const discoverLinkCounts = new Map<number, number>()
-  for (const link of discoverLinks.docs) {
-    if (typeof link.subfeed !== 'number') continue
-    discoverLinkCounts.set(link.subfeed, (discoverLinkCounts.get(link.subfeed) ?? 0) + 1)
+  const linksTodayBySubfeed = new Map<number, number>()
+  for (const doc of activityLinks.docs) {
+    if (typeof doc.subfeed === 'number') {
+      linksTodayBySubfeed.set(doc.subfeed, (linksTodayBySubfeed.get(doc.subfeed) ?? 0) + 1)
+    }
   }
 
-  const discoverPostCounts = new Map<number, number>()
-  for (const post of discoverPosts.docs) {
-    if (typeof post.subfeed !== 'number') continue
-    discoverPostCounts.set(post.subfeed, (discoverPostCounts.get(post.subfeed) ?? 0) + 1)
+  const postsTodayBySubfeed = new Map<number, number>()
+  for (const doc of activityPosts.docs) {
+    if (typeof doc.subfeed === 'number') {
+      postsTodayBySubfeed.set(doc.subfeed, (postsTodayBySubfeed.get(doc.subfeed) ?? 0) + 1)
+    }
   }
 
-  const trendingSubfeeds = discoverSubfeeds
+  const activityToday = (subfeedId: number) =>
+    (linksTodayBySubfeed.get(subfeedId) ?? 0) + (postsTodayBySubfeed.get(subfeedId) ?? 0)
+
+  const trendingSubfeeds = discoverSubfeeds.docs
     .map((subfeed) => {
-      const linksToday = discoverLinkCounts.get(subfeed.id) ?? 0
-      const postsToday = discoverPostCounts.get(subfeed.id) ?? 0
-
       return {
         subfeed,
-        activityToday: linksToday + postsToday,
+        activityToday: activityToday(subfeed.id),
       }
     })
     .sort((a, b) => {
@@ -469,115 +551,11 @@ export default async function HomePage({
       return (b.subfeed.reputation ?? 0) - (a.subfeed.reputation ?? 0)
     })
 
-  const { docs: joinedSubfeeds } =
-    user && joinedSubfeedIds.length > 0
-      ? await payload.find({
-          collection: 'subfeeds',
-          where: {
-            id: {
-              in: joinedSubfeedIds,
-            },
-          },
-          sort: '-reputation',
-          limit: 30,
-          depth: 1,
-          ...withAccess,
-        })
-      : { docs: [] }
-
-  const [joinedLinks, joinedPosts] =
-    joinedSubfeedIds.length > 0
-      ? await Promise.all([
-          payload.find({
-            collection: 'links',
-            where: {
-              and: [
-                {
-                  feed: {
-                    equals: 'subfeed',
-                  },
-                },
-                {
-                  subfeed: {
-                    in: joinedSubfeedIds,
-                  },
-                },
-                {
-                  _status: {
-                    equals: 'published',
-                  },
-                },
-                {
-                  softDeleted: {
-                    not_equals: true,
-                  },
-                },
-                {
-                  createdAt: {
-                    greater_than_equal: dayAgo,
-                  },
-                },
-              ],
-            },
-            limit: 1000,
-            depth: 0,
-            select: { subfeed: true },
-            ...withAccess,
-          }),
-          payload.find({
-            collection: 'posts',
-            where: {
-              and: [
-                {
-                  feed: {
-                    equals: 'subfeed',
-                  },
-                },
-                {
-                  subfeed: {
-                    in: joinedSubfeedIds,
-                  },
-                },
-                {
-                  status: {
-                    equals: 'published',
-                  },
-                },
-                {
-                  createdAt: {
-                    greater_than_equal: dayAgo,
-                  },
-                },
-              ],
-            },
-            limit: 1000,
-            depth: 0,
-            select: { subfeed: true },
-            ...withAccess,
-          }),
-        ])
-      : [{ docs: [] }, { docs: [] }]
-
-  const joinedLinkCounts = new Map<number, number>()
-  for (const link of joinedLinks.docs) {
-    if (typeof link.subfeed !== 'number') continue
-    joinedLinkCounts.set(link.subfeed, (joinedLinkCounts.get(link.subfeed) ?? 0) + 1)
-  }
-
-  const joinedPostCounts = new Map<number, number>()
-  for (const post of joinedPosts.docs) {
-    if (typeof post.subfeed !== 'number') continue
-    joinedPostCounts.set(post.subfeed, (joinedPostCounts.get(post.subfeed) ?? 0) + 1)
-  }
-
-  const joinedSubfeedsSidebar = joinedSubfeeds
+  const joinedSubfeedsSidebar = joinedSubfeeds.docs
     .map((subfeed) => {
-      const linksToday = joinedLinkCounts.get(subfeed.id) ?? 0
-      const postsToday = joinedPostCounts.get(subfeed.id) ?? 0
-
       return {
         subfeed,
-        activityToday: linksToday + postsToday,
+        activityToday: activityToday(subfeed.id),
       }
     })
     .sort((a, b) => b.activityToday - a.activityToday)
@@ -783,19 +761,89 @@ export default async function HomePage({
     )
   }
 
+  // Hydrate the card-level relations the feed renders (subfeed chip, author
+  // username) with two targeted queries instead of deep population.
+  const subfeedIdsOnLinks = Array.from(
+    new Set(linkDocs.map((link) => (typeof link.subfeed === 'number' ? link.subfeed : null))),
+  ).filter((id): id is number => id !== null)
+
+  const userIdsOnLinks = Array.from(
+    new Set(linkDocs.map((link) => (typeof link.user === 'number' ? link.user : null))),
+  ).filter((id): id is number => id !== null)
+
+  const [linkSubfeeds, linkUsers] = await Promise.all([
+    subfeedIdsOnLinks.length > 0
+      ? payload.find({
+          collection: 'subfeeds',
+          where: {
+            id: {
+              in: subfeedIdsOnLinks,
+            },
+          },
+          depth: 1, // avatar (media) for the subfeed chip
+          limit: subfeedIdsOnLinks.length,
+          select: { name: true, slug: true, avatar: true },
+          overrideAccess: false,
+        })
+      : Promise.resolve({ docs: [] as Subfeed[] }),
+    userIdsOnLinks.length > 0
+      ? payload.find({
+          collection: 'users',
+          where: {
+            id: {
+              in: userIdsOnLinks,
+            },
+          },
+          depth: 0,
+          limit: userIdsOnLinks.length,
+          select: { username: true },
+          overrideAccess: false,
+        })
+      : Promise.resolve({ docs: [] as User[] }),
+  ])
+
+  // LinkCard only reads `name`, `slug`, and `avatar` from the subfeed object,
+  // and `username` from the author. Cast the selected docs to the full entity
+  // types to satisfy the card props without fetching entire rosters.
+  const subfeedById = new Map<number, Subfeed>(
+    linkSubfeeds.docs.map((subfeed) => [subfeed.id, subfeed as Subfeed]),
+  )
+  const userById = new Map<number, User>(
+    linkUsers.docs.map((author) => [author.id, author as User]),
+  )
+
+  const links = linkDocs.map((link) => ({
+    ...link,
+    subfeed:
+      typeof link.subfeed === 'number'
+        ? (subfeedById.get(link.subfeed) ?? link.subfeed)
+        : link.subfeed,
+    user: typeof link.user === 'number' ? (userById.get(link.user) ?? link.user) : link.user,
+  }))
+
   // Fetch user interactions (votes/bookmarks)
   const linkIds = links.map((link) => link.id)
   const { votes, bookmarks } = await getUserInteractions(user, linkIds)
 
   const contributeVariant: 'member' | 'noSubfeeds' | 'guest' = !user
     ? 'guest'
-    : joinedSubfeeds.length > 0
+    : joinedSubfeeds.docs.length > 0
       ? 'member'
       : 'noSubfeeds'
 
-  const publishingEligibility = getPublishingDestinationEligibility(user, allSubfeeds)
-
   const contributeCardCollapsed = cookieStore.get('contributeCardCollapsed')?.value === 'true'
+
+  // Lazy feed paging: the next page URL keeps every active filter, and the
+  // loader stops at the 100-item cap (page 4).
+  const hasMoreLinks = feed.totalDocs > linkDocs.length && feedPage < FEED_MAX_PAGES
+  const nextPageQuery = toQuery({
+    bookmarks: resolvedSearchParams.bookmarks,
+    mixSubfeeds: resolvedSearchParams.mixSubfeeds,
+    signal: resolvedSearchParams.signal,
+    mode,
+  })
+  nextPageQuery.set('page', String(feedPage + 1))
+  const nextFeedHref = `/?${nextPageQuery.toString()}`
 
   return (
     <div className="space-y-4">
@@ -878,20 +926,25 @@ export default async function HomePage({
 
         <div>
           {links.length > 0 ? (
-            <ReorderAwareList itemIds={links.map((link) => link.id)}>
-              {links.map((link) => (
-                <LinkCard
-                  key={link.id}
-                  link={link}
-                  userId={user?.id}
-                  userVote={votes[link.id]}
-                  isBookmarked={bookmarks[link.id]}
-                  quickEditEnabled={canQuickEditLinks}
-                  quickEditSubfeeds={quickEditSubfeeds}
-                  className={link.nsfw ? 'nsfw-text' : ''}
-                />
-              ))}
-            </ReorderAwareList>
+            <>
+              <ReorderAwareList itemIds={links.map((link) => link.id)}>
+                {links.map((link) => (
+                  <LinkCard
+                    key={link.id}
+                    link={link}
+                    userId={user?.id}
+                    userVote={votes[link.id]}
+                    isBookmarked={bookmarks[link.id]}
+                    quickEditEnabled={canQuickEditLinks}
+                    quickEditSubfeeds={quickEditSubfeeds}
+                    className={link.nsfw ? 'nsfw-text' : ''}
+                  />
+                ))}
+              </ReorderAwareList>
+              {hasMoreLinks ? (
+                <LazyFeedLoader nextHref={nextFeedHref} pendingLabel={dict.pages.loadingMore} />
+              ) : null}
+            </>
           ) : (
             <p className="text-muted-foreground py-8 text-center">
               {showBookmarksOnly ? dict.pages.noBookmarks : dict.pages.noLinks}{' '}

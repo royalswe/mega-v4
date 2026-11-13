@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "migrate": "pnpm payload migrate:create",
     "seed": "tsx -r dotenv/config src/scripts/seed/seed.ts",
+    "seed:perf": "tsx -r dotenv/config src/scripts/seed/perf.seed.ts",
     "auto-links": "tsx -r dotenv/config src/scripts/auto-links.ts",
     "discover-links": "tsx -r dotenv/config src/jobs/discoverLinks.ts",
     "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
