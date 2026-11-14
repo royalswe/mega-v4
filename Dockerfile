@@ -61,6 +61,21 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Guard against an incomplete standalone trace.
+# `file-type` (externalised by @payloadcms/next) loads `strtok3` through a non-literal dynamic
+# import, which nft cannot trace. next.config.mjs force-includes the package; if that ever stops
+# working, fail the build here instead of shipping an image where /api/media/file/* throws
+# "Cannot find module .../strtok3/lib/index.js" at runtime.
+RUN node --input-type=module -e "\
+import { readdirSync } from 'node:fs'; \
+const store = '/app/node_modules/.pnpm'; \
+const fileType = readdirSync(store).find((entry) => entry.startsWith('file-type@')); \
+if (!fileType) throw new Error('Standalone trace is missing file-type'); \
+const { fileTypeFromFile } = await import(store + '/' + fileType + '/node_modules/file-type/source/index.js'); \
+await fileTypeFromFile('/app/package.json'); \
+console.log('OK: file-type resolved strtok3 in the production image');\
+"
+
 # Copy files needed for background jobs
 COPY --from=builder --chown=nextjs:nodejs /app/existenz-links.json ./existenz-links.json
 # COPY --from=builder --chown=nextjs:nodejs /app/src ./src
