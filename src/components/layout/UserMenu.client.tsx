@@ -20,6 +20,8 @@ type UserMenuProps = {
   userMenuLabel: string
   profileLabel: string
   logoutLabel: string
+  trustLabel?: string | null
+  nextTrustLabel?: string | null
 }
 
 export function UserMenu({
@@ -28,6 +30,8 @@ export function UserMenu({
   userMenuLabel,
   profileLabel,
   logoutLabel,
+  trustLabel,
+  nextTrustLabel,
 }: UserMenuProps) {
   const [mounted, setMounted] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
@@ -85,6 +89,14 @@ export function UserMenu({
         <DropdownMenuItem className="font-medium" asChild>
           <Link href={profileHref}>{displayName}</Link>
         </DropdownMenuItem>
+        {trustLabel ? (
+          <DropdownMenuItem className="text-xs text-muted-foreground" disabled>
+            <span className="flex items-center gap-1">
+              {trustLabel}
+              {nextTrustLabel ? <span>→ {nextTrustLabel}</span> : null}
+            </span>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href={profileHref}>{profileLabel}</Link>

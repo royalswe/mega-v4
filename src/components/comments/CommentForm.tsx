@@ -57,7 +57,7 @@ export function CommentForm({
       }
       toast.success(dict.common.commentAdded)
       form.reset()
-      // The RichTextEditor captures its Lexical state at mount and ignores
+      // The RichTextEditor captures its initial value at mount and ignores
       // later `initialValue` changes, so remount it to clear the text.
       setEditorResetKey((key) => key + 1)
     } catch (error) {

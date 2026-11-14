@@ -10,6 +10,7 @@ import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 import { checkRole } from '@/access/checkRole'
 import { canManageSubmittedLinks } from '@/lib/community/subfeeds'
+import { buildTrustProgression } from '@/lib/community/reputation'
 
 export async function Header() {
   const { user } = await getAuthenticatedUser()
@@ -17,6 +18,12 @@ export async function Header() {
   const canModerate = user ? checkRole(['admin', 'moderator', 'editor'], user) : false
   const canViewSubmitted = user ? canManageSubmittedLinks(user) : false
   const profileHref = user?.username ? `/user/${user.username}` : '/'
+  const trustProgression = user
+    ? buildTrustProgression(
+        typeof user.totalMemberValue === 'number' ? user.totalMemberValue : 0,
+        user.trustLevel,
+      )
+    : null
 
   return (
     <header className="border-b px-3 py-3 sm:px-6 sm:py-4">
@@ -78,7 +85,12 @@ export async function Header() {
                 <ul className="space-y-1">
                   <li>
                     <Button variant="ghost" asChild className="w-full justify-start">
-                      <Link href="/">{dict.menu.home}</Link>
+                      <Link href="/">{dict.menu.mainFeed}</Link>
+                    </Button>
+                  </li>
+                  <li>
+                    <Button variant="ghost" asChild className="w-full justify-start">
+                      <Link href="/discover">{dict.menu.discover}</Link>
                     </Button>
                   </li>
                   <li>
@@ -86,11 +98,13 @@ export async function Header() {
                       <Link href="/subfeeds">{dict.menu.subfeeds || 'SubFeeds'}</Link>
                     </Button>
                   </li>
-                  <li>
-                    <Button variant="ghost" asChild className="w-full justify-start">
-                      <Link href="/wall">Wall</Link>
-                    </Button>
-                  </li>
+                  {user ? (
+                    <li>
+                      <Button variant="ghost" asChild className="w-full justify-start">
+                        <Link href="/my-feed">{dict.menu.minFeed}</Link>
+                      </Button>
+                    </li>
+                  ) : null}
                   <li>
                     <Button variant="ghost" asChild className="w-full justify-start">
                       <Link href="/new-link">{dict.menu.newLink}</Link>
@@ -152,7 +166,12 @@ export async function Header() {
           <ul className="flex items-center gap-1">
             <li>
               <Button variant="ghost" asChild>
-                <Link href="/">{dict.menu.home}</Link>
+                <Link href="/">{dict.menu.mainFeed}</Link>
+              </Button>
+            </li>
+            <li>
+              <Button variant="ghost" asChild>
+                <Link href="/discover">{dict.menu.discover}</Link>
               </Button>
             </li>
             <li>
@@ -160,11 +179,13 @@ export async function Header() {
                 <Link href="/subfeeds">{dict.menu.subfeeds || 'SubFeeds'}</Link>
               </Button>
             </li>
-            <li>
-              <Button variant="ghost" asChild>
-                <Link href="/wall">Wall</Link>
-              </Button>
-            </li>
+            {user ? (
+              <li>
+                <Button variant="ghost" asChild>
+                  <Link href="/my-feed">{dict.menu.minFeed}</Link>
+                </Button>
+              </li>
+            ) : null}
             <li>
               <Button variant="ghost" asChild>
                 <Link href="/new-link">{dict.menu.newLink}</Link>
@@ -196,6 +217,8 @@ export async function Header() {
                 userMenuLabel={dict.menu.userMenu}
                 profileLabel={dict.settings.profile || 'Profile'}
                 logoutLabel={dict.menu.logout}
+                trustLabel={trustProgression?.current.label ?? null}
+                nextTrustLabel={trustProgression?.next?.label ?? null}
               />
             ) : (
               <>

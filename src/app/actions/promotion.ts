@@ -4,8 +4,6 @@ import { revalidatePath } from 'next/cache'
 
 import { getAuthenticatedUser } from '@/lib/auth'
 import {
-  DISCOVERY_BOOST_INELIGIBLE_MESSAGE,
-  DISCOVERY_BOOST_REQUIRED_MESSAGE,
   hasDiscoveryBoostStanding,
   isSafeDiscoveryBoostTarget,
 } from '@/lib/community/promotion'
@@ -43,20 +41,31 @@ const assertValidTarget = (collection: string, id: number): void => {
  *
  * @expected-unused Discovery-boost UI is not wired yet; the enforcement hook is covered by integration tests.
  */
+export type BoostResult =
+  | { ok: true; id: number }
+  | {
+      ok: false
+      error: 'not-logged-in' | 'invalid-target' | 'no-standing' | 'not-found' | 'ineligible'
+    }
+
 export async function boostToMainFeed({
   collection,
   id,
 }: {
   collection: PromotionCollectionSlug
   id: number
-}) {
+}): Promise<BoostResult> {
   const { user, payload } = await getAuthenticatedUser()
 
   if (!user) {
-    throw new Error('You must be logged in to boost content')
+    return { ok: false, error: 'not-logged-in' }
   }
 
-  assertValidTarget(collection, id)
+  try {
+    assertValidTarget(collection, id)
+  } catch {
+    return { ok: false, error: 'invalid-target' }
+  }
 
   // Gate: site admin/moderator/editor OR decayed discovery standing.
   const profile = await payload.findByID({
@@ -67,7 +76,7 @@ export async function boostToMainFeed({
   })
 
   if (!hasDiscoveryBoostStanding(profile as never)) {
-    throw new Error(DISCOVERY_BOOST_REQUIRED_MESSAGE)
+    return { ok: false, error: 'no-standing' }
   }
 
   // Re-check the target server-side before writing.
@@ -79,11 +88,11 @@ export async function boostToMainFeed({
   })
 
   if (!target) {
-    throw new Error('Content not found')
+    return { ok: false, error: 'not-found' }
   }
 
   if (!isSafeDiscoveryBoostTarget(target as PromotableItemLike)) {
-    throw new Error(DISCOVERY_BOOST_INELIGIBLE_MESSAGE)
+    return { ok: false, error: 'ineligible' }
   }
 
   await payload.update({
@@ -101,7 +110,7 @@ export async function boostToMainFeed({
   revalidatePath('/')
   revalidatePath('/wall')
 
-  return { boosted: true, id }
+  return { ok: true, id }
 }
 
 /**

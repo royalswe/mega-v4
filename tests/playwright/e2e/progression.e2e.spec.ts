@@ -363,10 +363,12 @@ test.describe('Progression & promotion surfaces', () => {
         await page.goto('/new-post')
 
         await expect(page.getByTestId('destination-user-feed-summary')).toContainText('Your Feed')
-        await expect(page.getByText('Main Feed', { exact: true })).toHaveCount(0)
+        await expect(
+          page.getByTestId('destination-user-feed-summary').getByText('Main Feed', { exact: true }),
+        ).toHaveCount(0)
 
         await page.getByLabel('Title', { exact: true }).fill(title)
-        const editor = page.locator('[contenteditable="true"]').first()
+        const editor = page.getByLabel('Content', { exact: true })
         await editor.click()
         await editor.fill(`A personal-first post body for the newcomer journey ${suffix}.`)
 

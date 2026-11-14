@@ -22,6 +22,9 @@ const dictionaries = {
     },
     menu: {
       home: 'Home',
+      mainFeed: 'Main Feed',
+      discover: 'Discover',
+      minFeed: 'My Feed',
       submitted: 'Submitted',
       subfeeds: 'SubFeeds',
       moderation: 'Moderation',
@@ -88,6 +91,23 @@ const dictionaries = {
         learnMoreAction: 'How it works',
         collapseLabel: 'Hide',
         expandLabel: 'Show',
+      },
+      discover: {
+        title: 'Discover',
+        subtitle:
+          'Help fresh User Feed posts climb. If something you lift early reaches the Main Feed, you earn Discovery points.',
+        boost: 'Boost to Main Feed',
+        boosted: 'Boosted',
+        needsStanding: 'You need Discovery standing to boost content.',
+        ineligible: 'This content can no longer be boosted.',
+        notFound: 'Content not found.',
+        genericError: 'Something went wrong. Please try again.',
+        empty: 'The Radar is quiet right now — be first to post in your User Feed.',
+      },
+      myFeed: {
+        title: 'My Feed',
+        subtitle: 'Your public User Feed — everything you have published.',
+        empty: 'Your feed is empty. Share a link or start a discussion to get going.',
       },
     },
     settings: {
@@ -479,6 +499,9 @@ const dictionaries = {
     },
     menu: {
       home: 'Hem',
+      mainFeed: 'Huvudflöde',
+      discover: 'Upptäck',
+      minFeed: 'Mitt flöde',
       submitted: 'Inskickat',
       subfeeds: 'Delflöden',
       moderation: 'Moderering',
@@ -545,6 +568,23 @@ const dictionaries = {
         learnMoreAction: 'Så funkar det',
         collapseLabel: 'Dölj',
         expandLabel: 'Visa',
+      },
+      discover: {
+        title: 'Upptäck',
+        subtitle:
+          'Hjälp färska inlägg från andras användarflöden att klättra. Om något du lyfter tidigt når Main Feed får du Discovery-poäng.',
+        boost: 'Lyft till Main Feed',
+        boosted: 'Lyft!',
+        needsStanding: 'Du behöver Discovery-status för att lyfta innehåll.',
+        ineligible: 'Det här innehållet kan inte längre lyftas.',
+        notFound: 'Innehåll hittades inte.',
+        genericError: 'Något gick fel. Försök igen.',
+        empty: 'Radarn är tom just nu — var först med att posta i ditt användarflöde.',
+      },
+      myFeed: {
+        title: 'Mitt flöde',
+        subtitle: 'Ditt publika användarflöde — allt du har publicerat.',
+        empty: 'Ditt flöde är tomt. Dela en länk eller starta en diskussion för att komma igång.',
       },
     },
     settings: {

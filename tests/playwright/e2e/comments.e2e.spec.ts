@@ -18,7 +18,7 @@ test.describe('Comments Flow', () => {
     // Add comment on /link/[id].
     await expect(page).toHaveURL(/link\/\d+/)
 
-    const commentEditor = page.locator('[contenteditable="true"]').first()
+    const commentEditor = page.getByLabel('Add Comment', { exact: true })
     await expect(commentEditor).toBeVisible()
     await commentEditor.fill(commentText)
 

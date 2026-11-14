@@ -4,7 +4,9 @@ import Link from 'next/link'
 import { cookies } from 'next/headers'
 
 import { LinkCard } from '@/components/links/LinkCard'
+import { PostCard } from '@/components/posts/PostCard'
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
+import { getPostInteractions } from '@/app/(frontend)/data/getPostInteractions'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 import { BookmarksFilter } from '@/components/links/BookmarksFilter'
@@ -115,8 +117,22 @@ export default async function HomePage({
     rising: dict.pages.modeDescriptions.rising,
   }
 
+  const feedData = await loadHomeFeed({
+    payload,
+    user,
+    mode,
+    signal,
+    feedPage,
+    showBookmarksOnly,
+    includeSubfeeds,
+    persistedHomeSubfeedsView,
+    canQuickEditLinks,
+  })
+
   const {
     links,
+    posts,
+    mixedItems,
     quickEditSubfeeds,
     publishingEligibility,
     selectedSubfeedStripView,
@@ -130,23 +146,20 @@ export default async function HomePage({
     freshDiscussionsTrend,
     contributeVariant,
     hasMoreLinks,
-  } = await loadHomeFeed({
-    payload,
-    user,
-    mode,
-    signal,
-    feedPage,
-    showBookmarksOnly,
-    includeSubfeeds,
-    persistedHomeSubfeedsView,
-    canQuickEditLinks,
-  })
+    hasMorePosts,
+  } = feedData
 
-  // Fetch user interactions (votes/bookmarks)
-  const { votes, bookmarks } = await getUserInteractions(
-    user,
-    links.map((link) => link.id),
-  )
+  // Fetch user interactions (votes/bookmarks) for both content kinds.
+  const [{ votes, bookmarks }, postInteractions] = await Promise.all([
+    getUserInteractions(
+      user,
+      links.map((link) => link.id),
+    ),
+    getPostInteractions(
+      user,
+      posts.map((post) => post.id),
+    ),
+  ])
 
   const contributeCardCollapsed = cookieStore.get('contributeCardCollapsed')?.value === 'true'
 
@@ -240,23 +253,36 @@ export default async function HomePage({
         </div>
 
         <div>
-          {links.length > 0 ? (
+          {mixedItems.length > 0 ? (
             <>
-              <ReorderAwareList itemIds={links.map((link) => link.id)}>
-                {links.map((link) => (
-                  <LinkCard
-                    key={link.id}
-                    link={link}
-                    userId={user?.id}
-                    userVote={votes[link.id]}
-                    isBookmarked={bookmarks[link.id]}
-                    quickEditEnabled={canQuickEditLinks}
-                    quickEditSubfeeds={quickEditSubfeeds}
-                    className={link.nsfw ? 'nsfw-text' : ''}
-                  />
-                ))}
+              <ReorderAwareList
+                itemIds={mixedItems.map((item) => `${item.type}-${item.id}`)}
+              >
+                {mixedItems.map((item) =>
+                  item.type === 'link' ? (
+                    <LinkCard
+                      key={`link-${item.link.id}`}
+                      link={item.link}
+                      userId={user?.id}
+                      userVote={votes[item.link.id]}
+                      isBookmarked={bookmarks[item.link.id]}
+                      quickEditEnabled={canQuickEditLinks}
+                      quickEditSubfeeds={quickEditSubfeeds}
+                      className={item.link.nsfw ? 'nsfw-text' : ''}
+                    />
+                  ) : (
+                    <PostCard
+                      key={`post-${item.post.id}`}
+                      post={item.post}
+                      userId={user?.id}
+                      userVote={postInteractions.votes[item.post.id]}
+                      isBookmarked={postInteractions.bookmarks[item.post.id]}
+                      className={item.post.nsfw ? 'nsfw-text' : ''}
+                    />
+                  ),
+                )}
               </ReorderAwareList>
-              {hasMoreLinks ? (
+              {hasMoreLinks || hasMorePosts ? (
                 <LazyFeedLoader nextHref={nextFeedHref} pendingLabel={dict.pages.loadingMore} />
               ) : null}
             </>

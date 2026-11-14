@@ -127,7 +127,7 @@ export function PostSubmitForm({
         feed: defaultFeed ?? 'user',
         subfeedId: defaultSubfeedId ? String(defaultSubfeedId) : '',
       })
-      // The RichTextEditor captures its Lexical state at mount and ignores
+      // The RichTextEditor captures its initial value at mount and ignores
       // later `initialValue` changes, so remount it to clear the content.
       setEditorResetKey((key) => key + 1)
 

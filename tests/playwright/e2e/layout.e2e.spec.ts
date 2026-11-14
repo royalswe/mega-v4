@@ -14,10 +14,10 @@ import { test, expect, type Page } from '@playwright/test'
  */
 
 const PUBLIC_ROUTES = [
-  { path: '/', name: 'Home' },
+  { path: '/', name: 'Main Feed' },
   { path: '/subfeeds', name: 'SubFeeds index' },
+  { path: '/discover', name: 'Discover' },
   { path: '/how-it-works', name: 'How it works' },
-  { path: '/wall', name: 'Community Wall' },
   { path: '/search?q=link', name: 'Search results' },
 ]
 

@@ -241,6 +241,47 @@ export const mergeAndSortSubfeedItems = (
     .slice(0, limit)
 }
 
+/**
+ * Merged Home-feed item with a mode-aware sort key (best → rankingScore,
+ * new → createdAt, rising → engagementVelocity). Distinct from
+ * `MergedSubfeedItem` because the Home feed sorts per the active feed mode
+ * rather than by ranking score alone.
+ */
+export type MergedHomeFeedItem =
+  | { type: 'link'; id: number; sortKey: number; link: LinkDoc }
+  | { type: 'post'; id: number; sortKey: number; post: PostDoc }
+
+const readSortKey = (doc: LinkDoc | PostDoc, mode: FeedMode): number => {
+  if (mode === 'new') {
+    const createdAt = Date.parse(doc.createdAt)
+    return Number.isNaN(createdAt) ? 0 : createdAt
+  }
+  if (mode === 'rising') return doc.engagementVelocity ?? 0
+  return doc.rankingScore ?? 0
+}
+
+export const mergeHomeItems = (
+  links: LinkDoc[],
+  posts: PostDoc[],
+  mode: FeedMode,
+): MergedHomeFeedItem[] => {
+  const items: MergedHomeFeedItem[] = [
+    ...links.map((link) => ({
+      type: 'link' as const,
+      id: link.id,
+      sortKey: readSortKey(link, mode),
+      link,
+    })),
+    ...posts.map((post) => ({
+      type: 'post' as const,
+      id: post.id,
+      sortKey: readSortKey(post, mode),
+      post,
+    })),
+  ]
+  return items.sort((a, b) => b.sortKey - a.sortKey)
+}
+
 /* -------------------------------------------------------------------------- */
 /* Pure where-clause builders                                                  */
 /* -------------------------------------------------------------------------- */
@@ -451,6 +492,8 @@ export interface HomeSubfeedStripItem {
 
 export interface HomeFeedData {
   links: LinkDoc[]
+  posts: PostDoc[]
+  mixedItems: MergedHomeFeedItem[]
   quickEditSubfeeds: Array<{ id: number; name: string }>
   publishingEligibility: PublishingDestinationEligibility
   trendingSubfeeds: HomeSubfeedStripItem[]
@@ -466,6 +509,7 @@ export interface HomeFeedData {
   contributeVariant: 'member' | 'noSubfeeds' | 'guest'
   joinedSubfeedCount: number
   hasMoreLinks: boolean
+  hasMorePosts: boolean
 }
 
 export interface LoadHomeFeedArgs {
@@ -510,19 +554,24 @@ export const loadHomeFeed = async ({
   const withAccess = buildAccessScope(user)
 
   let bookmarkedLinkIds: number[] | undefined
+  let bookmarkedPostIds: number[] | undefined
   if (showBookmarksOnly && user) {
     const { docs: userBookmarks } = await payload.find({
       collection: 'bookmarks',
       where: { user: { equals: user.id } },
       limit: 1000,
       depth: 0,
-      select: { link: true },
+      select: { link: true, post: true },
       user,
       overrideAccess: false,
     })
 
     bookmarkedLinkIds = userBookmarks
       .map((bookmark) => (typeof bookmark.link === 'number' ? bookmark.link : bookmark.link?.id))
+      .filter((id): id is number => typeof id === 'number')
+
+    bookmarkedPostIds = userBookmarks
+      .map((bookmark) => (typeof bookmark.post === 'number' ? bookmark.post : bookmark.post?.id))
       .filter((id): id is number => typeof id === 'number')
   }
 
@@ -602,6 +651,8 @@ export const loadHomeFeed = async ({
       commentsCount: true,
       createdAt: true,
       updatedAt: true,
+      rankingScore: true,
+      engagementVelocity: true,
     },
     ...withAccess,
   })
@@ -803,6 +854,68 @@ export const loadHomeFeed = async ({
 
   const links = await hydrateFeedCardRelations({ payload, docs: feed.docs })
 
+  // Posts for the merged Main Feed: same visibility + promotion policy as
+  // links, so the former Wall feed and the link feed rank side by side.
+  const postsWhereFilters: Where[] = [
+    ...buildPublicFeedVisibilityWhere({ collection: 'posts', viewer: user }),
+    buildMainFeedWhere({ collection: 'posts' }),
+  ]
+  if (showBookmarksOnly && user) {
+    postsWhereFilters.push({
+      id: { in: bookmarkedPostIds && bookmarkedPostIds.length > 0 ? bookmarkedPostIds : [0] },
+    })
+  }
+  if (signal === 'trending') {
+    postsWhereFilters.push(buildTrendingSignalWhere({ collection: 'posts' }))
+  }
+  if (signal === 'discussions') {
+    postsWhereFilters.push({ commentsCount: { greater_than: 0 } })
+    postsWhereFilters.push({ createdAt: { greater_than_equal: dayAgoIso } })
+  }
+  if (signal === 'subfeeds') {
+    if (user && joinedSubfeedIds.length > 0) {
+      postsWhereFilters.push({ feed: { equals: 'subfeed' } })
+      postsWhereFilters.push({ subfeed: { in: joinedSubfeedIds } })
+    } else {
+      postsWhereFilters.push({ id: { in: [0] } })
+    }
+  }
+
+  const postsFeed = await payload.find({
+    collection: 'posts',
+    where: { and: postsWhereFilters },
+    sort: MODE_SORT_BY[mode],
+    limit: feedPage * FEED_PAGE_SIZE,
+    depth: 0,
+    select: {
+      id: true,
+      votes: true,
+      title: true,
+      content: true,
+      type: true,
+      feed: true,
+      subfeed: true,
+      user: true,
+      editorialPriority: true,
+      editorialPriorityUntil: true,
+      commentsCount: true,
+      createdAt: true,
+      updatedAt: true,
+      nsfw: true,
+      rankingScore: true,
+      engagementVelocity: true,
+    },
+    ...withAccess,
+  })
+  const posts = await hydrateFeedCardRelations({
+    payload,
+    docs: postsFeed.docs,
+    subfeedDepth: 0,
+    subfeedSelect: { name: true, slug: true },
+  })
+
+  const mixedItems = mergeHomeItems(links, posts, mode)
+
   const contributeVariant: 'member' | 'noSubfeeds' | 'guest' = !user
     ? 'guest'
     : joinedSubfeeds.docs.length > 0
@@ -811,6 +924,8 @@ export const loadHomeFeed = async ({
 
   return {
     links: links as LinkDoc[],
+    posts: posts as PostDoc[],
+    mixedItems,
     quickEditSubfeeds,
     publishingEligibility,
     trendingSubfeeds,
@@ -829,6 +944,7 @@ export const loadHomeFeed = async ({
     contributeVariant,
     joinedSubfeedCount: joinedSubfeedIds.length,
     hasMoreLinks: feed.totalDocs > feed.docs.length && feedPage < FEED_MAX_PAGES,
+    hasMorePosts: postsFeed.totalDocs > postsFeed.docs.length && feedPage < FEED_MAX_PAGES,
   }
 }
 
