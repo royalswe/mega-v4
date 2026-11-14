@@ -1,126 +1,89 @@
 import type { Payload } from 'payload'
 
-import { chance, pickOne } from './utils.seed'
+import {
+  SEED_INTERACTION_SCENARIOS,
+  createSeedTally,
+  offsetIsoFromReference,
+  type SeedStepTally,
+  type SeededContentIndex,
+} from './utils.seed'
+import { requirePersona } from './links.seed'
+import type { SeedUsers } from './users.seed'
 
-const readRelationId = (value: unknown): number | null => {
-  if (typeof value === 'number') return value
+/**
+ * Creates or reconciles the deterministic vote scenarios. Vote uniqueness is
+ * preserved both by a targeted natural-key lookup and the collection's hook, so a
+ * rerun updates a changed direction instead of adding a duplicate vote.
+ */
+export async function seedVotes(
+  payload: Payload,
+  users: SeedUsers,
+  content: SeededContentIndex,
+  referenceNow: Date,
+): Promise<SeedStepTally> {
+  const tally = createSeedTally('votes')
+  const scenarios = SEED_INTERACTION_SCENARIOS.filter((scenario) => scenario.kind === 'vote')
 
-  if (value && typeof value === 'object' && 'id' in value) {
-    const relation = value as { id?: unknown }
-    return typeof relation.id === 'number' ? relation.id : null
-  }
+  for (const scenario of scenarios) {
+    const actor = requirePersona(users, scenario.actor)
+    const target = content.get(scenario.target)
 
-  return null
-}
-
-type VoteTarget =
-  | {
-      type: 'link'
-      id: number
+    if (!target) {
+      throw new Error(
+        `Seed vote "${scenario.key}" targets unknown content scenario "${scenario.target}".`,
+      )
     }
-  | {
-      type: 'post'
-      id: number
+
+    if (!scenario.value) {
+      throw new Error(`Seed vote "${scenario.key}" has no direction.`)
     }
 
-export async function seedVotes(payload: Payload) {
-  const [{ docs: users }, { docs: links }, { docs: posts }, { docs: existingVotes }] =
-    await Promise.all([
-      payload.find({
-        collection: 'users',
-        limit: 1000,
-        depth: 0,
-        overrideAccess: true,
-      }),
-      payload.find({
-        collection: 'links',
-        where: {
-          softDeleted: {
-            not_equals: true,
-          },
-        },
-        limit: 500,
-        depth: 0,
-        overrideAccess: true,
-      }),
-      payload.find({
-        collection: 'posts',
-        where: {
-          status: {
-            not_equals: 'removed',
-          },
-        },
-        limit: 500,
-        depth: 0,
-        overrideAccess: true,
-      }),
-      payload.find({
-        collection: 'votes',
-        limit: 10_000,
-        depth: 0,
-        overrideAccess: true,
-      }),
-    ])
+    const { docs } = await payload.find({
+      collection: 'votes',
+      where: {
+        and: [{ user: { equals: actor.id } }, { [target.kind]: { equals: target.id } }],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    })
+    const existing = docs[0]
 
-  if (users.length === 0) {
-    console.log('Skipping vote seed: no users available')
-    return
-  }
+    if (existing) {
+      if (existing.vote !== scenario.value) {
+        await payload.update({
+          collection: 'votes',
+          id: existing.id,
+          data: { vote: scenario.value },
+          user: actor,
+          overrideAccess: false,
+          depth: 0,
+        })
+        tally.reconciled += 1
+      } else {
+        tally.skipped += 1
+      }
 
-  const targets: VoteTarget[] = [
-    ...links.map((link) => ({ type: 'link' as const, id: link.id })),
-    ...posts.map((post) => ({ type: 'post' as const, id: post.id })),
-  ]
-
-  if (targets.length === 0) {
-    console.log('Skipping vote seed: no targets available')
-    return
-  }
-
-  const seenVotes = new Set<string>(
-    existingVotes
-      .map((vote) => {
-        const userId = readRelationId(vote.user)
-        const linkId = readRelationId(vote.link)
-        const postId = readRelationId(vote.post)
-
-        if (!userId) return null
-        if (linkId) return `${userId}:link:${linkId}`
-        if (postId) return `${userId}:post:${postId}`
-
-        return null
-      })
-      .filter((item): item is string => Boolean(item)),
-  )
-  let created = 0
-  let attempts = 0
-  const desired = 260
-
-  while (created < desired && attempts < desired * 5) {
-    attempts += 1
-
-    const user = pickOne(users)
-    const target = pickOne(targets)
-    const key = `${user.id}:${target.type}:${target.id}`
-
-    if (seenVotes.has(key)) {
       continue
     }
 
+    const createdAt = offsetIsoFromReference(referenceNow, scenario.referenceNowOffsetHours)
     await payload.create({
       collection: 'votes',
       data: {
-        user: user.id,
-        link: target.type === 'link' ? target.id : undefined,
-        post: target.type === 'post' ? target.id : undefined,
-        vote: chance(0.78) ? 'up' : 'down',
+        user: actor.id,
+        link: target.kind === 'link' ? target.id : undefined,
+        post: target.kind === 'post' ? target.id : undefined,
+        vote: scenario.value,
+        createdAt,
+        updatedAt: createdAt,
       },
-      overrideAccess: true,
+      user: actor,
+      overrideAccess: false,
+      depth: 0,
     })
-
-    seenVotes.add(key)
-    created += 1
+    tally.created += 1
   }
 
-  console.log(`Seeded votes: ${created}`)
+  return tally
 }

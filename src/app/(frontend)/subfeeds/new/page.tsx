@@ -1,11 +1,13 @@
 import { redirect } from 'next/navigation'
 
 import { SubfeedCreateForm } from '@/components/subfeeds/SubfeedCreateForm'
+import { SubfeedEligibilityGate } from '@/components/subfeeds/SubfeedEligibilityGate'
 import { getAuthenticatedUser } from '@/lib/auth'
+import { getSubfeedEligibilityForUser } from '@/lib/community/subfeedEligibility'
 import { getDictionary } from '@/lib/dictionaries'
 
 export default async function NewSubfeedPage() {
-  const { user } = await getAuthenticatedUser()
+  const { user, payload } = await getAuthenticatedUser()
   const { dict } = await getDictionary()
 
   if (!user) {
@@ -14,9 +16,19 @@ export default async function NewSubfeedPage() {
     )
   }
 
+  const eligibility = await getSubfeedEligibilityForUser(payload, user.id)
+
   return (
     <div className="py-10">
-      <SubfeedCreateForm dict={dict} />
+      {eligibility && !eligibility.eligible ? (
+        <SubfeedEligibilityGate
+          eligibility={eligibility}
+          dict={dict}
+          userFeedHref={`/user/${encodeURIComponent(user.username)}`}
+        />
+      ) : (
+        <SubfeedCreateForm dict={dict} />
+      )}
     </div>
   )
 }

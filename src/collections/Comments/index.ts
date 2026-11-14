@@ -270,8 +270,8 @@ export const Comments: CollectionConfig = {
       ({ data, originalDoc, req }) => {
         if (req?.context?.skipHooks) return data
         // Ensure either link or post is provided, but not both
-        const hasLink = !!(data?.link ?? originalDoc?.link)
-        const hasPost = !!(data?.post ?? originalDoc?.post)
+        const hasLink = !!(data?.link !== undefined ? data.link : originalDoc?.link)
+        const hasPost = !!(data?.post !== undefined ? data.post : originalDoc?.post)
 
         if (!hasLink && !hasPost) {
           throw new Error('Either link or post must be provided')

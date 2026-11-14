@@ -12,12 +12,20 @@ import { JoinSubfeedButton } from '@/components/subfeeds/JoinSubfeedButton'
 import { SubfeedCreatePanel } from '@/components/subfeeds/SubfeedCreatePanel'
 import { SubfeedEditPanel } from '@/components/subfeeds/SubfeedEditPanel'
 import { SubfeedPulseHeader } from '@/components/subfeeds/SubfeedPulseHeader'
+import { SubfeedRoster } from '@/components/subfeeds/SubfeedRoster'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
-import { canModerateCommunity, readRelationshipIds } from '@/lib/community/subfeeds'
+import {
+  canModerateCommunity,
+  canModerateSubfeedContent,
+  canSubmitToSubfeed,
+  readRelationshipIds,
+  resolveSubfeedOwner,
+} from '@/lib/community/subfeeds'
 import { checkRole } from '@/access/checkRole'
+import { expireEditorialPriority } from '@/lib/community/editorialPriority'
 import { ReorderAwareList } from '@/components/links/ReorderAwareList.client'
 import type { Link as LinkDoc, Post as PostDoc } from '@/payload-types'
 
@@ -59,6 +67,41 @@ const parseContentFilter = (value: string | string[] | undefined): 'all' | 'link
   const normalized = Array.isArray(value) ? value[0] : value
   if (normalized === 'links' || normalized === 'posts') return normalized
   return 'all'
+}
+
+const toRosterUserId = (value: unknown): number | null => {
+  if (value && typeof value === 'object' && 'id' in value) {
+    const id = (value as { id?: unknown }).id
+    const parsed = typeof id === 'number' ? id : typeof id === 'string' ? Number(id) : NaN
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
+}
+
+const mapRoster = (values: unknown): Array<{ id: number; username: string }> => {
+  if (!Array.isArray(values)) return []
+
+  const result: Array<{ id: number; username: string }> = []
+  for (const value of values) {
+    const id = toRosterUserId(value)
+    if (id === null) continue
+
+    const username =
+      value && typeof value === 'object' && 'username' in value
+        ? ((value as { username?: unknown }).username as string | null | undefined)
+        : null
+
+    result.push({ id, username: username || `User #${id}` })
+  }
+
+  return result
 }
 
 const toSearchParams = (params: Record<string, string | string[] | undefined>) => {
@@ -176,6 +219,10 @@ export default async function SubfeedDetailsPage({
   const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
   const { user, payload } = await getAuthenticatedUser()
   const { dict, lang } = await getDictionary()
+  // Selection and mixed-content ordering use persisted ranking scores.
+  await expireEditorialPriority({ payload, force: true }).catch((error: unknown) => {
+    payload.logger.error({ err: error, msg: 'Failed to expire editorial priority on Subfeed page' })
+  })
   const canQuickEditLinks = user ? checkRole(['admin'], user) : false
   const selectedWindow = parsePulseWindow(resolvedSearchParams.window)
   const selectedContentFilter = parseContentFilter(resolvedSearchParams.type)
@@ -208,11 +255,25 @@ export default async function SubfeedDetailsPage({
   const subfeed = subfeeds[0]
 
   const memberIds = readRelationshipIds(subfeed.members)
-  const moderatorIds = readRelationshipIds(subfeed.moderators)
-  const canEditSubfeed = user ? canModerateCommunity(user) || moderatorIds.includes(user.id) : false
   const isMember = user ? memberIds.includes(user.id) : false
-  const canCreate = user ? isMember || canModerateCommunity(user) : false
+  const canEditSubfeed = user
+    ? canModerateCommunity(user) || canModerateSubfeedContent(subfeed, user.id)
+    : false
+  const canManageRoster = canEditSubfeed
+  const canCreate = user
+    ? canSubmitToSubfeed(subfeed, user.id) || canModerateCommunity(user)
+    : false
   const avatarMedia = typeof subfeed.avatar === 'object' && subfeed.avatar ? subfeed.avatar : null
+
+  const rosterModerators = mapRoster(subfeed.moderators)
+  const rosterEditors = mapRoster(subfeed.editors)
+  const rosterUploaders = mapRoster(subfeed.uploaders)
+  const rosterMembers = mapRoster(subfeed.members)
+  const ownerId = resolveSubfeedOwner(subfeed)
+  const rosterOwner =
+    [...rosterModerators, ...rosterEditors, ...rosterUploaders, ...rosterMembers].find(
+      (member) => member.id === ownerId,
+    ) ?? (ownerId !== null ? { id: ownerId, username: `User #${ownerId}` } : null)
 
   const now = Date.now()
   const windowMs = (selectedWindow === '24h' ? 24 : 7 * 24) * 60 * 60 * 1000
@@ -639,6 +700,18 @@ export default async function SubfeedDetailsPage({
         ) : null}
       </section>
 
+      <SubfeedRoster
+        subfeedId={subfeed.id}
+        canManage={canManageRoster}
+        owner={rosterOwner}
+        moderators={rosterModerators}
+        editors={rosterEditors}
+        uploaders={rosterUploaders}
+        members={rosterMembers}
+        currentUserId={user?.id}
+        labels={dict.subfeeds.roster}
+      />
+
       <SubfeedPulseHeader
         labels={pulseLabels}
         activity24h={activity}
@@ -696,8 +769,26 @@ export default async function SubfeedDetailsPage({
           </div>
         </div>
 
+        {user && !canCreate ? (
+          <div
+            data-testid="subfeed-ineligible-publish-note"
+            className="rounded-md border bg-muted/30 p-3 text-sm"
+          >
+            <p className="font-medium">{dict.subfeeds.publishToYourFeedAction}</p>
+            <p className="text-muted-foreground">{dict.subfeeds.ineligiblePublishNote}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button asChild size="sm">
+                <Link href="/new-link">{dict.pages.contribute.shareLinkAction}</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/new-post">{dict.pages.contribute.startDiscussionAction}</Link>
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         {filteredItems.length > 0 ? (
-          <ReorderAwareList itemIds={filteredItems.map((item) => item.id)}>
+          <ReorderAwareList itemIds={filteredItems.map((item) => `${item.type}-${item.id}`)}>
             {filteredItems.map((item) => {
               if (item.type === 'link') {
                 return (

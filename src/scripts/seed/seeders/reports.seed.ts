@@ -1,138 +1,84 @@
 import type { Payload } from 'payload'
-import { faker } from '@faker-js/faker'
 
-import { chance, pickOne } from './utils.seed'
+import {
+  SEED_INTERACTION_SCENARIOS,
+  createSeedTally,
+  offsetIsoFromReference,
+  type SeedStepTally,
+  type SeededContentIndex,
+} from './utils.seed'
+import { requirePersona } from './links.seed'
+import type { SeedUsers } from './users.seed'
 
-type ReportReason = 'spam' | 'abuse' | 'broken_link' | 'harassment' | 'nsfw' | 'other'
-type ReportStatus = 'pending' | 'approved' | 'rejected'
+/**
+ * Creates the authored moderation reports. Reports are append-only scenario
+ * records, so an existing row is skipped rather than rewritten (rewriting a
+ * reporter's account would change the moderation narrative).
+ */
+export async function seedReports(
+  payload: Payload,
+  users: SeedUsers,
+  content: SeededContentIndex,
+  referenceNow: Date,
+): Promise<SeedStepTally> {
+  const tally = createSeedTally('reports')
+  const scenarios = SEED_INTERACTION_SCENARIOS.filter((scenario) => scenario.kind === 'report')
 
-const reasons: ReportReason[] = ['spam', 'abuse', 'broken_link', 'harassment', 'nsfw', 'other']
+  for (const scenario of scenarios) {
+    const actor = requirePersona(users, scenario.actor)
+    const target = content.get(scenario.target)
 
-const pickStatus = (): ReportStatus => {
-  if (chance(0.1)) return 'approved'
-  if (chance(0.3)) return 'rejected'
-  return 'pending'
-}
-
-export async function seedReports(payload: Payload) {
-  const [{ docs: users }, { docs: posts }, { docs: comments }, { docs: links }] = await Promise.all(
-    [
-      payload.find({
-        collection: 'users',
-        limit: 1000,
-        depth: 0,
-        overrideAccess: true,
-      }),
-      payload.find({
-        collection: 'posts',
-        limit: 400,
-        depth: 0,
-        overrideAccess: true,
-      }),
-      payload.find({
-        collection: 'comments',
-        limit: 400,
-        depth: 0,
-        overrideAccess: true,
-      }),
-      payload.find({
-        collection: 'links',
-        limit: 400,
-        depth: 0,
-        overrideAccess: true,
-      }),
-    ],
-  )
-
-  if (users.length === 0) {
-    console.log('Skipping reports seed: no users available')
-    return
-  }
-
-  const reviewerCandidates = users.filter((user) =>
-    Array.isArray(user.roles)
-      ? user.roles.some((role) => role === 'admin' || role === 'moderator' || role === 'editor')
-      : false,
-  )
-
-  const availableTypes = [
-    ...(posts.length > 0 ? (['post'] as const) : []),
-    ...(comments.length > 0 ? (['comment'] as const) : []),
-    ...(links.length > 0 ? (['link'] as const) : []),
-    ...(users.length > 1 ? (['user'] as const) : []),
-  ]
-
-  if (availableTypes.length === 0) {
-    console.log('Skipping reports seed: no reportable targets found')
-    return
-  }
-
-  let created = 0
-
-  for (let i = 0; i < 35; i += 1) {
-    const reporter = pickOne(users)
-    const targetType = pickOne([...availableTypes])
-    const status = pickStatus()
-
-    const reportData: {
-      reporter: number
-      targetType: 'post' | 'comment' | 'link' | 'user'
-      targetId: string
-      reason: ReportReason
-      details?: string
-      status: ReportStatus
-      reviewedBy?: number
-      fastTracked?: boolean
-      targetPost?: number
-      targetComment?: number
-      targetLink?: number
-      targetUser?: number
-    } = {
-      reporter: reporter.id,
-      targetType,
-      targetId: '',
-      reason: pickOne(reasons),
-      details: chance(0.7) ? faker.lorem.sentences({ min: 1, max: 2 }) : undefined,
-      status,
-      fastTracked: chance(0.25),
+    if (!target) {
+      throw new Error(
+        `Seed report "${scenario.key}" targets unknown content scenario "${scenario.target}".`,
+      )
     }
 
-    if (targetType === 'post') {
-      const post = pickOne(posts)
-      reportData.targetPost = post.id
-      reportData.targetId = String(post.id)
+    if (!scenario.reason) {
+      throw new Error(`Seed report "${scenario.key}" has no reason.`)
     }
 
-    if (targetType === 'comment') {
-      const comment = pickOne(comments)
-      reportData.targetComment = comment.id
-      reportData.targetId = String(comment.id)
-    }
-
-    if (targetType === 'link') {
-      const link = pickOne(links)
-      reportData.targetLink = link.id
-      reportData.targetId = String(link.id)
-    }
-
-    if (targetType === 'user') {
-      const userTarget = pickOne(users.filter((candidate) => candidate.id !== reporter.id))
-      reportData.targetUser = userTarget.id
-      reportData.targetId = String(userTarget.id)
-    }
-
-    if (status !== 'pending' && reviewerCandidates.length > 0) {
-      reportData.reviewedBy = pickOne(reviewerCandidates).id
-    }
-
-    await payload.create({
+    const { docs: existing } = await payload.find({
       collection: 'reports',
-      data: reportData,
+      where: {
+        and: [
+          { reporter: { equals: actor.id } },
+          { [target.kind === 'link' ? 'targetLink' : 'targetPost']: { equals: target.id } },
+          { reason: { equals: scenario.reason } },
+        ],
+      },
+      limit: 1,
+      depth: 0,
       overrideAccess: true,
     })
 
-    created += 1
+    if (existing.length > 0) {
+      tally.skipped += 1
+      continue
+    }
+
+    const createdAt = offsetIsoFromReference(referenceNow, scenario.referenceNowOffsetHours)
+    await payload.create({
+      collection: 'reports',
+      data: {
+        reporter: actor.id,
+        targetType: target.kind,
+        targetId: String(target.id),
+        targetLink: target.kind === 'link' ? target.id : undefined,
+        targetPost: target.kind === 'post' ? target.id : undefined,
+        reason: scenario.reason,
+        details: scenario.details,
+        status: 'pending',
+        createdAt,
+        updatedAt: createdAt,
+      },
+      user: actor,
+      overrideAccess: false,
+      depth: 0,
+    })
+
+    tally.created += 1
   }
 
-  console.log(`Seeded reports: ${created}`)
+  return tally
 }

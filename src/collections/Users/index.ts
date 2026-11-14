@@ -6,11 +6,13 @@ import { anyone } from '@/access/anyone'
 import { checkRole } from '@/access/checkRole'
 import { checkUserOrAdmin } from '@/access/checkUserOrAdmin'
 import {
-  buildPointClassProfile,
   buildTrustProfile,
   deriveAutomaticRoles,
   deriveBehavioralTitles,
+  TRUST_LEVEL_THRESHOLDS,
+  type TrustThreshold,
 } from '@/lib/community/reputation'
+import { BASE_TRUST_DYNAMICS, loadTrustDynamics } from '@/lib/community/trustDynamics'
 
 const readNumber = (value: unknown): number => {
   if (typeof value === 'number' && Number.isFinite(value)) return value
@@ -22,7 +24,12 @@ const mergeScore = (incoming: unknown, existing: unknown): number => {
   return readNumber(existing)
 }
 
-const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc }) => {
+const readDate = (value: unknown): string | Date | undefined => {
+  if (typeof value === 'string' || value instanceof Date) return value
+  return undefined
+}
+
+const syncCommunityProfile: CollectionBeforeChangeHook = async ({ data, originalDoc, req }) => {
   const existingRoles =
     Array.isArray(data?.roles) && data.roles.length > 0
       ? data.roles
@@ -43,44 +50,69 @@ const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc })
   const likabilityScore = mergeScore(data?.likabilityScore, originalDoc?.likabilityScore)
   const cleaningScore = mergeScore(data?.cleaningScore, originalDoc?.cleaningScore)
   const recruiterScore = mergeScore(data?.recruiterScore, originalDoc?.recruiterScore)
-  const pointProfile = buildPointClassProfile({
+
+  const trustedActivityUpdate =
+    req.context.updateUserActivity === true ||
+    admins({ req }) ||
+    (req.payloadAPI === 'local' && !req.user)
+  const lastActiveAt =
+    (trustedActivityUpdate ? readDate(data?.lastActiveAt) : undefined) ??
+    readDate(originalDoc?.lastActiveAt) ??
+    (data && !originalDoc ? new Date().toISOString() : undefined)
+
+  const previousTrustLevel =
+    typeof originalDoc?.trustLevel === 'string' ? originalDoc.trustLevel : undefined
+
+  const rolesLocked =
+    typeof data?.standingLocked === 'boolean'
+      ? data.standingLocked
+      : typeof originalDoc?.standingLocked === 'boolean'
+        ? originalDoc.standingLocked
+        : false
+
+  const revokedRoles = Array.isArray(data?.revokedRoles)
+    ? data.revokedRoles
+    : Array.isArray(originalDoc?.revokedRoles)
+      ? originalDoc.revokedRoles
+      : []
+
+  const signals = {
     discoveryScore,
     contributionScore,
     interactionScore,
-    likabilityScore,
-    cleaningScore,
-    recruiterScore,
     moderationScore,
     legacyContributionScore,
     securityScore,
-  })
-  const trust = buildTrustProfile({
-    discoveryScore,
-    contributionScore,
-    interactionScore,
-    moderationScore,
     likabilityScore,
     cleaningScore,
     recruiterScore,
-    legacyContributionScore,
-    securityScore,
-  })
+  }
+
+  // Bobhund #3: effective thresholds move with the population distribution.
+  // Fall back to the base ladder if the snapshot cannot be read (e.g. a brand
+  // new database before the global table exists).
+  let thresholds: TrustThreshold[] = TRUST_LEVEL_THRESHOLDS
+  try {
+    const dynamics = await loadTrustDynamics(req.payload, req)
+    thresholds = dynamics.thresholds
+  } catch (error) {
+    req.payload.logger.warn({
+      msg: 'Could not load community trust dynamics; using base thresholds.',
+      err: error,
+    })
+    thresholds = BASE_TRUST_DYNAMICS.thresholds
+  }
+
+  const trust = buildTrustProfile({ ...signals, lastActiveAt }, { previousTrustLevel, thresholds })
 
   const roles = deriveAutomaticRoles(
     {
-      discoveryScore,
-      contributionScore,
-      interactionScore,
-      moderationScore,
-      legacyContributionScore,
-      securityScore,
+      ...signals,
       streakDays: mergeScore(data?.streakDays, originalDoc?.streakDays),
-      lastActiveAt:
-        typeof data?.lastActiveAt === 'string' || data?.lastActiveAt instanceof Date
-          ? data.lastActiveAt
-          : originalDoc?.lastActiveAt,
+      lastActiveAt,
     },
     existingRoles,
+    { previousTrustLevel, rolesLocked, revokedRoles, thresholds },
   )
 
   const titles = deriveBehavioralTitles({
@@ -89,10 +121,7 @@ const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc })
     interactionScore,
     moderationScore,
     streakDays: mergeScore(data?.streakDays, originalDoc?.streakDays),
-    lastActiveAt:
-      typeof data?.lastActiveAt === 'string' || data?.lastActiveAt instanceof Date
-        ? data.lastActiveAt
-        : originalDoc?.lastActiveAt,
+    lastActiveAt,
   })
 
   return {
@@ -106,7 +135,7 @@ const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc })
     isUploader: roles.includes('uploader'),
     trustLevel: trust.trustLevel,
     reputationHidden: trust.reputationHidden,
-    totalMemberValue: pointProfile.totalMemberValue,
+    totalMemberValue: trust.reputationHidden,
     reputationPublicLabel: trust.reputationPublicLabel,
     titles,
     badges:
@@ -116,10 +145,7 @@ const syncCommunityProfile: CollectionBeforeChangeHook = ({ data, originalDoc })
           ? originalDoc.badges
           : [],
     streakDays: Math.max(0, mergeScore(data?.streakDays, originalDoc?.streakDays)),
-    lastActiveAt:
-      data?.lastActiveAt ||
-      originalDoc?.lastActiveAt ||
-      (data && !originalDoc ? new Date().toISOString() : undefined),
+    lastActiveAt: lastActiveAt ?? (data && !originalDoc ? new Date().toISOString() : undefined),
   }
 }
 
@@ -183,6 +209,10 @@ export const Users: CollectionConfig = {
       name: 'trustLevel',
       type: 'select',
       defaultValue: 'newcomer',
+      access: {
+        create: admins,
+        update: admins,
+      },
       admin: {
         readOnly: true,
       },
@@ -356,6 +386,10 @@ export const Users: CollectionConfig = {
     {
       name: 'lastActiveAt',
       type: 'date',
+      access: {
+        create: admins,
+        update: admins,
+      },
       admin: {
         readOnly: true,
       },
@@ -472,6 +506,59 @@ export const Users: CollectionConfig = {
         {
           label: 'User',
           value: 'user',
+        },
+      ],
+    },
+    {
+      name: 'standingLocked',
+      type: 'checkbox',
+      defaultValue: false,
+      label: 'Freeze automatic community roles',
+      admin: {
+        description:
+          'When enabled, automatically earned roles are frozen and will not be re-granted or removed by standing changes.',
+      },
+      access: {
+        read: admins,
+        create: admins,
+        update: admins,
+      },
+    },
+    {
+      name: 'revokedRoles',
+      type: 'select',
+      hasMany: true,
+      defaultValue: [],
+      label: 'Revoked automatic roles',
+      admin: {
+        description:
+          'Roles explicitly revoked by an administrator. Revoked roles are never re-granted automatically.',
+      },
+      access: {
+        read: admins,
+        create: admins,
+        update: admins,
+      },
+      options: [
+        {
+          label: 'Uploader',
+          value: 'uploader',
+        },
+        {
+          label: 'Editor',
+          value: 'editor',
+        },
+        {
+          label: 'Moderator',
+          value: 'moderator',
+        },
+        {
+          label: 'Cleaner',
+          value: 'cleaner',
+        },
+        {
+          label: 'Recruiter',
+          value: 'recruiter',
         },
       ],
     },

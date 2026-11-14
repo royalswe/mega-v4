@@ -7,12 +7,14 @@ export function ReorderAwareList({
   children,
   className,
 }: {
-  itemIds: number[]
+  /** Stable item keys. Mixed-content feeds must prefix them (e.g. `link-3` /
+   * `post-3`) because link and post ids overlap numerically. */
+  itemIds: Array<number | string>
   children: ReactNode
   className?: string
 }) {
   const childArray = useMemo(() => Children.toArray(children), [children])
-  const [stableOrder, setStableOrder] = useState<number[]>(itemIds)
+  const [stableOrder, setStableOrder] = useState<Array<number | string>>(itemIds)
 
   useEffect(() => {
     setStableOrder((previous) => {
@@ -28,7 +30,7 @@ export function ReorderAwareList({
   }, [itemIds])
 
   const childById = useMemo(() => {
-    const map = new Map<number, ReactNode>()
+    const map = new Map<number | string, ReactNode>()
     itemIds.forEach((id, index) => {
       map.set(id, childArray[index])
     })

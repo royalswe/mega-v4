@@ -29,6 +29,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   );
   
   DROP INDEX "payload_jobs_processing_idx";
+  UPDATE "payload_jobs_log" SET "input" = '{}'::jsonb WHERE "input" IS NULL;
   ALTER TABLE "payload_jobs_log" ALTER COLUMN "input" SET NOT NULL;
   ALTER TABLE "users" ADD COLUMN "reset_password_requested_at" timestamp(3) with time zone;
   ALTER TABLE "media" ADD COLUMN "original_filename" varchar;

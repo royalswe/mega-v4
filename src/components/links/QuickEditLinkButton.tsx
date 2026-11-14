@@ -23,7 +23,7 @@ interface QuickEditLinkButtonProps {
     description?: string | null
     nsfw?: boolean | null
     type?: 'article' | 'video' | 'image' | 'audio' | 'game' | null
-    feed?: 'main' | 'subfeed' | null
+    feed?: 'user' | 'main' | 'subfeed' | null
     subfeedId?: number
   }
   subfeeds: SubfeedOption[]

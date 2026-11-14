@@ -13,6 +13,8 @@ import { Avatar } from '@/components/users/Avatar'
 import { RichTextDisplay } from '@/components/ui/RichTextDisplay'
 import { Timestamp } from '@/components/ui/Timestamp'
 import { TrackedLink } from '@/components/links/TrackedLink'
+import { ContentSafetyControls } from '@/components/links/ContentSafetyControls.client'
+import { canModerateCommunity } from '@/lib/community/subfeeds'
 
 import type { Payload } from 'payload'
 import type { User } from '@/payload-types'
@@ -133,6 +135,18 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
               </Button>
             ) : null}
           </div>
+          {canModerateCommunity(user) ? (
+            <div className="mb-4">
+              <ContentSafetyControls
+                collection="links"
+                id={link.id}
+                isQuarantined={link.quarantined}
+                isPromotedOrPriority={Boolean(
+                  link.featured || link.discoveryBoosted || link.editorialPriority,
+                )}
+              />
+            </div>
+          ) : null}
           <p className="whitespace-pre-wrap">{link.description}</p>
         </div>
       </div>

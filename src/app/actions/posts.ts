@@ -2,7 +2,15 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedUser } from '@/lib/auth'
-import { canModerateCommunity, isSubfeedMemberOrModerator } from '@/lib/community/subfeeds'
+import {
+  MAIN_FEED_PUBLISH_UNAUTHORIZED_MESSAGE,
+  SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE,
+  canManageSubmittedLinks,
+  canModerateCommunity,
+  canSubmitToSubfeed,
+  derivePersistedPublicationState,
+} from '@/lib/community/subfeeds'
+import type { SubmissionOutcome } from '@/lib/community/subfeeds'
 
 export async function vote(postId: number, type: 'up' | 'down') {
   const { user, payload } = await getAuthenticatedUser()
@@ -104,9 +112,9 @@ export async function submitPost(values: {
   title: string
   content: string
   nsfw?: boolean
-  feed: 'user' | 'subfeed'
+  feed?: 'user' | 'subfeed' | 'main'
   subfeedId?: number
-}) {
+}): Promise<SubmissionOutcome> {
   const { user, payload } = await getAuthenticatedUser()
 
   if (!user) {
@@ -118,11 +126,15 @@ export async function submitPost(values: {
     user,
     overrideAccess: false as const,
   }
+  const feed = values.feed ?? 'user'
 
-  let subfeedId: number | undefined
-  let subfeedSlug: string | null = null
+  if (feed === 'main' && !canManageSubmittedLinks(user)) {
+    throw new Error(MAIN_FEED_PUBLISH_UNAUTHORIZED_MESSAGE)
+  }
 
-  if (values.feed === 'subfeed') {
+  let subfeed: { id: number; name: string; slug: string } | null = null
+
+  if (feed === 'subfeed') {
     if (
       typeof values.subfeedId !== 'number' ||
       !Number.isInteger(values.subfeedId) ||
@@ -131,40 +143,72 @@ export async function submitPost(values: {
       throw new Error('Please select a subfeed destination')
     }
 
-    const subfeed = await payload.findByID({
+    const selectedSubfeed = await payload.findByID({
       collection: 'subfeeds',
       id: values.subfeedId,
       depth: 0,
       ...withAccess,
     })
 
-    if (!canModerateCommunity(user) && !isSubfeedMemberOrModerator(subfeed, userId)) {
-      throw new Error('You must join this subfeed before posting')
+    if (!canModerateCommunity(user) && !canSubmitToSubfeed(selectedSubfeed, userId)) {
+      throw new Error(SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE)
     }
 
-    subfeedId = subfeed.id
-    subfeedSlug = subfeed.slug
+    subfeed = {
+      id: selectedSubfeed.id,
+      name: selectedSubfeed.name,
+      slug: selectedSubfeed.slug,
+    }
   }
 
-  await payload.create({
+  // `status` is moderator-only field access, so publication state is derived
+  // by `preparePost` from the effective destination, not passed by the member.
+  const createdPost = await payload.create({
     collection: 'posts',
     data: {
       title: values.title,
       content: JSON.parse(values.content),
       nsfw: values.nsfw,
       user: userId,
-      feed: values.feed,
-      subfeed: subfeedId,
+      feed,
+      subfeed: subfeed?.id,
       type: 'discussion',
-      status: 'published',
     },
     ...withAccess,
   })
 
   revalidatePath('/wall')
   revalidatePath('/subfeeds')
+  revalidatePath(`/user/${encodeURIComponent(user.username)}`)
 
-  if (subfeedSlug) {
-    revalidatePath(`/subfeeds/${subfeedSlug}`)
+  if (subfeed) {
+    revalidatePath(`/subfeeds/${subfeed.slug}`)
+  }
+
+  const visibility = derivePersistedPublicationState('post', createdPost)
+  const persistedFeed = (createdPost.feed ?? feed) as SubmissionOutcome['feed']
+
+  return {
+    kind: 'post',
+    id: createdPost.id,
+    title: createdPost.title,
+    feed: persistedFeed,
+    visibility,
+    isPublic: visibility === 'published',
+    itemHref: visibility === 'blocked' ? null : `/post/${createdPost.id}`,
+    destinationHref:
+      persistedFeed === 'subfeed' && subfeed
+        ? `/subfeeds/${subfeed.slug}`
+        : persistedFeed === 'main'
+          ? '/'
+          : `/user/${encodeURIComponent(user.username)}?tab=posts`,
+    destinationLabel:
+      persistedFeed === 'subfeed' && subfeed
+        ? subfeed.name
+        : persistedFeed === 'main'
+          ? 'Main Feed'
+          : 'Your User Feed',
+    subfeed: subfeed ?? undefined,
+    authorUsername: user.username,
   }
 }

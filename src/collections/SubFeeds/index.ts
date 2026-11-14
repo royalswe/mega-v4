@@ -7,6 +7,9 @@ import type {
 } from 'payload'
 
 import { checkRole } from '@/access/checkRole'
+import { getSubfeedEligibilityForUser } from '@/lib/community/subfeedEligibility'
+import { canModerateSubfeedContent, resolveSubfeedOwner } from '@/lib/community/subfeeds'
+import type { SubfeedRosterLike } from '@/lib/community/subfeeds'
 import { bumpUserSignals } from '@/lib/community/userSignals'
 import { resolveID } from '@/lib/community/userSignals'
 
@@ -32,6 +35,45 @@ const normalizeIds = (values: unknown): number[] => {
   return values.map(resolveID).filter((value): value is number => typeof value === 'number')
 }
 
+const preservesOwner = (
+  data: SubfeedRosterLike | undefined,
+  originalDoc: SubfeedRosterLike,
+): boolean => {
+  const ownerId = resolveSubfeedOwner(originalDoc)
+  return (
+    (data?.owner === undefined || resolveID(data.owner) === resolveID(originalDoc.owner)) &&
+    (data?.moderators === undefined ||
+      ownerId === null ||
+      normalizeIds(data.moderators).includes(ownerId)) &&
+    (data?.members === undefined ||
+      ownerId === null ||
+      normalizeIds(data.members).includes(ownerId))
+  )
+}
+
+/**
+ * SubFeed creation is gated behind earned community standing. Site admins
+ * bypass; everyone else must meet the uploader/editor candidacy or strong
+ * recruiter thresholds computed by `evaluateSubfeedEligibility`. We read the
+ * acting user's own profile with `overrideAccess: true` (reading one's own
+ * standing fields for gating is fine) and never run the eligibility logic as
+ * admin.
+ */
+const canCreateSubfeed: Access = async ({ req }) => {
+  const { user } = req
+  if (!user) return false
+
+  if (checkRole(['admin'], user)) return true
+
+  const userId = resolveID(user.id)
+  if (!userId) return false
+
+  const eligibility = await getSubfeedEligibilityForUser(req.payload, userId, req)
+  if (!eligibility) return false
+
+  return eligibility.eligible
+}
+
 const canManageSubfeed: Access = async ({ id, req, data }) => {
   const { user } = req
   if (!user) return false
@@ -51,14 +93,8 @@ const canManageSubfeed: Access = async ({ id, req, data }) => {
 
   if (!subfeed) return false
 
-  const moderatorIds = Array.isArray(subfeed.moderators)
-    ? subfeed.moderators
-        .map(resolveID)
-        .filter((value): value is number => typeof value === 'number')
-    : []
-
-  if (moderatorIds.includes(user.id)) {
-    return true
+  if (canModerateSubfeedContent(subfeed, user.id)) {
+    return preservesOwner(data, subfeed)
   }
 
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
@@ -109,40 +145,52 @@ const prepareSubfeed: CollectionBeforeValidateHook = ({ data }) => {
   return next
 }
 
-const attachCreatorToCommunity: CollectionBeforeChangeHook = ({ data, operation, req }) => {
+const attachCreatorToCommunity: CollectionBeforeChangeHook = ({
+  data,
+  operation,
+  originalDoc,
+  req,
+}) => {
+  if (
+    operation === 'update' &&
+    req.user &&
+    !canModerate(req.user) &&
+    !preservesOwner(data, originalDoc)
+  ) {
+    throw new Error('You cannot change the owner or remove the owner from moderators or members')
+  }
   if (operation !== 'create' || !req.user) return data
 
   const creatorId = req.user.id
 
-  const moderators = Array.isArray(data?.moderators)
-    ? Array.from(new Set([...normalizeIds(data.moderators), creatorId]))
-    : [creatorId]
+  const owner = canModerate(req.user) ? (resolveID(data?.owner) ?? creatorId) : creatorId
 
-  const members = Array.isArray(data?.members)
-    ? Array.from(new Set([...normalizeIds(data.members), creatorId]))
-    : [creatorId]
+  const moderators = Array.from(new Set([...normalizeIds(data?.moderators), owner, creatorId]))
+  const members = Array.from(new Set([...normalizeIds(data?.members), owner, creatorId]))
 
   return {
     ...data,
+    owner,
     moderators,
     members,
   }
 }
 
 const rewardRecruitment: CollectionAfterChangeHook = async ({ doc, previousDoc, req }) => {
-  if (!req.user || !previousDoc) return
+  if (req.context.skipHooks || !req.user || !previousDoc) return
+
+  const rosterChanged = (['moderators', 'editors', 'uploaders'] as const).some(
+    (field) =>
+      JSON.stringify(normalizeIds(doc[field])) !== JSON.stringify(normalizeIds(previousDoc[field])),
+  )
+  if (rosterChanged) return
 
   const previousMembers = new Set(normalizeIds(previousDoc.members))
   const nextMembers = new Set(normalizeIds(doc.members))
 
-  let recruitedCount = 0
-  for (const memberId of nextMembers) {
-    if (!previousMembers.has(memberId)) recruitedCount += 1
-  }
-
-  if (recruitedCount > 0) {
+  if (!previousMembers.has(req.user.id) && nextMembers.has(req.user.id)) {
     await bumpUserSignals(req, req.user.id, {
-      recruiterScore: recruitedCount,
+      recruiterScore: 1,
     })
   }
 }
@@ -156,7 +204,7 @@ export const SubFeeds: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req: { user } }) => Boolean(user),
+    create: canCreateSubfeed,
     update: canManageSubfeed,
     delete: ({ req: { user } }) => canModerate(user),
   },
@@ -208,11 +256,44 @@ export const SubFeeds: CollectionConfig = {
       type: 'text',
     },
     {
+      name: 'owner',
+      type: 'relationship',
+      relationTo: 'users',
+      access: {
+        update: ({ req: { user } }) => canModerate(user),
+      },
+      admin: {
+        description:
+          'The SubFeed owner. Governs local roles and roster. Defaults to the creator; legacy rows fall back to the first moderator.',
+        position: 'sidebar',
+      },
+    },
+    {
       name: 'moderators',
       type: 'relationship',
       relationTo: 'users',
       hasMany: true,
       required: true,
+    },
+    {
+      name: 'editors',
+      type: 'relationship',
+      relationTo: 'users',
+      hasMany: true,
+      defaultValue: [],
+      admin: {
+        description: 'Local editors can curate (update) content within this SubFeed only.',
+      },
+    },
+    {
+      name: 'uploaders',
+      type: 'relationship',
+      relationTo: 'users',
+      hasMany: true,
+      defaultValue: [],
+      admin: {
+        description: 'Local uploaders can submit content to this SubFeed.',
+      },
     },
     {
       name: 'members',

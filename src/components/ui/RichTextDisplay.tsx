@@ -50,12 +50,22 @@ export function RichTextDisplay({ content, className = '' }: RichTextDisplayProp
     const key = `${node.type}-${index}`
 
     switch (node.type) {
-      case 'paragraph':
+      case 'paragraph': {
+        // Lexical's editor renders empty paragraphs (blank rows from pressing
+        // Enter twice) with a line box; the serialized JSON has no children, so
+        // mirror that here with a zero-width space — otherwise blank rows
+        // collapse to zero height and paragraph breaks become invisible.
+        const isEmpty = !node.children || node.children.length === 0
         return (
-          <p key={key} className="mb-2">
-            {node.children?.map((child: RenderableLexicalNode, i: number) => renderNode(child, i))}
+          <p key={key} className="mb-3">
+            {isEmpty
+              ? '\u200B'
+              : node.children?.map((child: RenderableLexicalNode, i: number) =>
+                  renderNode(child, i),
+                )}
           </p>
         )
+      }
 
       case 'heading':
         const HeadingTag = safeHeadingTag(node.tag)

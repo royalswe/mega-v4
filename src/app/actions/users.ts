@@ -1,7 +1,13 @@
 'use server'
 
 import { getAuthenticatedUser } from '@/lib/auth'
+import { checkRole } from '@/access/checkRole'
 import { revalidatePath } from 'next/cache'
+import { withSerializableTransaction } from '@/lib/withSerializableTransaction'
+
+type AutomaticRole = 'uploader' | 'editor' | 'moderator' | 'cleaner' | 'recruiter'
+
+const AUTOMATIC_ROLES: AutomaticRole[] = ['uploader', 'editor', 'moderator', 'cleaner', 'recruiter']
 
 export async function uploadMedia(formData: FormData) {
   const { user, payload } = await getAuthenticatedUser()
@@ -98,3 +104,125 @@ export async function updateUserAvatar(mediaId: number) {
   revalidatePath('/user/[username]', 'page')
   revalidatePath('/', 'layout')
 }
+
+export async function setStandingLock(userId: number, locked: boolean) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user || !checkRole(['admin'], user)) {
+    throw new Error('Only administrators can freeze community standing')
+  }
+
+  await payload.update({
+    collection: 'users',
+    id: userId,
+    data: {
+      standingLocked: locked,
+    },
+    user,
+    overrideAccess: false,
+  })
+
+  revalidatePath('/user/[username]', 'page')
+  revalidatePath('/', 'layout')
+}
+
+export async function revokeAutomaticRole(userId: number, role: AutomaticRole, revoke: boolean) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user || !checkRole(['admin'], user)) {
+    throw new Error('Only administrators can revoke community roles')
+  }
+
+  if (!AUTOMATIC_ROLES.includes(role)) {
+    throw new Error('Invalid automatic role')
+  }
+
+  await withSerializableTransaction(payload, async (req) => {
+    const target = await payload.findByID({
+      collection: 'users',
+      id: userId,
+      user,
+      overrideAccess: false,
+      req,
+    })
+
+    if (!target) {
+      throw new Error('User not found')
+    }
+
+    const current = new Set<AutomaticRole>(
+      Array.isArray(target.revokedRoles) ? (target.revokedRoles as AutomaticRole[]) : [],
+    )
+
+    if (revoke) {
+      current.add(role)
+    } else {
+      current.delete(role)
+    }
+
+    await payload.update({
+      collection: 'users',
+      id: userId,
+      data: {
+        revokedRoles: Array.from(current),
+      },
+      user,
+      overrideAccess: false,
+      req,
+    })
+  })
+
+  revalidatePath('/user/[username]', 'page')
+  revalidatePath('/', 'layout')
+}
+
+/**
+ * Emergency rollback of all automatically earned community roles for an account,
+ * optionally freezing standing to prevent immediate re-derivation.
+ * Dedicated administrator safety control (ticket #19).
+ */
+export async function rollbackUserRoles(userId: number, options?: { lockStanding?: boolean }) {
+  const { user, payload } = await getAuthenticatedUser()
+
+  if (!user || !checkRole(['admin'], user)) {
+    throw new Error('Only administrators can rollback community roles')
+  }
+
+  const shouldLock = options?.lockStanding ?? true
+  await withSerializableTransaction(payload, async (req) => {
+    const target = await payload.findByID({
+      collection: 'users',
+      id: userId,
+      overrideAccess: true,
+      req,
+    })
+
+    if (!target) {
+      throw new Error('User not found')
+    }
+
+    const currentRoles = Array.isArray(target.roles) ? target.roles : []
+    const nextRoles: (
+      'admin' | 'editor' | 'moderator' | 'cleaner' | 'uploader' | 'recruiter' | 'user'
+    )[] = currentRoles.includes('admin') ? ['admin', 'user'] : ['user']
+
+    await payload.update({
+      collection: 'users',
+      id: userId,
+      data: {
+        revokedRoles: [...AUTOMATIC_ROLES],
+        standingLocked: shouldLock,
+        roles: nextRoles,
+      },
+      overrideAccess: true,
+      req,
+    })
+  })
+
+  revalidatePath('/user/[username]', 'page')
+  revalidatePath('/', 'layout')
+
+  return { userId, rolledBack: true, standingLocked: shouldLock }
+}
+
+export const rollbackAutomaticRoles = rollbackUserRoles

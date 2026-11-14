@@ -18,6 +18,7 @@ import { TRUST_LEVEL_THRESHOLDS } from '@/lib/community/reputation'
 import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
 import { getPostInteractions } from '@/app/(frontend)/data/getPostInteractions'
 import { checkRole } from '@/access/checkRole'
+import { AdminSafetyControls } from '@/components/users/AdminSafetyControls.client'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,6 +73,13 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
   const publicTitles = Array.isArray(profileUser.titles)
     ? profileUser.titles.filter((title): title is string => typeof title === 'string').slice(0, 3)
     : []
+  const earnedRoles = [
+    { label: 'Uploader', active: Boolean(profileUser.isUploader) },
+    { label: 'Editor', active: Boolean(profileUser.isEditor) },
+    { label: 'Moderator', active: Boolean(profileUser.isModerator) },
+    { label: 'Cleaner', active: Boolean(profileUser.isCleaner) },
+    { label: 'Recruiter', active: Boolean(profileUser.isRecruiter) },
+  ].filter((role) => role.active)
   const totalMemberValue = readVisibleScore(profileUser.totalMemberValue) ?? 0
   const pointSummary = [
     { label: 'Discovery', value: readVisibleScore(profileUser.discoveryScore) },
@@ -278,6 +286,19 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
             </div>
           )}
 
+          {earnedRoles.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {earnedRoles.map((role) => (
+                <span
+                  key={role.label}
+                  className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
+                >
+                  {role.label}
+                </span>
+              ))}
+            </div>
+          )}
+
           <Card className="border-dashed">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">Member Value</CardTitle>
@@ -289,11 +310,11 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
               </div>
 
               {(() => {
-                const currentIndex = TRUST_LEVEL_THRESHOLDS.reduce(
-                  (acc, level, index) => (totalMemberValue >= level.min ? index : acc),
-                  0,
+                const storedLevel = TRUST_LEVEL_THRESHOLDS.find(
+                  (level) => level.value === profileUser.trustLevel,
                 )
-                const currentLevel = TRUST_LEVEL_THRESHOLDS[currentIndex]
+                const currentLevel = storedLevel ?? TRUST_LEVEL_THRESHOLDS[0]
+                const currentIndex = TRUST_LEVEL_THRESHOLDS.indexOf(currentLevel)
                 const nextLevel = TRUST_LEVEL_THRESHOLDS[currentIndex + 1] ?? null
                 const span = nextLevel ? nextLevel.min - currentLevel.min : 0
                 const progressed = nextLevel
@@ -377,6 +398,15 @@ export default async function UserProfilePage({ params, searchParams }: PageProp
           <ProfileSettings user={profileUser} currentUser={currentUser} dict={dict} lang={lang} />
         </CardContent>
       </Card>
+
+      {isAdminViewer ? (
+        <AdminSafetyControls
+          userId={profileUser.id}
+          username={profileUser.username}
+          standingLocked={profileUser.standingLocked}
+          earnedRoleCount={earnedRoles.length}
+        />
+      ) : null}
 
       {/* Tabs Section */}
       <div className="space-y-6">

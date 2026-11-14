@@ -5,10 +5,14 @@ import { cookies } from 'next/headers'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { checkRole } from '@/access/checkRole'
 import {
+  MAIN_FEED_PUBLISH_UNAUTHORIZED_MESSAGE,
+  SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE,
   canManageSubmittedLinks,
   canModerateCommunity,
-  isSubfeedMemberOrModerator,
+  canSubmitToSubfeed,
+  derivePersistedPublicationState,
 } from '@/lib/community/subfeeds'
+import type { SubmissionOutcome } from '@/lib/community/subfeeds'
 
 export async function setMainFeedMixPreference(includeSubfeeds: boolean) {
   const { user } = await getAuthenticatedUser()
@@ -148,9 +152,9 @@ export async function submitLink(values: {
   description?: string
   nsfw?: boolean
   type?: 'article' | 'video' | 'image' | 'audio' | 'game'
-  feed: 'main' | 'subfeed'
+  feed?: 'user' | 'subfeed' | 'main'
   subfeedId?: number
-}) {
+}): Promise<SubmissionOutcome> {
   const { user, payload } = await getAuthenticatedUser()
 
   if (!user) {
@@ -162,12 +166,15 @@ export async function submitLink(values: {
     user,
     overrideAccess: false as const,
   }
+  const feed = values.feed ?? 'user'
 
-  let subfeedId: number | undefined
-  let subfeedSlug: string | null = null
-  const isSubfeedSubmission = values.feed === 'subfeed'
+  if (feed === 'main' && !canManageSubmittedLinks(user)) {
+    throw new Error(MAIN_FEED_PUBLISH_UNAUTHORIZED_MESSAGE)
+  }
 
-  if (values.feed === 'subfeed') {
+  let subfeed: { id: number; name: string; slug: string } | null = null
+
+  if (feed === 'subfeed') {
     if (
       typeof values.subfeedId !== 'number' ||
       !Number.isInteger(values.subfeedId) ||
@@ -176,65 +183,76 @@ export async function submitLink(values: {
       throw new Error('Please select a subfeed destination')
     }
 
-    const subfeed = await payload.findByID({
+    const selectedSubfeed = await payload.findByID({
       collection: 'subfeeds',
       id: values.subfeedId,
       depth: 0,
       ...withAccess,
     })
 
-    if (!canModerateCommunity(user) && !isSubfeedMemberOrModerator(subfeed, userId)) {
-      throw new Error('You must join this subfeed before posting')
+    if (!canModerateCommunity(user) && !canSubmitToSubfeed(selectedSubfeed, userId)) {
+      throw new Error(SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE)
     }
 
-    subfeedId = subfeed.id
-    subfeedSlug = subfeed.slug
+    subfeed = {
+      id: selectedSubfeed.id,
+      name: selectedSubfeed.name,
+      slug: selectedSubfeed.slug,
+    }
   }
 
-  const linkData = {
-    title: values.title,
-    url: values.url,
-    description: values.description,
-    nsfw: values.nsfw,
-    type: values.type,
-    user: userId,
-    feed: values.feed,
-    subfeed: subfeedId,
-  }
-
-  if (isSubfeedSubmission) {
-    const createdLink = await payload.create({
-      collection: 'links',
-      data: linkData,
-      draft: true,
-      ...withAccess,
-    })
-
-    await payload.update({
-      collection: 'links',
-      id: createdLink.id,
-      data: {
-        _status: 'published',
-        featured: false,
-      },
-      draft: false,
-      ...withAccess,
-    })
-  } else {
-    await payload.create({
-      collection: 'links',
-      data: linkData,
-      draft: true,
-      ...withAccess,
-    })
-  }
+  const createdLink = await payload.create({
+    collection: 'links',
+    data: {
+      title: values.title,
+      url: values.url,
+      description: values.description,
+      nsfw: values.nsfw,
+      type: values.type ?? 'article',
+      user: userId,
+      feed,
+      subfeed: subfeed?.id,
+      _status: 'published',
+      featured: false,
+    },
+    draft: false,
+    ...withAccess,
+  })
 
   revalidatePath('/')
   revalidatePath('/submitted')
   revalidatePath('/subfeeds')
+  revalidatePath(`/user/${encodeURIComponent(user.username)}`)
 
-  if (subfeedSlug) {
-    revalidatePath(`/subfeeds/${subfeedSlug}`)
+  if (subfeed) {
+    revalidatePath(`/subfeeds/${subfeed.slug}`)
+  }
+
+  const visibility = derivePersistedPublicationState('link', createdLink)
+  const persistedFeed = (createdLink.feed ?? feed) as SubmissionOutcome['feed']
+
+  return {
+    kind: 'link',
+    id: createdLink.id,
+    title: createdLink.title,
+    feed: persistedFeed,
+    visibility,
+    isPublic: visibility === 'published',
+    itemHref: visibility === 'blocked' ? null : `/link/${createdLink.id}`,
+    destinationHref:
+      persistedFeed === 'subfeed' && subfeed
+        ? `/subfeeds/${subfeed.slug}`
+        : persistedFeed === 'main'
+          ? '/'
+          : `/user/${encodeURIComponent(user.username)}?tab=links`,
+    destinationLabel:
+      persistedFeed === 'subfeed' && subfeed
+        ? subfeed.name
+        : persistedFeed === 'main'
+          ? 'Main Feed'
+          : 'Your User Feed',
+    subfeed: subfeed ?? undefined,
+    authorUsername: user.username,
   }
 }
 
@@ -361,7 +379,7 @@ export async function updateLinkAsAdmin(values: {
   description?: string
   nsfw?: boolean
   type?: 'article' | 'video' | 'image' | 'audio' | 'game'
-  feed: 'main' | 'subfeed'
+  feed: 'user' | 'main' | 'subfeed'
   subfeedId?: number
 }) {
   const { user, payload } = await getAuthenticatedUser()
@@ -425,7 +443,7 @@ export async function updateLinkAsAdmin(values: {
       nsfw: values.nsfw,
       type: values.type,
       feed: values.feed,
-      subfeed: nextSubfeedId,
+      subfeed: values.feed === 'subfeed' ? nextSubfeedId : null,
     },
     ...withAccess,
   })

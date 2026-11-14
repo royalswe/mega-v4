@@ -168,9 +168,11 @@ export interface Config {
   };
   fallbackLocale: null;
   globals: {
+    'community-dynamics': CommunityDynamic;
     'payload-jobs-stats': PayloadJobsStat;
   };
   globalsSelect: {
+    'community-dynamics': CommunityDynamicsSelect<false> | CommunityDynamicsSelect<true>;
     'payload-jobs-stats': PayloadJobsStatsSelect<false> | PayloadJobsStatsSelect<true>;
   };
   locale: null;
@@ -255,6 +257,14 @@ export interface User {
   legacyContributionScore?: number | null;
   totalMemberValue?: number | null;
   roles?: ('admin' | 'editor' | 'moderator' | 'cleaner' | 'uploader' | 'recruiter' | 'user')[] | null;
+  /**
+   * When enabled, automatically earned roles are frozen and will not be re-granted or removed by standing changes.
+   */
+  standingLocked?: boolean | null;
+  /**
+   * Roles explicitly revoked by an administrator. Revoked roles are never re-granted automatically.
+   */
+  revokedRoles?: ('uploader' | 'editor' | 'moderator' | 'cleaner' | 'recruiter')[] | null;
   settings: {
     nsfw?: boolean | null;
     language: 'en' | 'sv';
@@ -275,6 +285,8 @@ export interface User {
         id: string;
         createdAt?: string | null;
         expiresAt: string;
+        refreshCount?: number | null;
+        refreshedAt?: string | null;
       }[]
     | null;
   password?: string | null;
@@ -346,7 +358,31 @@ export interface Link {
   featured?: boolean | null;
   breaking?: boolean | null;
   controversial?: boolean | null;
+  /**
+   * Quarantined content is excluded from Main Feed promotion regardless of score or origin.
+   */
+  quarantined?: boolean | null;
   softDeleted?: boolean | null;
+  /**
+   * Curated discovery boost into Main Feed visibility (set via the boost action).
+   */
+  discoveryBoosted?: boolean | null;
+  /**
+   * When this content was last discovery-boosted.
+   */
+  boostedAt?: string | null;
+  /**
+   * The member with Discovery standing who boosted this content.
+   */
+  boostedBy?: (number | null) | User;
+  /**
+   * Time-bounded priority boost for direct Main Feed editorial publication.
+   */
+  editorialPriority?: boolean | null;
+  /**
+   * Expiration timestamp for the editorial priority boost.
+   */
+  editorialPriorityUntil?: string | null;
   clickCount?: number | null;
   /**
    * Comments related to this link
@@ -381,7 +417,19 @@ export interface Subfeed {
   banner?: (number | null) | Media;
   rules?: string | null;
   theme?: string | null;
+  /**
+   * The SubFeed owner. Governs local roles and roster. Defaults to the creator; legacy rows fall back to the first moderator.
+   */
+  owner?: (number | null) | User;
   moderators: (number | User)[];
+  /**
+   * Local editors can curate (update) content within this SubFeed only.
+   */
+  editors?: (number | User)[] | null;
+  /**
+   * Local uploaders can submit content to this SubFeed.
+   */
+  uploaders?: (number | User)[] | null;
   members?: (number | User)[] | null;
   reputation?: number | null;
   featured?: boolean | null;
@@ -439,6 +487,30 @@ export interface Post {
   featured?: boolean | null;
   breaking?: boolean | null;
   controversial?: boolean | null;
+  /**
+   * Quarantined content is excluded from Main Feed promotion regardless of score or origin.
+   */
+  quarantined?: boolean | null;
+  /**
+   * Curated discovery boost into Main Feed visibility (set via the boost action).
+   */
+  discoveryBoosted?: boolean | null;
+  /**
+   * When this content was last discovery-boosted.
+   */
+  boostedAt?: string | null;
+  /**
+   * The member with Discovery standing who boosted this content.
+   */
+  boostedBy?: (number | null) | User;
+  /**
+   * Time-bounded priority boost for direct Main Feed editorial publication.
+   */
+  editorialPriority?: boolean | null;
+  /**
+   * Expiration timestamp for the editorial priority boost.
+   */
+  editorialPriorityUntil?: string | null;
   status?: ('published' | 'pending' | 'removed') | null;
   /**
    * Comments related to this post
@@ -821,6 +893,8 @@ export interface UsersSelect<T extends boolean = true> {
   legacyContributionScore?: T;
   totalMemberValue?: T;
   roles?: T;
+  standingLocked?: T;
+  revokedRoles?: T;
   settings?:
     | T
     | {
@@ -844,6 +918,8 @@ export interface UsersSelect<T extends boolean = true> {
         id?: T;
         createdAt?: T;
         expiresAt?: T;
+        refreshCount?: T;
+        refreshedAt?: T;
       };
 }
 /**
@@ -912,7 +988,13 @@ export interface LinksSelect<T extends boolean = true> {
   featured?: T;
   breaking?: T;
   controversial?: T;
+  quarantined?: T;
   softDeleted?: T;
+  discoveryBoosted?: T;
+  boostedAt?: T;
+  boostedBy?: T;
+  editorialPriority?: T;
+  editorialPriorityUntil?: T;
   clickCount?: T;
   relatedComments?: T;
   saves?: T;
@@ -951,6 +1033,12 @@ export interface PostsSelect<T extends boolean = true> {
   featured?: T;
   breaking?: T;
   controversial?: T;
+  quarantined?: T;
+  discoveryBoosted?: T;
+  boostedAt?: T;
+  boostedBy?: T;
+  editorialPriority?: T;
+  editorialPriorityUntil?: T;
   status?: T;
   relatedComments?: T;
   saves?: T;
@@ -1010,7 +1098,10 @@ export interface SubfeedsSelect<T extends boolean = true> {
   banner?: T;
   rules?: T;
   theme?: T;
+  owner?: T;
   moderators?: T;
+  editors?: T;
+  uploaders?: T;
   members?: T;
   reputation?: T;
   featured?: T;
@@ -1170,6 +1261,37 @@ export interface PayloadLlmInstructionsSelect<T extends boolean = true> {
   createdAt?: T;
 }
 /**
+ * Population-relative trust thresholds. Recomputed automatically from active-member distribution (exponential moving average).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "community-dynamics".
+ */
+export interface CommunityDynamic {
+  id: number;
+  computedAt?: string | null;
+  totalActiveMembers?: number | null;
+  levels?:
+    | {
+        level: string;
+        count?: number | null;
+        share?: number | null;
+        threshold: number;
+        scale?: number | null;
+        id?: string | null;
+      }[]
+    | null;
+  createdBy?: {
+    relationTo: 'users';
+    value: number | User;
+  } | null;
+  updatedBy?: {
+    relationTo: 'users';
+    value: number | User;
+  } | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-jobs-stats".
  */
@@ -1186,6 +1308,29 @@ export interface PayloadJobsStat {
     | null;
   updatedAt?: string | null;
   createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "community-dynamics_select".
+ */
+export interface CommunityDynamicsSelect<T extends boolean = true> {
+  computedAt?: T;
+  totalActiveMembers?: T;
+  levels?:
+    | T
+    | {
+        level?: T;
+        count?: T;
+        share?: T;
+        threshold?: T;
+        scale?: T;
+        id?: T;
+      };
+  createdBy?: T;
+  updatedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

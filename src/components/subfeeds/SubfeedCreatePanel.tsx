@@ -30,7 +30,7 @@ export function SubfeedCreatePanel({ subfeedId, subfeedName, mode, dict }: Props
       : `${dict.subfeeds.createPostModalTitle}: ${subfeedName}`
 
   function handleSuccess() {
-    setOpen(false)
+    // Keep the modal open so the submission outcome banner stays reachable.
     router.refresh()
   }
 

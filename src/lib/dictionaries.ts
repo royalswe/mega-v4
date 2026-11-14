@@ -1,5 +1,6 @@
 import type { User } from '@/payload-types'
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 import { getAuthenticatedUser } from './auth'
 
 export type UserLanguage = NonNullable<NonNullable<User['settings']>['language']>
@@ -16,6 +17,8 @@ const dictionaries = {
       commentAdded: 'Comment added!',
       failedToAddComment: 'Failed to add comment',
       loginToComment: 'Log in to comment',
+      userFeedOrigin: "From {username}'s User Feed",
+      editorialPriority: 'Editorial Priority',
     },
     menu: {
       home: 'Home',
@@ -63,18 +66,19 @@ const dictionaries = {
       },
       noBookmarks: 'No bookmarks found',
       noLinks: 'No links found',
+      loadingMore: 'Loading more…',
       submittedTitle: 'All Submitted Links',
       contribute: {
-        memberTitle: 'Share to your SubFeeds',
+        memberTitle: 'Add to your feed',
         memberSubtitle:
-          'Every link you drop earns Contribution Points and pulls your subfeeds up the ranks.',
+          'Publish links and posts to your public User Feed. Strong community engagement can lift them into the Main Feed.',
         shareLinkAction: 'Share a link',
         startDiscussionAction: 'Start a discussion',
-        shareLinkModalTitle: 'Share a link with your SubFeeds',
-        startDiscussionModalTitle: 'Start a discussion in your SubFeeds',
-        noSubfeedsTitle: 'Find your community',
+        shareLinkModalTitle: 'Add a link to your feed',
+        startDiscussionModalTitle: 'Write a post for your feed',
+        noSubfeedsTitle: 'Add to your feed',
         noSubfeedsSubtitle:
-          'Join a SubFeed you love, then share the links and posts your community will care about.',
+          'Your public User Feed is ready right away—no SubFeed required. Share a link or post, and strong engagement can earn Main Feed reach.',
         browseSubfeedsAction: 'Browse SubFeeds',
         createSubfeedAction: 'Start a new SubFeed',
         guestTitle: 'Welcome to V4',
@@ -162,11 +166,15 @@ const dictionaries = {
       typeDesc: 'Optional: Specify the type of content (e.g., article, video).',
       destinationLabel: 'Destination',
       destinationPlaceholder: 'Choose destination',
-      destinationDesc: 'Publish to main feed or a specific subfeed.',
+      destinationDesc:
+        'Starts in your public User Feed unless you select an authorized editorial destination. Engagement can earn Main Feed reach.',
       destinationOptions: {
+        user: 'Your Feed',
         main: 'Main Feed',
         subfeed: 'SubFeed',
       },
+      personalFeedOnlyNote:
+        'Published to your public User Feed. Community engagement can lift eligible items into the Main Feed.',
       subfeedLabel: 'SubFeed',
       subfeedPlaceholder: 'Choose a SubFeed',
       subfeedDesc: 'Select where this link should be posted.',
@@ -206,11 +214,15 @@ const dictionaries = {
       contentRequired: 'Content is required (minimum 10 characters).',
       destinationLabel: 'Destination',
       destinationPlaceholder: 'Choose destination',
-      destinationDesc: 'Publish to your feed or a specific subfeed.',
+      destinationDesc:
+        'Starts in your public User Feed unless you select an authorized editorial destination. Engagement can earn Main Feed reach.',
       destinationOptions: {
         user: 'Your Feed',
         subfeed: 'SubFeed',
+        main: 'Main Feed',
       },
+      personalFeedOnlyNote:
+        'Published to your public User Feed. Community engagement can lift eligible items into the Main Feed.',
       subfeedLabel: 'SubFeed',
       subfeedPlaceholder: 'Choose a SubFeed',
       subfeedDesc: 'Select where this post should be published.',
@@ -222,6 +234,67 @@ const dictionaries = {
       submitting: 'Submitting...',
       submitSuccess: 'Post submitted successfully!',
       submitError: 'Failed to submit post. Please try again.',
+    },
+    submissionOutcome: {
+      itemKinds: {
+        link: 'link',
+        post: 'post',
+      },
+      published: {
+        user: {
+          title: 'Published to your User Feed',
+          description:
+            'Your {kind} is publicly readable in your User Feed right now. Community engagement can earn it a place in the Main Feed.',
+        },
+        subfeed: {
+          title: 'Published to {destination}',
+          description: 'Your {kind} is publicly readable in {destination} right now.',
+        },
+        main: {
+          title: 'Published to the Main Feed',
+          description: 'Your {kind} is publicly readable in the Main Feed right now.',
+        },
+      },
+      pending: {
+        user: {
+          title: 'Saved to your User Feed — pending review',
+          description:
+            'Your {kind} is saved in your User Feed but is waiting for review. It is not publicly visible yet; only you and moderators can see it.',
+        },
+        subfeed: {
+          title: 'Saved to {destination} — pending review',
+          description:
+            'Your {kind} is saved in {destination} but is waiting for review. It is not publicly visible yet; only you and moderators can see it.',
+        },
+        main: {
+          title: 'Saved to the Main Feed — pending review',
+          description:
+            'Your {kind} is saved for the Main Feed but is waiting for review. It is not publicly visible yet; only you and moderators can see it.',
+        },
+      },
+      blocked: {
+        user: {
+          title: 'Withheld by safety checks',
+          description:
+            'Your {kind} was withheld by safety checks and is not publicly visible in your User Feed. Contact a moderator if you think this is a mistake.',
+        },
+        subfeed: {
+          title: 'Withheld by safety checks',
+          description:
+            'Your {kind} was withheld by safety checks and is not publicly visible in {destination}. Contact a moderator if you think this is a mistake.',
+        },
+        main: {
+          title: 'Withheld by safety checks',
+          description:
+            'Your {kind} was withheld by safety checks and is not publicly visible in the Main Feed. Contact a moderator if you think this is a mistake.',
+        },
+      },
+      viewSubmittedLink: 'View link',
+      viewSubmittedPost: 'View post',
+      openUserFeed: 'Open your User Feed',
+      openSubfeed: 'Open the SubFeed',
+      openMainFeed: 'Open the Main Feed',
+      dismiss: 'Dismiss',
     },
     subfeeds: {
       title: 'SubFeeds',
@@ -269,7 +342,8 @@ const dictionaries = {
         memberSubtitle:
           'Nothing here yet. Drop the first link or start a discussion and earn Contribution Points while you set the tone.',
         guestTitle: 'This community is waiting',
-        guestSubtitle: 'Join this SubFeed to share the first link or post.',
+        guestSubtitle:
+          'Join to follow and discuss. Publishing links and posts here requires a local SubFeed role (uploader, editor, moderator, or owner).',
         loginAction: 'Log in to join',
       },
       submitLink: 'Submit Link',
@@ -293,7 +367,11 @@ const dictionaries = {
         trendingTopics: 'Trending topics',
         noTopics: 'No trending topics yet.',
       },
-      joinToPost: 'Join this subfeed to submit links and posts.',
+      joinToPost:
+        'Join to follow and discuss. Publishing links and posts here requires a local SubFeed role.',
+      ineligiblePublishNote:
+        'Publishing here requires a local SubFeed role (uploader, editor, moderator, or owner). You can publish to your own public User Feed anytime.',
+      publishToYourFeedAction: 'Add to your feed',
       loginRequiredToCreate: 'You must be logged in to create a subfeed',
       joinButton: {
         join: 'Join',
@@ -318,6 +396,41 @@ const dictionaries = {
         creatingButton: 'Creating...',
         createdToast: 'Subfeed created',
         createError: 'Failed to create subfeed',
+      },
+      eligibilityGate: {
+        title: 'SubFeeds are earned',
+        intro:
+          'SubFeeds compete with the Main Feed, so creators must have earned community standing first. Meet any one requirement below to unlock SubFeed creation.',
+        requirementsTitle: 'Your path to creating a SubFeed',
+        lockedTitle: 'Standing frozen',
+        lockedMessage:
+          'Your community standing is currently frozen, so you cannot create a SubFeed right now. Contact a moderator if you believe this is a mistake.',
+        userFeedNote: 'You can still publish and manage content on your own User Feed right now.',
+        userFeedLink: 'Go to your User Feed',
+        earned: 'Earned',
+        progressPercent: '{percent}% complete',
+      },
+      roster: {
+        title: 'Roles & Roster',
+        subtitle:
+          'Local roles apply only inside this SubFeed. They grant no site-wide permissions.',
+        owner: 'Owner',
+        moderator: 'Moderator',
+        editor: 'Editor',
+        uploader: 'Uploader',
+        members: 'Members',
+        manageHint: 'Promote members to local roles, revoke roles, or remove members below.',
+        readOnlyHint: 'Only the owner and local moderators can change this roster.',
+        empty: 'No members yet.',
+        makeModerator: 'Make moderator',
+        makeEditor: 'Make editor',
+        makeUploader: 'Make uploader',
+        revoke: 'Revoke',
+        remove: 'Remove',
+        assignError: 'Failed to assign role',
+        revokeError: 'Failed to revoke role',
+        removeError: 'Failed to remove member',
+        you: 'You',
       },
     },
     moderationPage: {
@@ -361,6 +474,8 @@ const dictionaries = {
       commentAdded: 'Kommentar tillagd!',
       failedToAddComment: 'Kunde inte lägga till kommentar',
       loginToComment: 'Logga in för att kommentera',
+      userFeedOrigin: 'Från {username}s användarflöde',
+      editorialPriority: 'Redaktionell prioritet',
     },
     menu: {
       home: 'Hem',
@@ -408,18 +523,19 @@ const dictionaries = {
       },
       noBookmarks: 'Inga bokmärken hittades',
       noLinks: 'Inga länkar hittades',
+      loadingMore: 'Laddar fler…',
       submittedTitle: 'Alla inskickade länkar',
       contribute: {
-        memberTitle: 'Dela till dina delflöden',
+        memberTitle: 'Lägg till i ditt flöde',
         memberSubtitle:
-          'Varje länk du delar ger Contribution Points och lyfter dina delflöden uppåt.',
+          'Publicera länkar och inlägg i ditt offentliga användarflöde. Starkt engagemang kan lyfta dem till huvudflödet.',
         shareLinkAction: 'Dela en länk',
         startDiscussionAction: 'Starta en diskussion',
-        shareLinkModalTitle: 'Dela en länk till dina delflöden',
-        startDiscussionModalTitle: 'Starta en diskussion i dina delflöden',
-        noSubfeedsTitle: 'Hitta din gemenskap',
+        shareLinkModalTitle: 'Lägg till en länk i ditt flöde',
+        startDiscussionModalTitle: 'Skriv ett inlägg i ditt flöde',
+        noSubfeedsTitle: 'Lägg till i ditt flöde',
         noSubfeedsSubtitle:
-          'Gå med i ett delflöde du gillar och dela länkar och inlägg din gemenskap vill se.',
+          'Ditt offentliga användarflöde är redo direkt – inget delflöde krävs. Dela en länk eller ett inlägg, så kan starkt engagemang ge räckvidd i huvudflödet.',
         browseSubfeedsAction: 'Bläddra bland delflöden',
         createSubfeedAction: 'Starta ett nytt delflöde',
         guestTitle: 'Välkommen till V4',
@@ -512,11 +628,15 @@ const dictionaries = {
       typeDesc: 'Valfritt: Ange typ av innehåll (t.ex. artikel, video).',
       destinationLabel: 'Destination',
       destinationPlaceholder: 'Välj destination',
-      destinationDesc: 'Publicera i huvudflödet eller i ett specifikt delflöde.',
+      destinationDesc:
+        'Börjar i ditt offentliga användarflöde om du inte väljer en behörig redaktionell destination. Engagemang kan ge räckvidd i huvudflödet.',
       destinationOptions: {
+        user: 'Ditt flöde',
         main: 'Huvudflöde',
         subfeed: 'Delflöde',
       },
+      personalFeedOnlyNote:
+        'Publiceras i ditt offentliga användarflöde. Engagemang i communityn kan lyfta kvalificerat innehåll till huvudflödet.',
       subfeedLabel: 'Delflöde',
       subfeedPlaceholder: 'Välj ett delflöde',
       subfeedDesc: 'Välj var länken ska publiceras.',
@@ -556,11 +676,15 @@ const dictionaries = {
       contentRequired: 'Innehåll krävs (minst 10 tecken).',
       destinationLabel: 'Destination',
       destinationPlaceholder: 'Välj destination',
-      destinationDesc: 'Publicera i ditt flöde eller i ett specifikt delflöde.',
+      destinationDesc:
+        'Börjar i ditt offentliga användarflöde om du inte väljer en behörig redaktionell destination. Engagemang kan ge räckvidd i huvudflödet.',
       destinationOptions: {
         user: 'Ditt flöde',
         subfeed: 'Delflöde',
+        main: 'Huvudflöde',
       },
+      personalFeedOnlyNote:
+        'Publiceras i ditt offentliga användarflöde. Engagemang i communityn kan lyfta kvalificerat innehåll till huvudflödet.',
       subfeedLabel: 'Delflöde',
       subfeedPlaceholder: 'Välj ett delflöde',
       subfeedDesc: 'Välj var inlägget ska publiceras.',
@@ -572,6 +696,67 @@ const dictionaries = {
       submitting: 'Skickar...',
       submitSuccess: 'Inlägget skickades!',
       submitError: 'Kunde inte skicka inlägget. Försök igen.',
+    },
+    submissionOutcome: {
+      itemKinds: {
+        link: 'länk',
+        post: 'inlägg',
+      },
+      published: {
+        user: {
+          title: 'Publicerad i ditt användarflöde',
+          description:
+            'Ditt bidrag är offentligt läsbart i ditt användarflöde just nu. Engagemang i communityn kan ge det plats i huvudflödet.',
+        },
+        subfeed: {
+          title: 'Publicerad i {destination}',
+          description: 'Ditt bidrag är offentligt läsbart i {destination} just nu.',
+        },
+        main: {
+          title: 'Publicerad i huvudflödet',
+          description: 'Ditt bidrag är offentligt läsbart i huvudflödet just nu.',
+        },
+      },
+      pending: {
+        user: {
+          title: 'Sparad i ditt användarflöde – väntar på granskning',
+          description:
+            'Ditt bidrag är sparat i ditt användarflöde men väntar på granskning. Det är inte offentligt synligt än; bara du och moderatorer kan se det.',
+        },
+        subfeed: {
+          title: 'Sparad i {destination} – väntar på granskning',
+          description:
+            'Ditt bidrag är sparat i {destination} men väntar på granskning. Det är inte offentligt synligt än; bara du och moderatorer kan se det.',
+        },
+        main: {
+          title: 'Sparad i huvudflödet – väntar på granskning',
+          description:
+            'Ditt bidrag är sparat för huvudflödet men väntar på granskning. Det är inte offentligt synligt än; bara du och moderatorer kan se det.',
+        },
+      },
+      blocked: {
+        user: {
+          title: 'Tillbakahållen av säkerhetskontroller',
+          description:
+            'Ditt bidrag hölls tillbaka av säkerhetskontrollerna och är inte offentligt synligt i ditt användarflöde. Kontakta en moderator om du tror att det är fel.',
+        },
+        subfeed: {
+          title: 'Tillbakahållen av säkerhetskontroller',
+          description:
+            'Ditt bidrag hölls tillbaka av säkerhetskontrollerna och är inte offentligt synligt i {destination}. Kontakta en moderator om du tror att det är fel.',
+        },
+        main: {
+          title: 'Tillbakahållen av säkerhetskontroller',
+          description:
+            'Ditt bidrag hölls tillbaka av säkerhetskontrollerna och är inte offentligt synligt i huvudflödet. Kontakta en moderator om du tror att det är fel.',
+        },
+      },
+      viewSubmittedLink: 'Visa länk',
+      viewSubmittedPost: 'Visa inlägg',
+      openUserFeed: 'Öppna ditt användarflöde',
+      openSubfeed: 'Öppna delflödet',
+      openMainFeed: 'Öppna huvudflödet',
+      dismiss: 'Stäng',
     },
     subfeeds: {
       title: 'Delflöden',
@@ -620,7 +805,7 @@ const dictionaries = {
           'Inget här ännu. Släpp den första länken eller starta en diskussion och samla Contribution Points medan du sätter tonen.',
         guestTitle: 'Gemenskapen väntar',
         guestSubtitle:
-          'Gå med i delflödet för att dela den första länken eller det första inlägget.',
+          'Gå med för att följa och diskutera. Att publicera länkar och inlägg här kräver en lokal roll i delflödet (uppladdare, redaktör, moderator eller ägare).',
         loginAction: 'Logga in för att gå med',
       },
       submitLink: 'Skicka länk',
@@ -644,7 +829,11 @@ const dictionaries = {
         trendingTopics: 'Trendande ämnen',
         noTopics: 'Inga trendande ämnen ännu.',
       },
-      joinToPost: 'Gå med i delflödet för att skicka in länkar och inlägg.',
+      joinToPost:
+        'Gå med för att följa och diskutera. Att publicera länkar och inlägg här kräver en lokal roll i delflödet.',
+      ineligiblePublishNote:
+        'Att publicera här kräver en lokal roll i delflödet (uppladdare, redaktör, moderator eller ägare). Du kan alltid publicera i ditt eget offentliga användarflöde.',
+      publishToYourFeedAction: 'Lägg till i ditt flöde',
       loginRequiredToCreate: 'Du måste vara inloggad för att skapa ett delflöde',
       joinButton: {
         join: 'Gå med i delflöde',
@@ -669,6 +858,43 @@ const dictionaries = {
         creatingButton: 'Skapar...',
         createdToast: 'Delflöde skapat',
         createError: 'Kunde inte skapa delflöde',
+      },
+      eligibilityGate: {
+        title: 'Delflöden förtjänas',
+        intro:
+          'Delflöden konkurrerar med huvudflödet, så skapare måste ha förtjänat community-ansvar först. Uppfyll något av kraven nedan för att låsa upp skapande av delflöden.',
+        requirementsTitle: 'Din väg till att skapa ett delflöde',
+        lockedTitle: 'Anseende fryst',
+        lockedMessage:
+          'Ditt community-ansvar är för närvarande fryst, så du kan inte skapa ett delflöde just nu. Kontakta en moderator om du tror att det är ett misstag.',
+        userFeedNote:
+          'Du kan fortfarande publicera och hantera innehåll i ditt eget flöde redan nu.',
+        userFeedLink: 'Gå till ditt flöde',
+        earned: 'Förtjänat',
+        progressPercent: '{percent} % klart',
+      },
+      roster: {
+        title: 'Roller & Medlemmar',
+        subtitle:
+          'Lokala roller gäller endast inom detta delflöde. De ger inga webbplatsövergripande behörigheter.',
+        owner: 'Ägare',
+        moderator: 'Moderator',
+        editor: 'Redaktör',
+        uploader: 'Uppladdare',
+        members: 'Medlemmar',
+        manageHint:
+          'Befordra medlemmar till lokala roller, återkalla roller eller ta bort medlemmar nedan.',
+        readOnlyHint: 'Endast ägaren och lokala moderatorer kan ändra denna lista.',
+        empty: 'Inga medlemmar ännu.',
+        makeModerator: 'Gör till moderator',
+        makeEditor: 'Gör till redaktör',
+        makeUploader: 'Gör till uppladdare',
+        revoke: 'Återkalla',
+        remove: 'Ta bort',
+        assignError: 'Kunde inte tilldela rollen',
+        revokeError: 'Kunde inte återkalla rollen',
+        removeError: 'Kunde inte ta bort medlemmen',
+        you: 'Du',
       },
     },
     moderationPage: {
@@ -700,7 +926,9 @@ const dictionaries = {
 
 export type AppDictionary = (typeof dictionaries)['en']
 
-export const getDictionary = async () => {
+// Wrapped in `React.cache` so the 100+ card components in a feed share one
+// auth + cookie read per request instead of each hitting the database.
+export const getDictionary = cache(async () => {
   const { user } = await getAuthenticatedUser()
   const cookieStore = await cookies()
 
@@ -714,4 +942,4 @@ export const getDictionary = async () => {
     dict: dictionaries[lang] || dictionaries.en,
     lang: lang as UserLanguage,
   }
-}
+})

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Card, CardTitle } from '@/components/ui/card'
-import { MessageCircle, Eye, ExternalLink } from 'lucide-react'
+import { ServerIcon, MESSAGE_CIRCLE, EYE, EXTERNAL_LINK } from '@/components/ui/ServerIcon'
 import { VoteButtons } from '@/components/links/VoteButtons'
 import { BookmarkButton } from '@/components/links/BookmarkButton'
 import { LinkIcon } from '@/components/links/LinkIcon'
@@ -8,6 +8,7 @@ import { TrackedLink } from '@/components/links/TrackedLink'
 import { SubfeedAvatar } from '@/components/subfeeds/SubfeedAvatar'
 import { QuickEditLinkButton } from '@/components/links/QuickEditLinkButton'
 import { getDictionary } from '@/lib/dictionaries'
+import { isEditorialPriorityActive } from '@/lib/community/ranking'
 
 import type { Link as LinkType } from '@/payload-types'
 
@@ -77,7 +78,7 @@ export async function LinkCard({
                 rel="noopener noreferrer"
                 className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
               >
-                <ExternalLink className="size-3" aria-hidden="true" />
+                <ServerIcon icon={EXTERNAL_LINK} className="size-3" aria-hidden="true" />
                 <span className="truncate max-w-[16rem]">{hostname}</span>
               </a>
             ) : null}
@@ -106,12 +107,22 @@ export async function LinkCard({
               </span>
             )
           ) : null}
+          {link.feed === 'user' && typeof link.user === 'object' && link.user?.username ? (
+            <span className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-xs font-medium">
+              {dict.common.userFeedOrigin.replace('{username}', link.user.username)}
+            </span>
+          ) : null}
+          {isEditorialPriorityActive(link) ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 px-2 py-0.5 text-xs font-medium">
+              {dict.common.editorialPriority || 'Editorial Priority'}
+            </span>
+          ) : null}
           <Link href={`/link/${link.id}`} className="flex items-center hover:underline">
-            <MessageCircle className="mr-1 h-4 w-4" />
-            {link.relatedComments?.docs?.length || 0} {dict.common.comments}
+            <ServerIcon icon={MESSAGE_CIRCLE} className="mr-1 h-4 w-4" />
+            {link.commentsCount || 0} {dict.common.comments}
           </Link>
           <div className="flex items-center gap-1">
-            <Eye className="h-4 w-4" />
+            <ServerIcon icon={EYE} className="h-4 w-4" />
             <span>{link.clickCount || 0}</span>
           </div>
           <BookmarkButton

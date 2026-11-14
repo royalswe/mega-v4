@@ -1,4 +1,4 @@
-import type { PayloadRequest } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
 
 import { calculateRanking } from './ranking'
 import { isTrustedUser } from './userSignals'
@@ -6,33 +6,48 @@ import { isTrustedUser } from './userSignals'
 type TargetCollection = 'links' | 'posts'
 
 interface RecalculateArgs {
-  req: PayloadRequest
+  /** Request scope; when present, all nested calls stay inside its transaction. */
+  req?: PayloadRequest
+  /** Payload instance for callers without a request (e.g. the expiry sweep). */
+  payload?: Payload
   targetCollection: TargetCollection
   targetId: number
+  /** Injectable clock (used by the editorial-expiry sweep and tests). */
+  now?: Date
 }
 
 type TargetSignalDoc = {
   createdAt?: string | null
   clickCount?: number | null
   sharesCount?: number | null
+  editorialPriority?: boolean | null
+  editorialPriorityUntil?: string | null
+  feed?: string | null
 }
 
 export const recalculateTargetSignals = async ({
   req,
+  payload,
   targetCollection,
   targetId,
+  now,
 }: RecalculateArgs): Promise<void> => {
+  const db = req?.payload ?? payload
+  if (!db) {
+    throw new Error('recalculateTargetSignals requires either `req` or `payload`')
+  }
+  const reqScope = req ? { req } : {}
   const voteField = targetCollection === 'links' ? 'link' : 'post'
 
   const [targetDoc, votesResult, commentsResult] = await Promise.all([
-    req.payload.findByID({
+    db.findByID({
       collection: targetCollection,
       id: targetId,
       depth: 0,
       overrideAccess: true,
-      req,
+      ...reqScope,
     }),
-    req.payload.find({
+    db.find({
       collection: 'votes',
       where: {
         [voteField]: {
@@ -42,9 +57,9 @@ export const recalculateTargetSignals = async ({
       pagination: false,
       depth: 1,
       overrideAccess: true,
-      req,
+      ...reqScope,
     }),
-    req.payload.find({
+    db.find({
       collection: 'comments',
       where: {
         [voteField]: {
@@ -57,7 +72,7 @@ export const recalculateTargetSignals = async ({
       pagination: false,
       depth: 0,
       overrideAccess: true,
-      req,
+      ...reqScope,
     }),
   ])
 
@@ -91,7 +106,7 @@ export const recalculateTargetSignals = async ({
   let discoveryMomentum = 0
 
   if (targetCollection === 'posts') {
-    const discoveries = await req.payload.find({
+    const discoveries = await db.find({
       collection: 'discoveries',
       where: {
         post: {
@@ -101,7 +116,7 @@ export const recalculateTargetSignals = async ({
       pagination: false,
       depth: 0,
       overrideAccess: true,
-      req,
+      ...reqScope,
     })
 
     discoveryMomentum = discoveries.docs.reduce((acc, discovery) => {
@@ -130,13 +145,18 @@ export const recalculateTargetSignals = async ({
     uniqueCommenters,
     trustedInteractions,
     discoveryMomentum,
+    editorialPriority: Boolean(targetDocData.editorialPriority),
+    editorialPriorityUntil: targetDocData.editorialPriorityUntil,
+    feed: targetDocData.feed,
+    now,
   })
 
   const score = upvotes - downvotes
+  const organicScore = ranking.score - ranking.editorialBoost - ranking.subfeedBoost
   const createdAt = targetDocData.createdAt ?? new Date().toISOString()
   const ageHours = Math.max(0, (Date.now() - new Date(createdAt).getTime()) / 3_600_000)
 
-  await req.payload.update({
+  await db.update({
     collection: targetCollection,
     id: targetId,
     data: {
@@ -153,11 +173,11 @@ export const recalculateTargetSignals = async ({
       spamProbability: ranking.spamProbability,
       ragebaitProbability: ranking.ragebaitProbability,
       rankingScore: ranking.score,
-      breaking: ranking.score >= 180 && ageHours <= 24,
-      featured: ranking.score >= 120 && ranking.spamProbability < 0.55,
+      breaking: organicScore >= 180 && ageHours <= 24,
+      featured: organicScore >= 120 && ranking.spamProbability < 0.55,
       controversial: ranking.controversyScore >= 45 || ranking.ragebaitProbability >= 0.6,
     },
     overrideAccess: true,
-    req,
-  } as Parameters<typeof req.payload.update>[0])
+    ...reqScope,
+  } as Parameters<typeof db.update>[0])
 }
