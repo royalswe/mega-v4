@@ -13,6 +13,7 @@ import {
   RECENCY_HALF_LIFE_DAYS,
   buildPointClassProfile,
   buildTrustProfile,
+  buildTrustProgression,
   calculateEffectiveScore,
   deriveAutomaticRoles,
   recencyDecayFactor,
@@ -111,6 +112,56 @@ describe('Trust-level hysteresis (pure)', () => {
     expect(resolveTrustLevel(280, 'regular')).toBe('recognized')
     expect(resolveTrustLevel(280 + HYSTERESIS_PROMOTE_MARGIN - 1, 'regular')).toBe('recognized')
     expect(resolveTrustLevel(280 + HYSTERESIS_PROMOTE_MARGIN, 'regular')).toBe('trusted')
+  })
+})
+
+describe('Trust progression (pure)', () => {
+  it('reports the current band, the next band, and the remaining standing', () => {
+    expect(buildTrustProgression(0, 'newcomer')).toMatchObject({
+      current: { value: 'newcomer', label: 'Newcomer' },
+      next: { value: 'regular', min: 40 },
+      progress: 0,
+      remaining: 40,
+      isMaxLevel: false,
+    })
+  })
+
+  it('clamps progress inside the current band', () => {
+    // Regular spans 40 → 120, so 80 is halfway to Recognized.
+    expect(buildTrustProgression(80, 'regular').progress).toBeCloseTo(0.5, 5)
+  })
+
+  it('never reports negative progress when the stored level lags the score', () => {
+    const progression = buildTrustProgression(10, 'trusted')
+    expect(progression.progress).toBe(0)
+    expect(progression.remaining).toBe(510)
+  })
+
+  it('caps at the top of the ladder', () => {
+    expect(buildTrustProgression(9_999, 'legend')).toEqual({
+      current: { min: 2100, value: 'legend', label: 'Legend' },
+      next: null,
+      progress: 1,
+      remaining: 0,
+      isMaxLevel: true,
+    })
+  })
+
+  it('falls back to the score when no stored level exists', () => {
+    expect(buildTrustProgression(300).current.value).toBe('trusted')
+    expect(buildTrustProgression(0, null).current.value).toBe('newcomer')
+  })
+
+  it('honours a scaled ladder', () => {
+    const scaled = [
+      { min: 0, value: 'newcomer' as const, label: 'Newcomer' },
+      { min: 80, value: 'regular' as const, label: 'Regular' },
+    ]
+    expect(buildTrustProgression(40, 'newcomer', scaled)).toMatchObject({
+      next: { min: 80 },
+      progress: 0.5,
+      remaining: 40,
+    })
   })
 })
 

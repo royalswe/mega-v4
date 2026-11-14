@@ -1,35 +1,23 @@
-import { getPayload, Payload } from 'payload'
-import config from '@/payload.config'
+import type { Payload } from 'payload'
 import type { User } from '@/payload-types' // Adjust path if needed, usually generated
 import dotenv from 'dotenv'
 import path from 'path'
+
+import config from '@/payload.config'
+import { createMember, createPayloadLoader } from '../../fixtures/community'
 
 // Load test.env specifically if not already loaded, though vitest setup should handle it.
 // Just to be safe and explicit about where vars come from if run in isolation.
 dotenv.config({ path: path.resolve(process.cwd(), 'tests/test.env') })
 
-let cachedPayload: Payload | null = null
+/**
+ * The Vitest adapter for the shared fixture module: it supplies the config
+ * loader, the module owns the promise-lock.
+ */
+export const getTestPayload: () => Promise<Payload> = createPayloadLoader(async () => config)
+
 let cachedUser: User | null = null
-
-let payloadInitPromise: Promise<Payload> | null = null
 let userInitPromise: Promise<User> | null = null
-export async function getTestPayload(): Promise<Payload> {
-  if (cachedPayload) return cachedPayload
-  if (payloadInitPromise) return payloadInitPromise
-
-  payloadInitPromise = (async () => {
-    const payloadConfig = await config
-    const initializedPayload = await getPayload({ config: payloadConfig })
-    cachedPayload = initializedPayload
-    return initializedPayload
-  })()
-
-  try {
-    return await payloadInitPromise
-  } finally {
-    payloadInitPromise = null
-  }
-}
 
 const usernameFromEmail = (email: string): string => {
   const localPart = email.split('@')[0] || 'tester'
@@ -60,19 +48,11 @@ export async function getTestUser(): Promise<User> {
       return cachedUser
     }
 
-    cachedUser = (await payload.create({
-      collection: 'users',
-      data: {
-        email,
-        username: usernameFromEmail(email),
-        password,
-        settings: {
-          nsfw: false,
-          language: 'en',
-        },
-      },
-      overrideAccess: true,
-    } as any)) as User
+    cachedUser = (await createMember(payload, {
+      email,
+      username: usernameFromEmail(email),
+      password,
+    })) as unknown as User
 
     return cachedUser
   })()

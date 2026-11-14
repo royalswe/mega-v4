@@ -92,9 +92,21 @@ tests/playwright/e2e/    End-to-end browser tests
 
 ### Tests
 
+- **Vitest owns policy.** Thresholds, Content Visibility, the Promotion Gate, eligibility, ranking, role derivation and collection hooks are asserted against their module interface in `src/lib/**`. If a rule can be expressed as a function call, test it there.
+- **Playwright owns render and wiring.** Browser specs prove a policy decision reaches the DOM, that a control is offered to the right role, and that a publish flow writes through to a publicly readable page. Do not re-assert a threshold or an exclusion in the browser — a policy change would then cost two edits and a 15-minute run.
+- **Fixtures have one interface, two adapters.** Use `tests/fixtures/community.ts` (`createMember`, `findOrCreateMember`, `createSubfeedWithRoster`, `createFeedItem`, `createRichText`, `createPayloadLoader`) from both runners. Don't add a spec-local member/subfeed/link factory.
 - Integration tests creating `links` must use unique title/url values — slug validation fails on repeated fixtures across runs.
-- Creating `subfeeds` in strict-typed fixtures requires explicitly setting `slug` even though hooks generate it at runtime.
+- Creating `subfeeds` in strict-typed fixtures requires explicitly setting `slug` even though hooks generate it at runtime (the shared factory already does).
 - `tests/vitest/utils/test-user.ts` promise-locks `getPayload` init; keep `fileParallelism: false` in `vitest.config.mts` to avoid enum-creation races.
+- Env-gated suites: `RUN_MIGRATION_DB_TESTS=true` (migrations) and `SEED_VERIFY=1` (DB half of `seed-scenarios`). They are skipped by default; run them before a release, not on every change.
+
+### Responsive layout
+
+- Mobile is 320px, not 375px. Assume `px-3` page inset and `px-4` card inset below `sm`.
+- Toolbars and meta rows use `flex flex-wrap items-center gap-x-4 gap-y-2`; `.btn` is `whitespace-nowrap shrink-0`, so a non-wrapping row will clip rather than squeeze.
+- User-authored text (titles, descriptions, rich text, URLs) needs `wrap-break-word`; `RichTextDisplay` sets it for bodies, cards must set it for titles.
+- Prefer `w-full` in dialogs. A fixed width like `w-100` (400px) overflows every phone.
+- `body` sets `overflow-x-hidden`, which hides overflow instead of fixing it. `tests/playwright/e2e/layout.e2e.spec.ts` measures element rects on purpose; it runs under the `mobile-chrome` and `mobile-small` projects.
 
 ### Seeder
 

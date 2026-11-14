@@ -33,7 +33,7 @@ export async function Header() {
             role="search"
             action="/search"
             method="get"
-            className="hidden md:flex items-center relative max-w-xs grow"
+            className="hidden lg:flex items-center relative max-w-xs grow"
           >
             <input
               type="search"
@@ -46,7 +46,7 @@ export async function Header() {
           </form>
         </div>
 
-        <div className="flex items-center gap-2 md:hidden">
+        <div className="flex items-center gap-2 lg:hidden">
           <ThemeToggle />
           <LanguageSelector currentLang={lang} />
           <details className="relative">
@@ -148,7 +148,7 @@ export async function Header() {
           </details>
         </div>
 
-        <nav className="hidden items-center gap-3 md:flex">
+        <nav className="hidden items-center gap-3 lg:flex">
           <ul className="flex items-center gap-1">
             <li>
               <Button variant="ghost" asChild>

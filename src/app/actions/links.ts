@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { checkRole } from '@/access/checkRole'
+import { castContentVote, toggleContentBookmark } from '@/lib/community/interactions'
 import {
   MAIN_FEED_PUBLISH_UNAUTHORIZED_MESSAGE,
   SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE,
@@ -54,44 +55,13 @@ export async function setContributeCardCollapsedPreference(collapsed: boolean) {
 export async function vote(linkId: number, type: 'up' | 'down') {
   const { user, payload } = await getAuthenticatedUser()
 
-  if (!user) {
-    throw new Error('You must be logged in to vote')
-  }
-
-  const userId = user.id
-  const withAccess = {
+  await castContentVote({
+    payload,
     user,
-    overrideAccess: false as const,
-  }
-
-  // Find existing vote
-  const { docs: existingVotes } = await payload.find({
-    collection: 'votes',
-    where: {
-      user: { equals: userId },
-      link: { equals: linkId },
-    },
-    ...withAccess,
+    targetCollection: 'links',
+    targetId: linkId,
+    type,
   })
-
-  if (existingVotes.length > 0) {
-    if (existingVotes[0].vote === type) {
-      await payload.delete({ collection: 'votes', id: existingVotes[0].id, ...withAccess })
-    } else {
-      await payload.update({
-        collection: 'votes',
-        id: existingVotes[0].id,
-        data: { vote: type },
-        ...withAccess,
-      })
-    }
-  } else {
-    await payload.create({
-      collection: 'votes',
-      data: { user: userId, link: linkId, vote: type },
-      ...withAccess,
-    })
-  }
 
   revalidatePath(`/link/${linkId}`)
 }
@@ -99,47 +69,12 @@ export async function vote(linkId: number, type: 'up' | 'down') {
 export async function toggleBookmark(linkId: number) {
   const { user, payload } = await getAuthenticatedUser()
 
-  if (!user) {
-    throw new Error('You must be logged in to bookmark')
-  }
-
-  const userId = user.id
-  const withAccess = {
+  await toggleContentBookmark({
+    payload,
     user,
-    overrideAccess: false as const,
-  }
-
-  const { docs: existingBookmarks } = await payload.find({
-    collection: 'bookmarks',
-    where: {
-      user: {
-        equals: userId,
-      },
-      link: {
-        equals: linkId,
-      },
-    },
-    ...withAccess,
+    targetCollection: 'links',
+    targetId: linkId,
   })
-
-  if (existingBookmarks.length > 0) {
-    // Bookmark exists, so delete it
-    await payload.delete({
-      collection: 'bookmarks',
-      id: existingBookmarks[0].id,
-      ...withAccess,
-    })
-  } else {
-    // Bookmark does not exist, so create it
-    await payload.create({
-      collection: 'bookmarks',
-      data: {
-        user: userId,
-        link: linkId,
-      },
-      ...withAccess,
-    })
-  }
 
   revalidatePath('/')
   revalidatePath('/submitted')

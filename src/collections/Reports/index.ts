@@ -156,12 +156,19 @@ const prepareReport: CollectionBeforeValidateHook = async ({ data, operation, re
   return next
 }
 
-const applyReportDecision: CollectionAfterChangeHook = async ({ doc, previousDoc, req }) => {
+const applyReportDecision: CollectionAfterChangeHook = async ({
+  doc,
+  previousDoc,
+  req,
+  operation,
+}) => {
   const targetPostId = resolveID(doc.targetPost)
   const targetCommentId = resolveID(doc.targetComment)
   const targetLinkId = resolveID(doc.targetLink)
 
-  if (doc.fastTracked && previousDoc == null) {
+  // `previousDoc` is not reliably null on create, so use the operation instead:
+  // a fast-tracked report hides its target as soon as it is filed.
+  if (doc.fastTracked && operation === 'create') {
     await hideTargetForReport({
       req,
       targetType: doc.targetType,

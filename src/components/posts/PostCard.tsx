@@ -28,10 +28,10 @@ export async function PostCard({
   return (
     <Card className={`flex-row items-start px-4 py-3 gap-3`}>
       <VoteButtons postId={post.id} votes={post.votes || 0} userId={userId} userVote={userVote} />
-      <div className="grow flex flex-col gap-2">
+      <div className="grow min-w-0 flex flex-col gap-2">
         <div className="flex flex-col gap-1">
           <CardTitle className={`text-lg font-semibold leading-tight ${className}`}>
-            <Link href={`/post/${post.id}`} className="hover:underline">
+            <Link href={`/post/${post.id}`} className="wrap-break-word hover:underline">
               {post.title}
             </Link>
           </CardTitle>
@@ -39,7 +39,7 @@ export async function PostCard({
             <RichTextDisplay content={post.content} />
           </div>
         </div>
-        <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
           {post.feed === 'subfeed' && typeof post.subfeed === 'object' && post.subfeed ? (
             <Link
               href={`/subfeeds/${post.subfeed.slug}`}

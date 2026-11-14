@@ -1,12 +1,11 @@
 import { test as setup } from '@playwright/test'
-import { getPayload } from 'payload'
-import type { Payload } from 'payload'
-import { AuthPage } from './pages/AuthPage'
-import path from 'path'
+import type { Browser } from '@playwright/test'
 import fs from 'fs'
+import path from 'path'
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
-import type { Browser } from '@playwright/test'
+
+import { AuthPage } from './pages/AuthPage'
 
 // The fixture bootstrap (Local API + several UI logins) is intentionally slow on
 // first Next-dev compile, so raise the test-level timeout well above the default.
@@ -24,155 +23,22 @@ const FIXTURE_DIR = path.join(__dirname, '.fixtures')
 const FIXTURE_FILE = path.join(FIXTURE_DIR, 'progression.json')
 
 const E2E_PASSWORD = 'password123'
-const ADMIN_EMAIL = process.env.EMAIL || 'admin@mail.com'
-const ADMIN_PASSWORD = '1234'
 
 // ---------------------------------------------------------------------------
 // Deterministic members. Signals are seeded (never roles — the standing engine
-// re-derives roles on every users update). Thresholds from reputation.ts.
-//   * newcomer  -> no signals -> 'Newcomer', ineligible
+// re-derives roles on every users update).
+//   * newcomer  -> no signals -> 'Newcomer', ineligible to create a Subfeed
 //   * qualified -> contributionScore 200 -> 'Recognized' + uploader, eligible
-//   * editor    -> contributionScore 300 + interactionScore 100 -> 'Trusted' + editor
-//   * localmod  -> no signals -> site role 'user' (receives only a LOCAL role later)
+//   * localmod  -> no signals -> site role 'user' (receives only a LOCAL role)
+// Values and thresholds live in `src/lib/community/reputation.ts`; the policy
+// itself is asserted in Vitest, so these fixtures only exist to prove the
+// surfaces render.
 // ---------------------------------------------------------------------------
 const MEMBERS = [
-  {
-    key: 'newcomer',
-    email: 'e2e-newcomer@v4.test',
-    username: 'e2e-newcomer',
-    signals: {} as Record<string, number>,
-  },
-  {
-    key: 'qualified',
-    email: 'e2e-qualified@v4.test',
-    username: 'e2e-qualified',
-    signals: { contributionScore: 200 } as Record<string, number>,
-  },
-  {
-    key: 'editor',
-    email: 'e2e-editor@v4.test',
-    username: 'e2e-editor',
-    signals: { contributionScore: 300, interactionScore: 100 } as Record<string, number>,
-  },
-  {
-    key: 'localmod',
-    email: 'e2e-localmod@v4.test',
-    username: 'e2e-localmod',
-    signals: {} as Record<string, number>,
-  },
+  { key: 'newcomer', contributionScore: 0 },
+  { key: 'qualified', contributionScore: 200 },
+  { key: 'localmod', contributionScore: 0 },
 ]
-
-// Promise-lock for getPayload (mirrors tests/vitest/utils/test-user.ts) so any
-// concurrent setup file cannot double-initialise the Payload client.
-let cachedPayload: Payload | null = null
-let payloadInitPromise: Promise<Payload> | null = null
-
-async function getTestPayload(): Promise<Payload> {
-  if (cachedPayload) return cachedPayload
-  if (payloadInitPromise) return payloadInitPromise
-
-  payloadInitPromise = (async () => {
-    const { default: configPromise } = await import('@payload-config')
-    const cfg = await configPromise
-    const initialized = await getPayload({ config: cfg })
-    cachedPayload = initialized
-    return initialized
-  })()
-
-  try {
-    return await payloadInitPromise
-  } finally {
-    payloadInitPromise = null
-  }
-}
-
-const baseSignals = () => ({
-  discoveryScore: 0,
-  contributionScore: 0,
-  interactionScore: 0,
-  likabilityScore: 0,
-  cleaningScore: 0,
-  recruiterScore: 0,
-  moderationScore: 0,
-  securityScore: 0,
-  legacyContributionScore: 0,
-  streakDays: 0,
-  lastActiveAt: new Date().toISOString(),
-})
-
-async function findUserByEmail(payload: Payload, email: string) {
-  const { docs } = await payload.find({
-    collection: 'users',
-    where: { email: { equals: email } },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
-  })
-  return docs[0] ?? null
-}
-
-async function upsertMember(
-  payload: Payload,
-  member: (typeof MEMBERS)[number],
-): Promise<{ id: number; email: string; username: string }> {
-  const existing = await findUserByEmail(payload, member.email)
-  const data: any = {
-    email: member.email,
-    username: member.username,
-    password: E2E_PASSWORD,
-    ...baseSignals(),
-    ...member.signals,
-    settings: { nsfw: false, language: 'en' as const },
-  }
-
-  if (existing) {
-    const updated = await payload.update({
-      collection: 'users',
-      id: existing.id,
-      data,
-      overrideAccess: true,
-    })
-    return { id: updated.id as number, email: member.email, username: member.username }
-  }
-
-  const created = await payload.create({
-    collection: 'users',
-    data,
-    overrideAccess: true,
-  })
-  return { id: created.id as number, email: member.email, username: member.username }
-}
-
-async function resolveAdmin(payload: Payload): Promise<{ id: number; username: string }> {
-  const existing = await findUserByEmail(payload, ADMIN_EMAIL)
-  if (existing) {
-    return { id: existing.id as number, username: existing.username as string }
-  }
-
-  const created = await payload.create({
-    collection: 'users',
-    data: {
-      email: ADMIN_EMAIL,
-      username: 'admin',
-      password: ADMIN_PASSWORD,
-      roles: ['admin', 'user'],
-      ...baseSignals(),
-      settings: { nsfw: false, language: 'en' as const },
-    } as any,
-    overrideAccess: true,
-  })
-  return { id: created.id as number, username: 'admin' }
-}
-
-async function createLink(payload: Payload, data: any) {
-  const created = await payload.create({
-    collection: 'links',
-    data: { type: 'article', ...data, _status: 'published' },
-    draft: false,
-    overrideAccess: true,
-  })
-  return { id: created.id as number, title: created.title as string }
-}
 
 async function loginAndSave(browser: Browser, email: string, password: string, filename: string) {
   const context = await browser.newContext()
@@ -194,181 +60,131 @@ setup('prepare progression fixtures and per-role auth states', async ({ browser 
   if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true })
   if (!fs.existsSync(FIXTURE_DIR)) fs.mkdirSync(FIXTURE_DIR, { recursive: true })
 
+  // The shared fixture module owns the Local API bootstrap and the shape of every
+  // domain object; this adapter only supplies how to load the Payload config.
+  const { findOrCreateMember, createSubfeedWithRoster, createFeedItem, createPayloadLoader } =
+    await import('../../fixtures/community')
+
+  const getTestPayload = createPayloadLoader(async () => {
+    const { default: configPromise } = await import('@payload-config')
+    return configPromise
+  })
+
   const payload = await getTestPayload()
-  const runId = Date.now()
-  const suffix = `${runId}`
 
-  // 1. Deterministic members (idempotent upsert).
-  const [newcomer, qualified, editor, localmod] = await Promise.all(
-    MEMBERS.map((member) => upsertMember(payload, member)),
+  // 1. Deterministic members (one login each, so unique identities).
+  const members = await Promise.all(
+    MEMBERS.map(async (member) =>
+      findOrCreateMember(payload, {
+        email: `e2e-${member.key}@v4.test`,
+        username: `e2e-${member.key}`,
+        password: E2E_PASSWORD,
+        contributionScore: member.contributionScore,
+      }),
+    ),
   )
+  const [newcomer, qualified, localmod] = members
 
-  // 2. Admin.
-  const admin = await resolveAdmin(payload)
-
-  // 3. Subfeeds — one owned by the qualified member (for local governance + a
-  //    qualifying subfeed link), one owned by admin (for isolation assertions).
-  const qualifiedSubfeed = await payload.create({
-    collection: 'subfeeds',
-    data: {
-      name: `E2E Qualified Subfeed ${suffix}`,
-      slug: `e2e-qualified-subfeed-${suffix}`,
-      description: 'Deterministic E2E subfeed owned by the qualified member.',
-      owner: qualified.id,
-      moderators: [qualified.id],
-      editors: [],
-      uploaders: [],
-      members: [qualified.id, localmod.id],
-    },
-    overrideAccess: true,
+  // 2. Admin, needed for the quarantine journey.
+  const admin = await findOrCreateMember(payload, {
+    email: process.env.EMAIL || 'admin@mail.com',
+    username: 'admin',
+    password: '1234',
+    roles: ['admin', 'user'],
   })
 
-  const adminSubfeed = await payload.create({
-    collection: 'subfeeds',
-    data: {
-      name: `E2E Admin Subfeed ${suffix}`,
-      slug: `e2e-admin-subfeed-${suffix}`,
-      description: 'Deterministic E2E subfeed owned by the admin.',
-      owner: admin.id,
-      moderators: [admin.id],
-      editors: [],
-      uploaders: [],
-      members: [admin.id, localmod.id],
-    },
-    overrideAccess: true,
+  // 3. Subfeeds — one owned by the qualified member (local governance plus a
+  //    qualifying Subfeed link), one owned by admin (for isolation assertions).
+  const qualifiedSubfeed = await createSubfeedWithRoster(payload, {
+    ownerId: qualified.id,
+    prefix: 'e2e-qualified',
+    name: 'E2E Qualified Subfeed',
+    description: 'Deterministic E2E subfeed owned by the qualified member.',
+    members: [qualified.id, localmod.id],
   })
 
-  const moderatorSubfeed = await payload.create({
-    collection: 'subfeeds',
-    data: {
-      name: `E2E Moderator Subfeed ${suffix}`,
-      slug: `e2e-moderator-subfeed-${suffix}`,
-      description: 'Independent fixture for local moderator permissions.',
-      owner: qualified.id,
-      moderators: [qualified.id, localmod.id],
-      members: [qualified.id, localmod.id],
-    },
-    overrideAccess: true,
+  const adminSubfeed = await createSubfeedWithRoster(payload, {
+    ownerId: admin.id,
+    prefix: 'e2e-admin',
+    name: 'E2E Admin Subfeed',
+    description: 'Deterministic E2E subfeed owned by the admin.',
+    members: [admin.id, localmod.id],
   })
 
-  // 4. Content fixtures.
-  const featuredUserFeed = await createLink(payload, {
-    title: `E2E Featured User Feed ${suffix}`,
-    url: `https://e2e.test/${suffix}/featured-user`,
-    feed: 'user',
-    user: qualified.id,
-    featured: true,
+  const moderatorSubfeed = await createSubfeedWithRoster(payload, {
+    ownerId: qualified.id,
+    prefix: 'e2e-moderator',
+    name: 'E2E Moderator Subfeed',
+    description: 'Independent fixture for local moderator permissions.',
+    moderators: [qualified.id, localmod.id],
+    members: [qualified.id, localmod.id],
   })
 
-  const subfeedLink = await createLink(payload, {
-    title: `E2E Subfeed Link ${suffix}`,
-    url: `https://e2e.test/${suffix}/subfeed`,
-    feed: 'subfeed',
-    subfeed: qualifiedSubfeed.id,
-    user: qualified.id,
-    featured: true,
-  })
-
-  // Admin-authored main-feed link: editorial priority granted automatically.
-  const adminEditorial = await createLink(payload, {
-    title: `E2E Admin Editorial ${suffix}`,
-    url: `https://e2e.test/${suffix}/admin-editorial`,
-    feed: 'main',
-    user: admin.id,
-  })
-
-  // Expired-priority main-feed link: create (granting priority), then push the
-  // expiration timestamp into the past via an admin update.
-  const expiredEditorial = await createLink(payload, {
-    title: `E2E Expired Editorial ${suffix}`,
-    url: `https://e2e.test/${suffix}/expired-editorial`,
-    feed: 'main',
-    user: admin.id,
-  })
-  await payload.update({
+  // 4. Content fixtures. Only what a render assertion needs: the policy
+  //    permutations (controversial, soft-deleted, expired priority) are asserted
+  //    against the Promotion Gate in Vitest.
+  const featuredUserFeed = await createFeedItem(payload, {
     collection: 'links',
-    id: expiredEditorial.id,
-    data: {
-      editorialPriorityUntil: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    },
-    overrideAccess: true,
+    user: qualified.id,
+    feed: 'user',
+    state: 'published',
+    titlePrefix: 'E2E Featured User Feed',
+    signals: { featured: true },
   })
 
-  // Controversial featured user-feed link (balanced votes -> controversy).
-  const controversial = await createLink(payload, {
-    title: `E2E Controversial User Link ${suffix}`,
-    url: `https://e2e.test/${suffix}/controversial`,
-    feed: 'user',
+  const subfeedLink = await createFeedItem(payload, {
+    collection: 'links',
     user: qualified.id,
-    featured: true,
-    upvotes: 5,
-    downvotes: 5,
+    feed: 'subfeed',
+    subfeedId: qualifiedSubfeed.id,
+    state: 'published',
+    titlePrefix: 'E2E Subfeed Link',
+    signals: { featured: true },
   })
 
-  // Soft-deleted featured user-feed link.
-  const softDeleted = await createLink(payload, {
-    title: `E2E SoftDeleted User Link ${suffix}`,
-    url: `https://e2e.test/${suffix}/soft-deleted`,
-    feed: 'user',
-    user: qualified.id,
-    featured: true,
-    softDeleted: true,
+  const adminEditorial = await createFeedItem(payload, {
+    collection: 'links',
+    user: admin.id,
+    feed: 'main',
+    state: 'published',
+    titlePrefix: 'E2E Admin Editorial',
   })
 
-  // Pre-quarantined featured user-feed link.
-  const quarantined = await createLink(payload, {
-    title: `E2E Quarantined User Link ${suffix}`,
-    url: `https://e2e.test/${suffix}/quarantined`,
-    feed: 'user',
+  const quarantineTarget = await createFeedItem(payload, {
+    collection: 'links',
     user: qualified.id,
-    featured: true,
-    quarantined: true,
-  })
-
-  // Normal featured user-feed link that the admin quarantines during the test.
-  const quarantineTarget = await createLink(payload, {
-    title: `E2E Quarantine Target ${suffix}`,
-    url: `https://e2e.test/${suffix}/quarantine-target`,
     feed: 'user',
-    user: qualified.id,
-    featured: true,
+    state: 'published',
+    titlePrefix: 'E2E Quarantine Target',
+    signals: { featured: true },
   })
 
   // 5. Deterministic handoff to the e2e spec.
   const fixture = {
-    runId,
+    runId: Date.now(),
     users: {
-      newcomer,
-      qualified,
-      editor,
-      localmod,
+      newcomer: { id: newcomer.id, username: newcomer.username, email: newcomer.email },
+      qualified: { id: qualified.id, username: qualified.username, email: qualified.email },
+      localmod: { id: localmod.id, username: localmod.username, email: localmod.email },
       admin: { id: admin.id, username: admin.username },
     },
     links: {
       featuredUserFeed: { id: featuredUserFeed.id, title: featuredUserFeed.title },
       subfeedLink: { id: subfeedLink.id, title: subfeedLink.title },
       adminEditorial: { id: adminEditorial.id, title: adminEditorial.title },
-      expiredEditorial: { id: expiredEditorial.id, title: expiredEditorial.title },
-      controversial: { id: controversial.id, title: controversial.title },
-      softDeleted: { id: softDeleted.id, title: softDeleted.title },
-      quarantined: { id: quarantined.id, title: quarantined.title },
       quarantineTarget: { id: quarantineTarget.id, title: quarantineTarget.title },
     },
     subfeeds: {
+      qualifiedSubfeed: {
+        id: qualifiedSubfeed.id,
+        slug: qualifiedSubfeed.slug,
+        name: qualifiedSubfeed.name,
+      },
+      adminSubfeed: { id: adminSubfeed.id, slug: adminSubfeed.slug, name: adminSubfeed.name },
       moderatorSubfeed: {
         id: moderatorSubfeed.id,
         slug: moderatorSubfeed.slug,
         name: moderatorSubfeed.name,
-      },
-      qualifiedSubfeed: {
-        id: qualifiedSubfeed.id as number,
-        slug: qualifiedSubfeed.slug as string,
-        name: qualifiedSubfeed.name as string,
-      },
-      adminSubfeed: {
-        id: adminSubfeed.id as number,
-        slug: adminSubfeed.slug as string,
-        name: adminSubfeed.name as string,
       },
     },
   }

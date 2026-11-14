@@ -100,10 +100,10 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
             userVote={userVote}
           />
         </div>
-        <div className="grow">
+        <div className="grow min-w-0">
           <div className="flex items-center gap-2 mb-2">
             <LinkIcon type={link.type} />
-            <h1 className="text-2xl font-bold hover:underline">
+            <h1 className="text-2xl font-bold hover:underline wrap-break-word">
               <TrackedLink
                 url={link.url}
                 title={link.title}
@@ -147,7 +147,7 @@ export default async function LinkPage({ params }: { params: Promise<{ id: strin
               />
             </div>
           ) : null}
-          <p className="whitespace-pre-wrap">{link.description}</p>
+          <p className="whitespace-pre-wrap wrap-break-word">{link.description}</p>
         </div>
       </div>
 

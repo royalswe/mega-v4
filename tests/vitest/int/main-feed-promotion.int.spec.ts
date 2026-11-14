@@ -3,7 +3,7 @@ import { describe, it, beforeAll, expect } from 'vitest'
 import { faker } from '@faker-js/faker'
 
 import { getTestPayload } from '../utils/test-user'
-import { createTestUser } from './helpers'
+import { createFeedItem, createRichText, createSubfeedWithRoster, createTestUser } from './helpers'
 import {
   DISCOVERY_BOOST_INELIGIBLE_MESSAGE,
   DISCOVERY_BOOST_MIN_SCORE,
@@ -22,53 +22,8 @@ let payload: Payload
 
 const unique = () => faker.string.alphanumeric(10).toLowerCase()
 
-const createRichText = (text: string) => ({
-  root: {
-    children: [
-      {
-        children: [
-          {
-            detail: 0 as const,
-            format: 0 as const,
-            mode: 'normal' as const,
-            style: '',
-            text,
-            type: 'text' as const,
-            version: 1 as const,
-          },
-        ],
-        direction: 'ltr' as const,
-        format: '' as const,
-        indent: 0,
-        type: 'paragraph' as const,
-        version: 1 as const,
-        textFormat: 0 as const,
-        textStyle: '',
-      },
-    ],
-    direction: 'ltr' as const,
-    format: '' as const,
-    indent: 0,
-    type: 'root' as const,
-    version: 1,
-  },
-})
-
-const createSubfeed = async (userId: number) => {
-  const slug = `promotion-subfeed-${unique()}`
-  return payload.create({
-    collection: 'subfeeds',
-    data: {
-      name: `Promotion SubFeed ${slug}`,
-      slug,
-      description: `Integration test subfeed ${slug}`,
-      moderators: [userId],
-      members: [userId],
-    },
-    draft: false,
-    overrideAccess: true,
-  })
-}
+const createSubfeed = async (userId: number) =>
+  createSubfeedWithRoster(payload, { ownerId: userId, prefix: 'promotion' })
 
 type LinkInput = {
   user: number
@@ -81,28 +36,20 @@ type LinkInput = {
   quarantined?: boolean
 }
 
-const createLink = async (input: LinkInput) => {
-  const title = `Promotion Link ${unique()}`
-  return payload.create({
+const createLink = async (input: LinkInput) =>
+  createFeedItem(payload, {
     collection: 'links',
-    data: {
-      title,
-      url: `https://example.com/${unique()}`,
-      type: 'article',
-      user: input.user,
-      feed: input.feed,
-      subfeed: input.subfeedId,
-      upvotes: input.upvotes ?? 0,
-      downvotes: input.downvotes ?? 0,
-      featured: input.featured ?? false,
-      softDeleted: input.softDeleted ?? false,
-      quarantined: input.quarantined ?? false,
-      _status: 'published',
+    user: input.user,
+    feed: input.feed,
+    subfeedId: input.subfeedId,
+    state: input.softDeleted ? 'soft-deleted' : input.quarantined ? 'quarantined' : 'published',
+    titlePrefix: 'Promotion',
+    signals: {
+      upvotes: input.upvotes,
+      downvotes: input.downvotes,
+      featured: input.featured,
     },
-    draft: false,
-    overrideAccess: true,
   })
-}
 
 type PostInput = {
   user: number
@@ -115,38 +62,20 @@ type PostInput = {
   status?: 'published' | 'pending' | 'removed'
 }
 
-const createPost = async (input: PostInput) => {
-  const title = `Promotion Post ${unique()}`
-  const post = await payload.create({
+const createPost = async (input: PostInput) =>
+  createFeedItem(payload, {
     collection: 'posts',
-    data: {
-      title,
-      content: createRichText(faker.lorem.sentence()),
-      type: 'discussion',
-      user: input.user,
-      feed: input.feed,
-      subfeed: input.subfeedId,
-      upvotes: input.upvotes ?? 0,
-      downvotes: input.downvotes ?? 0,
-      featured: input.featured ?? false,
-      quarantined: input.quarantined ?? false,
+    user: input.user,
+    feed: input.feed,
+    subfeedId: input.subfeedId,
+    state: input.quarantined ? 'quarantined' : (input.status ?? 'published'),
+    titlePrefix: 'Promotion',
+    signals: {
+      upvotes: input.upvotes,
+      downvotes: input.downvotes,
+      featured: input.featured,
     },
-    overrideAccess: true,
   })
-
-  // Posts default non-subfeed content to `pending`; force published so the
-  // item can appear in a published main-feed query.
-  if (input.status === 'published') {
-    return payload.update({
-      collection: 'posts',
-      id: post.id,
-      data: { status: 'published' },
-      overrideAccess: true,
-    })
-  }
-
-  return post
-}
 
 const queryLinks = async () => {
   const { docs } = await payload.find({

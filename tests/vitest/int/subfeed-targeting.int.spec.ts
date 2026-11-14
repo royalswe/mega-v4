@@ -8,7 +8,7 @@ import {
   loadPublishingDestinationEligibility,
 } from '@/lib/community/subfeeds'
 import { getTestPayload, getTestUser } from '../utils/test-user'
-import { createTestUser } from './helpers'
+import { createRichText, createSubfeedWithRoster, createTestUser } from './helpers'
 
 let payload: Payload
 
@@ -24,38 +24,6 @@ const getRelationId = (value: unknown): number | string | undefined => {
 
   return undefined
 }
-
-const createRichText = (text: string) => ({
-  root: {
-    children: [
-      {
-        children: [
-          {
-            detail: 0 as const,
-            format: 0 as const,
-            mode: 'normal' as const,
-            style: '',
-            text,
-            type: 'text' as const,
-            version: 1 as const,
-          },
-        ],
-        direction: 'ltr' as const,
-        format: '' as const,
-        indent: 0,
-        type: 'paragraph' as const,
-        version: 1 as const,
-        textFormat: 0 as const,
-        textStyle: '',
-      },
-    ],
-    direction: 'ltr' as const,
-    format: '' as const,
-    indent: 0,
-    type: 'root' as const,
-    version: 1,
-  },
-})
 
 interface TestSubfeedOpts {
   owner?: number
@@ -104,25 +72,8 @@ describe('Publishing destination pagination (pure)', () => {
   })
 })
 
-const createTestSubfeed = async (userId: number, opts: TestSubfeedOpts = {}) => {
-  const unique = faker.string.alphanumeric(8).toLowerCase()
-
-  return payload.create({
-    collection: 'subfeeds',
-    data: {
-      name: `Test SubFeed ${unique}`,
-      slug: `test-subfeed-${unique}`,
-      description: `Integration test subfeed ${unique}`,
-      ...(opts.owner !== undefined ? { owner: opts.owner } : {}),
-      moderators: opts.moderators ?? [userId],
-      editors: opts.editors ?? [],
-      uploaders: opts.uploaders ?? [],
-      members: opts.members ?? [userId],
-    },
-    draft: false,
-    overrideAccess: true,
-  })
-}
+const createTestSubfeed = async (userId: number, opts: TestSubfeedOpts = {}) =>
+  createSubfeedWithRoster(payload, { ownerId: userId, ...opts, prefix: 'test' })
 
 describe('SubFeed Targeting Integration', () => {
   beforeAll(async () => {

@@ -31,9 +31,17 @@ function isPrivateIPv6(ip: string): boolean {
   if (normalized.startsWith('fe80:')) return true
   if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true
   if (normalized.startsWith('::ffff:')) {
+    // The WHATWG URL parser rewrites IPv4-mapped addresses into hex groups
+    // (`::ffff:127.0.0.1` becomes `::ffff:7f00:1`), so both forms must be read.
     const mapped = normalized.slice('::ffff:'.length)
-    if (net.isIP(mapped) === 4) {
-      return isPrivateIPv4(mapped)
+    if (net.isIP(mapped) === 4) return isPrivateIPv4(mapped)
+
+    const groups = mapped.split(':')
+    if (groups.length === 2 && groups.every((group) => /^[0-9a-f]{1,4}$/.test(group))) {
+      const high = Number.parseInt(groups[0], 16)
+      const low = Number.parseInt(groups[1], 16)
+      const dotted = [high >> 8, high & 0xff, low >> 8, low & 0xff].join('.')
+      return isPrivateIPv4(dotted)
     }
   }
 
@@ -58,19 +66,24 @@ function assertProtocolAndHostname(url: URL) {
   }
 }
 
+/** WHATWG URLs keep the brackets on IPv6 hostnames; `net.isIP` does not accept them. */
+const bareHostname = (hostname: string): string => hostname.replace(/^\[|\]$/g, '')
+
 export async function assertSafeUrl(url: URL) {
   assertProtocolAndHostname(url)
 
+  const hostname = bareHostname(url.hostname)
+
   // Direct IP host
-  if (net.isIP(url.hostname)) {
-    if (isPrivateIpAddress(url.hostname)) {
+  if (net.isIP(hostname)) {
+    if (isPrivateIpAddress(hostname)) {
       throw new Error('Blocked private or loopback destination')
     }
     return
   }
 
   // DNS resolve hostnames and reject if any resolved address is private/internal.
-  const addresses = await dns.lookup(url.hostname, { all: true, verbatim: true })
+  const addresses = await dns.lookup(hostname, { all: true, verbatim: true })
   if (!addresses.length) {
     throw new Error('Destination did not resolve')
   }

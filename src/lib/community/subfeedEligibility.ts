@@ -47,13 +47,16 @@ export const SUBFEED_RELATIVE_RANK_TOP_SHARE = 0.1
 /** A member within this fraction of a role gate's point thresholds counts as a "candidate". */
 export const SUBFEED_CANDIDACY_FACTOR = 0.7
 
+/** The recruiter role gate (mirrors `canRecruitPromote` in reputation.ts). */
+export const RECRUITER_ROLE_GATE = 40
+
 /**
  * Recruiter score that qualifies as "strong recruiter standing". The recruiter
  * role gate sits at 40; requiring 60 (1.5×) means a member has demonstrated
  * sustained recruiting rather than a single burst, and is comfortably above the
  * automatic role threshold.
  */
-export const SUBFEED_STRONG_RECRUITER_THRESHOLD = 60
+export const SUBFEED_STRONG_RECRUITER_THRESHOLD = RECRUITER_ROLE_GATE * 1.5
 
 // Uploader role gate (mirrors `canUploadPromote` in reputation.ts).
 export const UPLOADER_CONTRIBUTION = 80
@@ -66,9 +69,6 @@ export const EDITOR_CONTRIBUTION = 180
 export const EDITOR_INTERACTION = 60
 export const EDITOR_CONTRIBUTION_SOLO = 280
 export const EDITOR_TRUST_GATE: TrustLevel = 'trusted'
-
-/** The recruiter role gate (mirrors `canRecruitPromote` in reputation.ts). */
-export const RECRUITER_ROLE_GATE = 40
 
 export type SubfeedRequirementKey =
   'uploader-candidacy' | 'editor-candidacy' | 'strong-recruiter' | 'community-standing'

@@ -2,6 +2,7 @@ import type { Where } from 'payload'
 
 import { recencyDecayFactor } from './reputation'
 import { canModerateCommunity } from './subfeeds'
+import { buildPublishedAndSafeWhere } from './visibility'
 
 /**
  * Unified Main Feed promotion policy (ticket #18).
@@ -171,22 +172,16 @@ const buildPublishedFilter = (options: PromotionWhereOptions): Where =>
     ? { status: { equals: 'published' } }
     : { _status: { equals: 'published' } }
 
-/** Safety exclusions applied to every promotion branch (but not main-feed native). */
-export const buildSafetyExclusions = (options: PromotionWhereOptions = {}): Where[] => {
-  const exclusions: Where[] = [
-    buildPublishedFilter(options),
-    { controversial: { not_equals: true } },
-    { quarantined: { not_equals: true } },
-  ]
-
-  if (options.collection === 'posts') {
-    exclusions.push({ status: { not_equals: 'removed' } })
-  } else {
-    exclusions.push({ softDeleted: { not_equals: true } })
-  }
-
-  return exclusions
-}
+/**
+ * Safety exclusions applied to every promotion branch (but not main-feed native).
+ *
+ * Publication/safety/removal filters come from the shared Content Visibility
+ * policy so the promotion gate cannot drift from collection read access.
+ */
+export const buildSafetyExclusions = (options: PromotionWhereOptions = {}): Where[] => [
+  ...buildPublishedAndSafeWhere(options.collection ?? 'links'),
+  { controversial: { not_equals: true } },
+]
 
 /** The organic threshold gate for one origin, expressed as a Payload query fragment. */
 const buildThresholdGate = (feed: 'subfeed' | 'user'): Where => {
@@ -222,6 +217,43 @@ export const buildPromotableOriginFilter = (options: PromotionWhereOptions = {})
         { discoveryBoosted: { equals: true } },
         { and: [{ feed: { equals: 'subfeed' } }, buildThresholdGate('subfeed')] },
         { and: [{ feed: { equals: 'user' } }, buildThresholdGate('user')] },
+      ],
+    },
+  ],
+})
+
+/**
+ * Pure predicate for the Home "Trending" signal. Matches
+ * `buildTrendingSignalWhere` one-to-one:
+ *
+ *   safe + published + (featured OR discoveryBoosted OR organic threshold)
+ *
+ * Organic thresholds use `promotionThresholdForFeed`, so SubFeed origins get
+ * the discounted gate while `'main'` and `'user'` use the main threshold.
+ */
+export const isTrendingSignalItem = (item: PromotableItemLike): boolean => {
+  if (item.controversial === true) return false
+  if (isRemoved(item)) return false
+  if (item.quarantined === true) return false
+  if (!isPublishedForPromotion(item)) return false
+
+  return item.featured === true || item.discoveryBoosted === true || passesOrganicThreshold(item)
+}
+
+/**
+ * Builds the Home "Trending" signal `where` fragment. Shares the promotion
+ * safety exclusions and threshold gates so the Trending tab can never surface
+ * content that the Main Feed promotion policy has filtered out.
+ */
+export const buildTrendingSignalWhere = (options: PromotionWhereOptions = {}): Where => ({
+  and: [
+    ...buildSafetyExclusions(options),
+    {
+      or: [
+        { featured: { equals: true } },
+        { discoveryBoosted: { equals: true } },
+        { and: [{ feed: { equals: 'subfeed' } }, buildThresholdGate('subfeed')] },
+        { and: [{ feed: { not_equals: 'subfeed' } }, buildThresholdGate('user')] },
       ],
     },
   ],

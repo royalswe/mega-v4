@@ -344,8 +344,3 @@ export const loadTrustDynamics = async (
 
   return refreshTrustDynamics(payload, req)
 }
-
-/** Test helper: drop the in-process refresh promise. */
-export const resetTrustDynamicsCache = (): void => {
-  refreshInFlight = null
-}

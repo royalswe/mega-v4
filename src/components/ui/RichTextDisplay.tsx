@@ -106,7 +106,7 @@ export function RichTextDisplay({ content, className = '' }: RichTextDisplayProp
             href={node.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-primary hover:underline"
+            className="text-primary hover:underline break-words"
           >
             {node.children?.map((child: RenderableLexicalNode, i: number) => renderNode(child, i))}
           </a>
@@ -174,7 +174,7 @@ export function RichTextDisplay({ content, className = '' }: RichTextDisplayProp
   }
 
   return (
-    <div className={`rich-text-content ${className}`}>
+    <div className={`rich-text-content wrap-break-word ${className}`}>
       {content.root.children.map((node, index) => renderNode(node, index))}
     </div>
   )

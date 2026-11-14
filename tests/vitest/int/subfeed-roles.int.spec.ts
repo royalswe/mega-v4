@@ -18,43 +18,11 @@ import {
 } from '@/lib/community/subfeeds'
 import type { User } from '@/payload-types'
 import { getTestPayload, getTestUser } from '../utils/test-user'
-import { createTestUser } from './helpers'
+import { createRichText, createSubfeedWithRoster, createTestUser } from './helpers'
 
 type LocalRole = 'moderator' | 'editor' | 'uploader'
 
 let payload: Payload
-
-const createRichText = (text: string) => ({
-  root: {
-    children: [
-      {
-        children: [
-          {
-            detail: 0 as const,
-            format: 0 as const,
-            mode: 'normal' as const,
-            style: '',
-            text,
-            type: 'text' as const,
-            version: 1 as const,
-          },
-        ],
-        direction: 'ltr' as const,
-        format: '' as const,
-        indent: 0,
-        type: 'paragraph' as const,
-        version: 1 as const,
-        textFormat: 0 as const,
-        textStyle: '',
-      },
-    ],
-    direction: 'ltr' as const,
-    format: '' as const,
-    indent: 0,
-    type: 'root' as const,
-    version: 1,
-  },
-})
 
 interface SubfeedOpts {
   owner?: number
@@ -64,24 +32,8 @@ interface SubfeedOpts {
   members?: number[]
 }
 
-const createTestSubfeed = async (ownerId: number, opts: SubfeedOpts = {}) => {
-  const unique = faker.string.alphanumeric(8).toLowerCase()
-
-  return payload.create({
-    collection: 'subfeeds',
-    data: {
-      name: `Roles SubFeed ${unique}`,
-      slug: `roles-subfeed-${unique}`,
-      description: `Roles integration test subfeed ${unique}`,
-      owner: opts.owner ?? ownerId,
-      moderators: opts.moderators ?? [ownerId],
-      editors: opts.editors ?? [],
-      uploaders: opts.uploaders ?? [],
-      members: opts.members ?? [ownerId],
-    },
-    overrideAccess: true,
-  })
-}
+const createTestSubfeed = async (ownerId: number, opts: SubfeedOpts = {}) =>
+  createSubfeedWithRoster(payload, { ownerId, ...opts, prefix: 'roles' })
 
 const roleDataFor = (role: LocalRole, nextIds: number[], members?: number[]) => ({
   ...(members !== undefined ? { members } : {}),

@@ -98,6 +98,7 @@ export function LinkPreviewModal({
                 {embedCheck.embeddable && (
                   <button
                     onClick={() => setActiveTab('preview')}
+                    aria-label="Live Preview"
                     className={cn(
                       'flex items-center gap-1.5 px-3 py-1 rounded-md font-medium transition-all',
                       activeTab === 'preview'
@@ -106,11 +107,12 @@ export function LinkPreviewModal({
                     )}
                   >
                     <Globe className="h-3.5 w-3.5" />
-                    <span>Live Preview</span>
+                    <span className="hidden sm:inline">Live Preview</span>
                   </button>
                 )}
                 <button
                   onClick={() => setActiveTab('reader')}
+                  aria-label="Reader View"
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1 rounded-md font-medium transition-all',
                     activeTab === 'reader' || (!embedCheck.embeddable && activeTab === 'preview')
@@ -119,7 +121,7 @@ export function LinkPreviewModal({
                   )}
                 >
                   <FileText className="h-3.5 w-3.5" />
-                  <span>Reader View</span>
+                  <span className="hidden sm:inline">Reader View</span>
                 </button>
               </div>
             )}

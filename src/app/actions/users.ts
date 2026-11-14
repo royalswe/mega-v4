@@ -224,5 +224,3 @@ export async function rollbackUserRoles(userId: number, options?: { lockStanding
 
   return { userId, rolledBack: true, standingLocked: shouldLock }
 }
-
-export const rollbackAutomaticRoles = rollbackUserRoles

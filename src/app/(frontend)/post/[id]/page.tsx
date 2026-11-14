@@ -97,9 +97,9 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
             userVote={userVote}
           />
         </div>
-        <div className="grow">
-          <h1 className="text-2xl font-bold mb-2">{post.title}</h1>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+        <div className="grow min-w-0">
+          <h1 className="text-2xl font-bold mb-2 wrap-break-word">{post.title}</h1>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mb-4">
             <span>
               {dict.common.submittedBy}{' '}
               {typeof post.user === 'object' && post.user?.username ? (
@@ -157,11 +157,11 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
                       className="h-10 w-10"
                     />
                   </div>
-                  <div className="grow">
+                  <div className="grow min-w-0">
                     <div className="mb-2">
                       <RichTextDisplay content={comment.comment} />
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                       <span>
                         {dict.common.postedBy}{' '}
                         {typeof comment.user === 'object' && comment.user?.username ? (
