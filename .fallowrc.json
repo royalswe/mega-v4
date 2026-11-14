@@ -1,12 +1,17 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
-  "entry": ["src/index.{ts,tsx,js,jsx}", "src/main.{ts,tsx,js,jsx}"],
+  "ignoreExportsUsedInFile": true,
+  "ignoreDependencies": ["dotenv"],
   "duplicates": {
     "minOccurrences": 3,
     "ignore": ["src/migrations/**", "src/payload-types.ts"]
   },
   "rules": {
-    "unused-dependencies": "warn"
+    "unused-dependencies": "warn",
+    "unused-dev-dependencies": "warn",
+    "test-only-dependencies": "warn",
+    "boundary-violation": "off",
+    "policy-violation": "off"
   },
   "ignoreExports": [
     {

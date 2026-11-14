@@ -40,6 +40,8 @@ const assertValidTarget = (collection: string, id: number): void => {
  * enforcement: it re-validates the booster's standing, checks the update only
  * touches boost fields, re-validates the target's promotion eligibility, and
  * forces the boost values from the trusted context.
+ *
+ * @expected-unused Discovery-boost UI is not wired yet; the enforcement hook is covered by integration tests.
  */
 export async function boostToMainFeed({
   collection,
@@ -106,6 +108,8 @@ export async function boostToMainFeed({
  * Rolls a curated discovery boost back. Minimal for ticket #18: site
  * admin/moderator/editor or the original booster may unboost; richer rollback
  * tooling arrives with the emergency quarantine UI in #19.
+ *
+ * @expected-unused Unboost pairs with the not-yet-wired discovery-boost UI.
  */
 export async function unboostFromMainFeed({
   collection,
@@ -211,8 +215,6 @@ export async function setQuarantineContent({
 
   return { id, quarantined }
 }
-
-export const quarantineContent = setQuarantineContent
 
 /**
  * Emergency rollback of any promotion on a link or post:

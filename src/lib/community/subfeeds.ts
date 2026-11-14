@@ -236,15 +236,6 @@ export const enforceSubfeedContentTargetAccess: CollectionBeforeValidateHook = a
   return data
 }
 
-/**
- * Backward-compatible alias: submitting to a SubFeed requires a local publishing
- * role. New code should use `canSubmitToSubfeed` for clarity.
- */
-export const isSubfeedMemberOrModerator = (
-  subfeed: SubfeedRosterLike,
-  userId: number,
-): boolean => canSubmitToSubfeed(subfeed, userId)
-
 export interface PublishingActor {
   id?: number | string
   roles?: (string | null)[] | null

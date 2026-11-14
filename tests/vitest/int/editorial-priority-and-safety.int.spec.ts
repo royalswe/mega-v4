@@ -8,7 +8,6 @@ import {
   calculateRanking,
   isEditorialPriorityActive,
   EDITORIAL_PRIORITY_BOOST,
-  EDITORIAL_PRIORITY_DURATION_HOURS,
   EDITORIAL_PRIORITY_DURATION_MS,
   SUBFEED_PRIORITY_BOOST,
 } from '@/lib/community/ranking'

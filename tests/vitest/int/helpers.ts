@@ -1,7 +1,5 @@
 import { Payload } from 'payload'
 
-import { faker } from '@faker-js/faker'
-
 import { createMember, uniqueToken } from '../../fixtures/community'
 
 // Re-exported so specs keep a single import site, and so the fixture interface
@@ -11,21 +9,9 @@ export {
   createMember,
   createRichText,
   createSubfeedWithRoster,
-  seedMembers,
-  uniqueToken,
 } from '../../fixtures/community'
 
-export type {
-  FeedItemCollection,
-  FeedItemSignals,
-  FeedItemSpec,
-  FeedItemState,
-  FeedOrigin,
-  Member,
-  MemberOptions,
-  MemberSignals,
-  SubfeedOptions,
-} from '../../fixtures/community'
+export type { Member } from '../../fixtures/community'
 
 /** A member with isolated credentials and no standing. */
 export const createTestUser = async (payload: Payload) => createMember(payload)
@@ -46,5 +32,3 @@ export const createTestLink = async (payload: Payload, userId: number | string) 
     overrideAccess: true,
   })
 }
-
-export const randomEmail = () => `${uniqueToken(12)}-${faker.internet.email()}`
