@@ -1,6 +1,5 @@
 import type {
   Access,
-  CollectionBeforeChangeHook,
   CollectionBeforeDeleteHook,
   CollectionBeforeValidateHook,
   CollectionConfig,
@@ -8,8 +7,10 @@ import type {
   Where,
 } from 'payload'
 
-import { calculateRanking, EDITORIAL_PRIORITY_DURATION_MS } from '@/lib/community/ranking'
-import { getNumericFieldValue } from '@/lib/community/signalFields'
+import {
+  createGrantEditorialPriorityHook,
+  createSyncDerivedSignalsHook,
+} from '@/lib/community/contentSignals'
 import {
   canCurateSubfeedContent,
   canManageSubmittedLinks,
@@ -23,6 +24,7 @@ import {
 import type { SubfeedRosterLike } from '@/lib/community/subfeeds'
 import { createDiscoveryBoostEnforcementHook } from '@/lib/community/discoveryBoostHook'
 import { resolveID } from '@/lib/community/userSignals'
+import { buildCollectionReadAccessWhere } from '@/lib/community/visibility'
 
 const slugify = (value: string): string =>
   value
@@ -117,62 +119,7 @@ const getLinkSubfeed = async (
   return subfeed ?? null
 }
 
-const readAccess: Access = ({ req: { user } }) => {
-  if (!user) {
-    return {
-      and: [
-        {
-          _status: {
-            equals: 'published',
-          },
-        },
-        {
-          softDeleted: {
-            not_equals: true,
-          },
-        },
-        {
-          quarantined: {
-            not_equals: true,
-          },
-        },
-      ],
-    } as Where
-  }
-
-  if (canModerateCommunity(user)) {
-    return true
-  }
-
-  return {
-    and: [
-      {
-        softDeleted: {
-          not_equals: true,
-        },
-      },
-      {
-        quarantined: {
-          not_equals: true,
-        },
-      },
-      {
-        or: [
-          {
-            _status: {
-              equals: 'published',
-            },
-          },
-          {
-            user: {
-              equals: user.id,
-            },
-          },
-        ],
-      },
-    ],
-  } as Where
-}
+const readAccess: Access = ({ req: { user } }) => buildCollectionReadAccessWhere('links', user)
 
 const updateAccess: Access = async ({ req, id }) => {
   const { user } = req
@@ -289,91 +236,9 @@ const prepareLink: CollectionBeforeValidateHook = async ({ data, operation, req,
  * hooks are persisted — the same sanctioned pattern the discovery-boost hook
  * uses for its server-derived fields.
  */
-const grantEditorialPriority: CollectionBeforeChangeHook = async ({
-  data,
-  originalDoc,
-  operation,
-  req,
-}) => {
-  if (req?.context?.skipHooks) return data
-  if (!data) return data
+const grantEditorialPriority = createGrantEditorialPriorityHook('links')
 
-  const feed = data.feed ?? originalDoc?.feed
-  if (feed !== 'main') return data
-  if (operation !== 'create' && originalDoc?.feed === 'main') return data
-
-  const authorId = resolveID(data.user) ?? resolveID(originalDoc?.user) ?? req.user?.id ?? null
-  let hasEditorialRole = false
-
-  if (req.user && req.user.id === authorId && Array.isArray(req.user.roles)) {
-    hasEditorialRole = canManageSubmittedLinks(req.user)
-  } else if (authorId) {
-    const author = await req.payload.findByID({
-      collection: 'users',
-      id: authorId,
-      depth: 0,
-      overrideAccess: true,
-      req,
-    })
-    hasEditorialRole = Boolean(author && canManageSubmittedLinks(author))
-  }
-
-  if (!hasEditorialRole) return data
-
-  return {
-    ...data,
-    editorialPriority: true,
-    editorialPriorityUntil: new Date(Date.now() + EDITORIAL_PRIORITY_DURATION_MS).toISOString(),
-  }
-}
-
-const syncDerivedSignals: CollectionBeforeChangeHook = ({ data, originalDoc }) => {
-  const upvotes = getNumericFieldValue(data, originalDoc, 'upvotes')
-  const downvotes = getNumericFieldValue(data, originalDoc, 'downvotes')
-  const commentsCount = getNumericFieldValue(data, originalDoc, 'commentsCount')
-  const sharesCount = getNumericFieldValue(data, originalDoc, 'sharesCount')
-  const uniqueCommenters = getNumericFieldValue(data, originalDoc, 'uniqueCommenters')
-  const trustedInteractions = getNumericFieldValue(data, originalDoc, 'trustedInteractions')
-  const clickCount = getNumericFieldValue(data, originalDoc, 'clickCount')
-
-  const editorialPriority =
-    data.editorialPriority !== undefined
-      ? Boolean(data.editorialPriority)
-      : Boolean(originalDoc?.editorialPriority)
-  const editorialPriorityUntil =
-    data.editorialPriorityUntil !== undefined
-      ? data.editorialPriorityUntil
-      : originalDoc?.editorialPriorityUntil
-
-  const ranking = calculateRanking({
-    createdAt: originalDoc?.createdAt || new Date().toISOString(),
-    upvotes,
-    downvotes,
-    commentsCount,
-    sharesCount,
-    uniqueCommenters,
-    trustedInteractions,
-    discoveryMomentum: clickCount * 0.35,
-    editorialPriority,
-    editorialPriorityUntil,
-    feed: data.feed ?? originalDoc?.feed,
-  })
-
-  const score = upvotes - downvotes
-
-  return {
-    ...data,
-    votes: score,
-    score,
-    discoveryMomentum: Math.round(clickCount * 0.35 * 100) / 100,
-    controversyScore: ranking.controversyScore,
-    engagementVelocity: ranking.engagementVelocity,
-    spamProbability: ranking.spamProbability,
-    ragebaitProbability: ranking.ragebaitProbability,
-    rankingScore: ranking.score,
-    controversial: ranking.controversyScore >= 45 || ranking.ragebaitProbability >= 0.6,
-  }
-}
+const syncDerivedSignals = createSyncDerivedSignalsHook('links')
 
 const deleteRelatedLinkClicks: CollectionBeforeDeleteHook = async ({ id, req }) => {
   await req.payload.delete({

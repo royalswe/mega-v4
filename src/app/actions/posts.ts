@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedUser } from '@/lib/auth'
+import { castContentVote, toggleContentBookmark } from '@/lib/community/interactions'
 import {
   MAIN_FEED_PUBLISH_UNAUTHORIZED_MESSAGE,
   SUBFEED_PUBLISH_UNAUTHORIZED_MESSAGE,
@@ -15,45 +16,13 @@ import type { SubmissionOutcome } from '@/lib/community/subfeeds'
 export async function vote(postId: number, type: 'up' | 'down') {
   const { user, payload } = await getAuthenticatedUser()
 
-  if (!user) {
-    throw new Error('You must be logged in to vote')
-  }
-
-  const userId = user.id
-  const withAccess = {
+  await castContentVote({
+    payload,
     user,
-    overrideAccess: false as const,
-  }
-
-  // Find existing vote
-  const { docs: existingVotes } = await payload.find({
-    collection: 'votes',
-    where: {
-      user: { equals: userId },
-      post: { equals: postId },
-    },
-    ...withAccess,
+    targetCollection: 'posts',
+    targetId: postId,
+    type,
   })
-
-  // Perform the vote operation
-  if (existingVotes.length > 0) {
-    if (existingVotes[0].vote === type) {
-      await payload.delete({ collection: 'votes', id: existingVotes[0].id, ...withAccess })
-    } else {
-      await payload.update({
-        collection: 'votes',
-        id: existingVotes[0].id,
-        data: { vote: type },
-        ...withAccess,
-      })
-    }
-  } else {
-    await payload.create({
-      collection: 'votes',
-      data: { user: userId, post: postId, vote: type },
-      ...withAccess,
-    })
-  }
 
   revalidatePath('/wall')
   revalidatePath(`/post/${postId}`)
@@ -62,47 +31,12 @@ export async function vote(postId: number, type: 'up' | 'down') {
 export async function toggleBookmark(postId: number) {
   const { user, payload } = await getAuthenticatedUser()
 
-  if (!user) {
-    throw new Error('You must be logged in to bookmark')
-  }
-
-  const userId = user.id
-  const withAccess = {
+  await toggleContentBookmark({
+    payload,
     user,
-    overrideAccess: false as const,
-  }
-
-  const { docs: existingBookmarks } = await payload.find({
-    collection: 'bookmarks',
-    where: {
-      user: {
-        equals: userId,
-      },
-      post: {
-        equals: postId,
-      },
-    },
-    ...withAccess,
+    targetCollection: 'posts',
+    targetId: postId,
   })
-
-  if (existingBookmarks.length > 0) {
-    // Bookmark exists, so delete it
-    await payload.delete({
-      collection: 'bookmarks',
-      id: existingBookmarks[0].id,
-      ...withAccess,
-    })
-  } else {
-    // Bookmark does not exist, so create it
-    await payload.create({
-      collection: 'bookmarks',
-      data: {
-        user: userId,
-        post: postId,
-      },
-      ...withAccess,
-    })
-  }
 
   revalidatePath('/wall')
   revalidatePath(`/post/${postId}`)

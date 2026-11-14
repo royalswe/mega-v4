@@ -361,6 +361,51 @@ export const buildTrustProfile = (
   }
 }
 
+/**
+ * Where a member sits on the trust ladder, in the shape a read surface needs.
+ *
+ * The profile page used to compute this inline in JSX (find the level, find the
+ * next one, derive the span, clamp the ratio, subtract for the remainder), which
+ * meant the only way to test it was a browser journey. Keeping it here makes the
+ * ladder a value that callers and tests both consume.
+ */
+export interface TrustProgression {
+  /** The level the member currently holds. */
+  current: TrustThreshold
+  /** The level above it, or `null` at the top of the ladder. */
+  next: TrustThreshold | null
+  /** Fraction of the way from `current` to `next`, clamped to 0–1. */
+  progress: number
+  /** Effective standing still needed for `next`; `0` at the top level. */
+  remaining: number
+  /** True when the member has reached the highest level. */
+  isMaxLevel: boolean
+}
+
+export const buildTrustProgression = (
+  totalMemberValue: number,
+  trustLevel?: TrustLevel | null,
+  thresholds: TrustThreshold[] = TRUST_LEVEL_THRESHOLDS,
+): TrustProgression => {
+  const standing = Number.isFinite(totalMemberValue) ? Math.max(0, totalMemberValue) : 0
+  const resolvedLevel = trustLevel ?? resolveTrustLevel(standing, undefined, thresholds)
+
+  const foundIndex = thresholds.findIndex((entry) => entry.value === resolvedLevel)
+  const currentIndex = foundIndex >= 0 ? foundIndex : 0
+  const current = thresholds[currentIndex] ?? TRUST_LEVEL_THRESHOLDS[0]
+  const next = thresholds[currentIndex + 1] ?? null
+
+  if (!next) {
+    return { current, next: null, progress: 1, remaining: 0, isMaxLevel: true }
+  }
+
+  const span = next.min - current.min
+  const progress = span > 0 ? clamp((standing - current.min) / span, 0, 1) : 1
+  const remaining = Math.max(0, next.min - standing)
+
+  return { current, next, progress, remaining, isMaxLevel: false }
+}
+
 export interface TitleSignals {
   discoveryScore?: number
   contributionScore?: number

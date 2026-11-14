@@ -3,7 +3,7 @@ import { describe, it, beforeAll, expect, vi } from 'vitest'
 import { faker } from '@faker-js/faker'
 
 import { getTestPayload } from '../utils/test-user'
-import { createTestUser } from './helpers'
+import { createRichText, createTestUser } from './helpers'
 import {
   calculateRanking,
   isEditorialPriorityActive,
@@ -22,38 +22,6 @@ import {
 let payload: Payload
 
 const unique = () => faker.string.alphanumeric(10).toLowerCase()
-
-const createRichText = (text: string) => ({
-  root: {
-    children: [
-      {
-        children: [
-          {
-            detail: 0 as const,
-            format: 0 as const,
-            mode: 'normal' as const,
-            style: '',
-            text,
-            type: 'text' as const,
-            version: 1 as const,
-          },
-        ],
-        direction: 'ltr' as const,
-        format: '' as const,
-        indent: 0,
-        type: 'paragraph' as const,
-        version: 1 as const,
-        textFormat: 0 as const,
-        textStyle: '',
-      },
-    ],
-    direction: 'ltr' as const,
-    format: '' as const,
-    indent: 0,
-    type: 'root' as const,
-    version: 1,
-  },
-})
 
 describe('Editorial priority ranking behavior (pure)', () => {
   const FIXED_NOW = new Date('2026-06-01T12:00:00Z')

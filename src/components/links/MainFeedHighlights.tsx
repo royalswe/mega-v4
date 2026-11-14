@@ -113,7 +113,7 @@ export function MainFeedHighlights({
         <h2 className="text-base font-semibold tracking-tight">{labels.title}</h2>
         <p className="text-sm text-muted-foreground">{labels.subtitle}</p>
       </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
         <Link
           href={trendingNowHref}
           className={`rounded-lg border bg-background p-3 transition hover:-translate-y-px hover:border-foreground/20 ${activeSignal === 'trending' ? activeClasses : ''}`}

@@ -614,7 +614,7 @@ export function LinkSubmitForm({
                     <FormLabel>{dict.linkForm.typeLabel}</FormLabel>
                     <FormControl>
                       <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger className="w-100">
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder={dict.linkForm.typePlaceholder} />
                         </SelectTrigger>
                         <SelectContent>

@@ -24,85 +24,15 @@ import {
   readRelationshipIds,
   resolveSubfeedOwner,
 } from '@/lib/community/subfeeds'
+import {
+  loadSubfeedFeed,
+  mapRoster,
+  parseContentFilter,
+  parsePulseWindow,
+} from '@/lib/community/feedAssembly'
 import { checkRole } from '@/access/checkRole'
 import { expireEditorialPriority } from '@/lib/community/editorialPriority'
 import { ReorderAwareList } from '@/components/links/ReorderAwareList.client'
-import type { Link as LinkDoc, Post as PostDoc } from '@/payload-types'
-
-const extractTrendingTopics = (items: Array<Pick<LinkDoc, 'tags'> | Pick<PostDoc, 'tags'>>) => {
-  const seen = new Map<string, { label: string; count: number }>()
-
-  for (const item of items) {
-    for (const rawTag of item.tags ?? []) {
-      const trimmed = rawTag.trim()
-      if (!trimmed) continue
-
-      const normalized = trimmed.toLowerCase()
-      const existing = seen.get(normalized)
-
-      if (existing) {
-        existing.count += 1
-      } else {
-        seen.set(normalized, { label: trimmed, count: 1 })
-      }
-    }
-  }
-
-  return Array.from(seen.values())
-    .sort((a, b) => {
-      if (b.count !== a.count) return b.count - a.count
-      return a.label.localeCompare(b.label)
-    })
-    .slice(0, 5)
-    .map((topic) => topic.label)
-}
-
-const parsePulseWindow = (value: string | string[] | undefined): '24h' | '7d' => {
-  const normalized = Array.isArray(value) ? value[0] : value
-  if (normalized === '7d') return '7d'
-  return '24h'
-}
-
-const parseContentFilter = (value: string | string[] | undefined): 'all' | 'links' | 'posts' => {
-  const normalized = Array.isArray(value) ? value[0] : value
-  if (normalized === 'links' || normalized === 'posts') return normalized
-  return 'all'
-}
-
-const toRosterUserId = (value: unknown): number | null => {
-  if (value && typeof value === 'object' && 'id' in value) {
-    const id = (value as { id?: unknown }).id
-    const parsed = typeof id === 'number' ? id : typeof id === 'string' ? Number(id) : NaN
-    return Number.isFinite(parsed) ? parsed : null
-  }
-
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string') {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-
-  return null
-}
-
-const mapRoster = (values: unknown): Array<{ id: number; username: string }> => {
-  if (!Array.isArray(values)) return []
-
-  const result: Array<{ id: number; username: string }> = []
-  for (const value of values) {
-    const id = toRosterUserId(value)
-    if (id === null) continue
-
-    const username =
-      value && typeof value === 'object' && 'username' in value
-        ? ((value as { username?: unknown }).username as string | null | undefined)
-        : null
-
-    result.push({ id, username: username || `User #${id}` })
-  }
-
-  return result
-}
 
 const toSearchParams = (params: Record<string, string | string[] | undefined>) => {
   const query = new URLSearchParams()
@@ -150,63 +80,6 @@ const buildContentFilterHref = (
 
   const queryString = query.toString()
   return queryString.length > 0 ? `/subfeeds/${slug}?${queryString}` : `/subfeeds/${slug}`
-}
-
-const toIntlLocale = (lang: 'en' | 'sv') => {
-  return lang === 'sv' ? 'sv-SE' : 'en-US'
-}
-
-const buildTrendBucketLabels = (now: number, window: '24h' | '7d', lang: 'en' | 'sv'): string[] => {
-  const bucketCount = window === '24h' ? 8 : 7
-  const windowMs = window === '24h' ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000
-  const bucketMs = windowMs / bucketCount
-  const windowStart = now - windowMs
-  const locale = toIntlLocale(lang)
-
-  const timeFormatter = new Intl.DateTimeFormat(locale, {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-  const dayFormatter = new Intl.DateTimeFormat(locale, {
-    month: 'short',
-    day: 'numeric',
-  })
-
-  return Array.from({ length: bucketCount }, (_, index) => {
-    const start = new Date(windowStart + bucketMs * index)
-    const end = new Date(windowStart + bucketMs * (index + 1))
-
-    if (window === '24h') {
-      return `${timeFormatter.format(start)}-${timeFormatter.format(end)}`
-    }
-
-    return dayFormatter.format(start)
-  })
-}
-
-const buildTrendPoints = (
-  createdAtValues: string[],
-  now: number,
-  window: '24h' | '7d',
-): number[] => {
-  const bucketCount = window === '24h' ? 8 : 7
-  const windowMs = window === '24h' ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000
-  const bucketMs = windowMs / bucketCount
-
-  const points = Array.from({ length: bucketCount }, () => 0)
-  const windowStart = now - windowMs
-
-  for (const timestamp of createdAtValues) {
-    const createdAtMs = Date.parse(timestamp)
-    if (Number.isNaN(createdAtMs)) continue
-    if (createdAtMs < windowStart || createdAtMs > now) continue
-
-    const elapsed = createdAtMs - windowStart
-    const index = Math.min(bucketCount - 1, Math.floor(elapsed / bucketMs))
-    points[index] += 1
-  }
-
-  return points
 }
 
 export default async function SubfeedDetailsPage({
@@ -275,300 +148,27 @@ export default async function SubfeedDetailsPage({
       (member) => member.id === ownerId,
     ) ?? (ownerId !== null ? { id: ownerId, username: `User #${ownerId}` } : null)
 
-  const now = Date.now()
-  const windowMs = (selectedWindow === '24h' ? 24 : 7 * 24) * 60 * 60 * 1000
-  const currentWindowStart = new Date(now - windowMs).toISOString()
-  const previousWindowStart = new Date(now - windowMs * 2).toISOString()
-
-  const [
-    { docs: links },
-    { docs: posts },
-    currentLinks,
-    currentPosts,
-    previousLinks,
-    previousPosts,
-    recentLinks,
-    recentPosts,
-  ] = await Promise.all([
-    payload.find({
-      collection: 'links',
-      where: {
-        and: [
-          {
-            feed: {
-              equals: 'subfeed',
-            },
-          },
-          {
-            subfeed: {
-              equals: subfeed.id,
-            },
-          },
-          {
-            _status: {
-              equals: 'published',
-            },
-          },
-          {
-            softDeleted: {
-              not_equals: true,
-            },
-          },
-        ],
-      },
-      sort: '-rankingScore',
-      limit: 25,
-      ...withAccess,
-    }),
-    payload.find({
-      collection: 'posts',
-      where: {
-        and: [
-          {
-            feed: {
-              equals: 'subfeed',
-            },
-          },
-          {
-            subfeed: {
-              equals: subfeed.id,
-            },
-          },
-          {
-            status: {
-              equals: 'published',
-            },
-          },
-        ],
-      },
-      sort: '-rankingScore',
-      limit: 25,
-      ...withAccess,
-    }),
-    payload.find({
-      collection: 'links',
-      where: {
-        and: [
-          {
-            feed: {
-              equals: 'subfeed',
-            },
-          },
-          {
-            subfeed: {
-              equals: subfeed.id,
-            },
-          },
-          {
-            _status: {
-              equals: 'published',
-            },
-          },
-          {
-            softDeleted: {
-              not_equals: true,
-            },
-          },
-          {
-            createdAt: {
-              greater_than_equal: currentWindowStart,
-            },
-          },
-        ],
-      },
-      limit: 0,
-      depth: 0,
-      ...withAccess,
-    }),
-    payload.find({
-      collection: 'posts',
-      where: {
-        and: [
-          {
-            feed: {
-              equals: 'subfeed',
-            },
-          },
-          {
-            subfeed: {
-              equals: subfeed.id,
-            },
-          },
-          {
-            status: {
-              equals: 'published',
-            },
-          },
-          {
-            createdAt: {
-              greater_than_equal: currentWindowStart,
-            },
-          },
-        ],
-      },
-      limit: 0,
-      depth: 0,
-      ...withAccess,
-    }),
-    payload.find({
-      collection: 'links',
-      where: {
-        and: [
-          {
-            feed: {
-              equals: 'subfeed',
-            },
-          },
-          {
-            subfeed: {
-              equals: subfeed.id,
-            },
-          },
-          {
-            _status: {
-              equals: 'published',
-            },
-          },
-          {
-            softDeleted: {
-              not_equals: true,
-            },
-          },
-          {
-            createdAt: {
-              greater_than_equal: previousWindowStart,
-            },
-          },
-          {
-            createdAt: {
-              less_than: currentWindowStart,
-            },
-          },
-        ],
-      },
-      limit: 0,
-      depth: 0,
-      ...withAccess,
-    }),
-    payload.find({
-      collection: 'posts',
-      where: {
-        and: [
-          {
-            feed: {
-              equals: 'subfeed',
-            },
-          },
-          {
-            subfeed: {
-              equals: subfeed.id,
-            },
-          },
-          {
-            status: {
-              equals: 'published',
-            },
-          },
-          {
-            createdAt: {
-              greater_than_equal: previousWindowStart,
-            },
-          },
-          {
-            createdAt: {
-              less_than: currentWindowStart,
-            },
-          },
-        ],
-      },
-      limit: 0,
-      depth: 0,
-      ...withAccess,
-    }),
-    payload.find({
-      collection: 'links',
-      where: {
-        and: [
-          {
-            feed: {
-              equals: 'subfeed',
-            },
-          },
-          {
-            subfeed: {
-              equals: subfeed.id,
-            },
-          },
-          {
-            _status: {
-              equals: 'published',
-            },
-          },
-          {
-            softDeleted: {
-              not_equals: true,
-            },
-          },
-          {
-            createdAt: {
-              greater_than_equal: currentWindowStart,
-            },
-          },
-        ],
-      },
-      limit: 300,
-      depth: 0,
-      sort: '-createdAt',
-      ...withAccess,
-    }),
-    payload.find({
-      collection: 'posts',
-      where: {
-        and: [
-          {
-            feed: {
-              equals: 'subfeed',
-            },
-          },
-          {
-            subfeed: {
-              equals: subfeed.id,
-            },
-          },
-          {
-            status: {
-              equals: 'published',
-            },
-          },
-          {
-            createdAt: {
-              greater_than_equal: currentWindowStart,
-            },
-          },
-        ],
-      },
-      limit: 300,
-      depth: 0,
-      sort: '-createdAt',
-      ...withAccess,
-    }),
-  ])
-
-  const newLinks = currentLinks.totalDocs
-  const newPosts = currentPosts.totalDocs
-  const activity = newLinks + newPosts
-
-  const previousActivity = previousLinks.totalDocs + previousPosts.totalDocs
-  const activityDelta = activity - previousActivity
-
-  const trendPoints = buildTrendPoints(
-    [...recentLinks.docs, ...recentPosts.docs].map((item) => item.createdAt),
-    now,
+  const {
+    links,
+    posts,
+    filteredItems,
+    activity,
+    activityDelta,
+    newLinks,
+    newPosts,
+    trendPoints,
+    trendBucketLabels,
+    trendingTopics,
+    quickEditSubfeeds,
+  } = await loadSubfeedFeed({
+    payload,
+    user,
+    subfeed,
     selectedWindow,
-  )
-  const trendBucketLabels = buildTrendBucketLabels(now, selectedWindow, lang)
-
-  const trendingTopics = extractTrendingTopics([...recentLinks.docs, ...recentPosts.docs])
+    selectedContentFilter,
+    canQuickEditLinks,
+    lang,
+  })
 
   const pulseLabels = {
     ...dict.subfeeds.pulse,
@@ -584,57 +184,6 @@ export default async function SubfeedDetailsPage({
     { votes: linkVotes, bookmarks: linkBookmarks },
     { votes: postVotes, bookmarks: postBookmarks },
   ] = await Promise.all([getUserInteractions(user, linkIds), getPostInteractions(user, postIds)])
-
-  let quickEditSubfeeds: Array<{ id: number; name: string }> = []
-  if (user && canQuickEditLinks) {
-    const { docs: subfeedsForEdit } = await payload.find({
-      collection: 'subfeeds',
-      sort: 'name',
-      depth: 0,
-      limit: 200,
-      user,
-      overrideAccess: false,
-    })
-
-    quickEditSubfeeds = subfeedsForEdit.map((subfeedForEdit) => ({
-      id: subfeedForEdit.id,
-      name: subfeedForEdit.name,
-    }))
-  }
-
-  const mixedItems = [
-    ...links.map((link) => ({
-      type: 'link' as const,
-      id: link.id,
-      rankingScore: link.rankingScore ?? 0,
-      createdAt: Date.parse(link.createdAt),
-      link,
-    })),
-    ...posts.map((post) => ({
-      type: 'post' as const,
-      id: post.id,
-      rankingScore: post.rankingScore ?? 0,
-      createdAt: Date.parse(post.createdAt),
-      post,
-    })),
-  ]
-    .sort((a, b) => {
-      if (b.rankingScore !== a.rankingScore) {
-        return b.rankingScore - a.rankingScore
-      }
-
-      return (
-        (Number.isNaN(b.createdAt) ? 0 : b.createdAt) -
-        (Number.isNaN(a.createdAt) ? 0 : a.createdAt)
-      )
-    })
-    .slice(0, 50)
-
-  const filteredItems = mixedItems.filter((item) => {
-    if (selectedContentFilter === 'all') return true
-    if (selectedContentFilter === 'links') return item.type === 'link'
-    return item.type === 'post'
-  })
 
   const filterLabels = {
     all: 'All',
@@ -653,9 +202,9 @@ export default async function SubfeedDetailsPage({
                 className="h-10 w-10 rounded-full border object-cover"
                 fallbackClassName="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-muted text-sm font-semibold"
               />
-              <h1>{subfeed.name}</h1>
+              <h1 className="wrap-break-word">{subfeed.name}</h1>
             </div>
-            <p className="max-w-2xl text-muted-foreground">{subfeed.description}</p>
+            <p className="max-w-2xl text-muted-foreground wrap-break-word">{subfeed.description}</p>
             <p className="text-sm text-muted-foreground">
               {memberIds.length} {dict.subfeeds?.membersLabel || 'members'} •{' '}
               {dict.subfeeds?.reputationLabel || 'Reputation'} {subfeed.reputation ?? 0}
@@ -695,7 +244,7 @@ export default async function SubfeedDetailsPage({
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide">
               {dict.subfeeds?.rulesTitle || 'Rules'}
             </h2>
-            <p className="whitespace-pre-wrap text-sm text-muted-foreground">{subfeed.rules}</p>
+            <p className="whitespace-pre-wrap text-sm text-muted-foreground wrap-break-word">{subfeed.rules}</p>
           </div>
         ) : null}
       </section>

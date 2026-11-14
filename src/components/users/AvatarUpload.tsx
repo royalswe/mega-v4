@@ -79,7 +79,7 @@ export function AvatarUpload({ user, dict }: AvatarUploadProps) {
   }, [preview])
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex flex-col items-center gap-4 sm:flex-row">
       <div className="relative group">
         <div className="relative h-24 w-24">
           {preview ? (
@@ -121,8 +121,8 @@ export function AvatarUpload({ user, dict }: AvatarUploadProps) {
         />
       </div>
 
-      <div>
-        <h3 className="font-semibold text-lg">{user.username}</h3>
+      <div className="min-w-0 text-center sm:text-left">
+        <h3 className="font-semibold text-lg wrap-break-word">{user.username}</h3>
         <p className="text-sm text-muted-foreground">
           {dict.profile?.changeAvatar || 'Click the upload icon to change your avatar'}
         </p>

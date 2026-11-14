@@ -1,14 +1,15 @@
 import type {
   Access,
-  CollectionBeforeChangeHook,
   CollectionBeforeValidateHook,
   CollectionConfig,
   FieldAccess,
   Where,
 } from 'payload'
 
-import { calculateRanking, EDITORIAL_PRIORITY_DURATION_MS } from '@/lib/community/ranking'
-import { getNumericFieldValue } from '@/lib/community/signalFields'
+import {
+  createGrantEditorialPriorityHook,
+  createSyncDerivedSignalsHook,
+} from '@/lib/community/contentSignals'
 import {
   canCurateSubfeedContent,
   canManageSubmittedLinks,
@@ -22,6 +23,7 @@ import {
 import type { SubfeedRosterLike } from '@/lib/community/subfeeds'
 import { createDiscoveryBoostEnforcementHook } from '@/lib/community/discoveryBoostHook'
 import { resolveID } from '@/lib/community/userSignals'
+import { buildCollectionReadAccessWhere } from '@/lib/community/visibility'
 
 const slugify = (value: string): string =>
   value
@@ -64,61 +66,7 @@ const getPostSubfeed = async (
   return subfeed ?? null
 }
 
-const readAccess: Access = ({ req: { user } }) => {
-  if (!user) {
-    return {
-      and: [
-        {
-          status: {
-            equals: 'published',
-          },
-        },
-        {
-          quarantined: {
-            not_equals: true,
-          },
-        },
-      ],
-    } as Where
-  }
-
-  if (canModerateCommunity(user)) {
-    return true
-  }
-
-  return {
-    and: [
-      {
-        quarantined: {
-          not_equals: true,
-        },
-      },
-      {
-        or: [
-          {
-            status: {
-              equals: 'published',
-            },
-          },
-          {
-            and: [
-              {
-                status: {
-                  equals: 'pending',
-                },
-              },
-              {
-                user: {
-                  equals: user.id,
-                },
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  } as Where
-}
+const readAccess: Access = ({ req: { user } }) => buildCollectionReadAccessWhere('posts', user)
 
 const updateAccess: Access = async ({ req, id }) => {
   const { user } = req
@@ -205,92 +153,9 @@ const preparePost: CollectionBeforeValidateHook = async ({ data, operation, req,
  * hooks are persisted — the same sanctioned pattern the discovery-boost hook
  * uses for its server-derived fields.
  */
-const grantEditorialPriority: CollectionBeforeChangeHook = async ({
-  data,
-  originalDoc,
-  operation,
-  req,
-}) => {
-  if (req?.context?.skipHooks) return data
-  if (!data) return data
+const grantEditorialPriority = createGrantEditorialPriorityHook('posts')
 
-  const feed = data.feed ?? originalDoc?.feed
-  if (feed !== 'main') return data
-  if ((data.status ?? originalDoc?.status) !== 'published') return data
-  if (operation !== 'create' && originalDoc?.feed === 'main' && originalDoc?.status === 'published')
-    return data
-
-  const authorId = resolveID(data.user) ?? resolveID(originalDoc?.user) ?? req.user?.id ?? null
-  let hasEditorialRole = false
-
-  if (req.user && req.user.id === authorId) {
-    hasEditorialRole = canManageSubmittedLinks(req.user)
-  } else if (authorId) {
-    const author = await req.payload.findByID({
-      collection: 'users',
-      id: authorId,
-      depth: 0,
-      overrideAccess: true,
-      req,
-    })
-    hasEditorialRole = Boolean(author && canManageSubmittedLinks(author))
-  }
-
-  if (!hasEditorialRole) return data
-
-  return {
-    ...data,
-    editorialPriority: true,
-    editorialPriorityUntil: new Date(Date.now() + EDITORIAL_PRIORITY_DURATION_MS).toISOString(),
-  }
-}
-
-const syncDerivedSignals: CollectionBeforeChangeHook = ({ data, originalDoc }) => {
-  const upvotes = getNumericFieldValue(data, originalDoc, 'upvotes')
-  const downvotes = getNumericFieldValue(data, originalDoc, 'downvotes')
-  const commentsCount = getNumericFieldValue(data, originalDoc, 'commentsCount')
-  const sharesCount = getNumericFieldValue(data, originalDoc, 'sharesCount')
-  const uniqueCommenters = getNumericFieldValue(data, originalDoc, 'uniqueCommenters')
-  const trustedInteractions = getNumericFieldValue(data, originalDoc, 'trustedInteractions')
-  const discoveryMomentum = getNumericFieldValue(data, originalDoc, 'discoveryMomentum')
-
-  const editorialPriority =
-    data.editorialPriority !== undefined
-      ? Boolean(data.editorialPriority)
-      : Boolean(originalDoc?.editorialPriority)
-  const editorialPriorityUntil =
-    data.editorialPriorityUntil !== undefined
-      ? data.editorialPriorityUntil
-      : originalDoc?.editorialPriorityUntil
-
-  const ranking = calculateRanking({
-    createdAt: originalDoc?.createdAt || new Date().toISOString(),
-    upvotes,
-    downvotes,
-    commentsCount,
-    sharesCount,
-    uniqueCommenters,
-    trustedInteractions,
-    discoveryMomentum,
-    editorialPriority,
-    editorialPriorityUntil,
-    feed: data.feed ?? originalDoc?.feed,
-  })
-
-  const score = upvotes - downvotes
-
-  return {
-    ...data,
-    votes: score,
-    score,
-    controversyScore: ranking.controversyScore,
-    engagementVelocity: ranking.engagementVelocity,
-    spamProbability: ranking.spamProbability,
-    ragebaitProbability: ranking.ragebaitProbability,
-    rankingScore: ranking.score,
-    controversial: ranking.controversyScore >= 45 || ranking.ragebaitProbability >= 0.6,
-  }
-}
+const syncDerivedSignals = createSyncDerivedSignalsHook('posts')
 
 export const Posts: CollectionConfig = {
   slug: 'posts',

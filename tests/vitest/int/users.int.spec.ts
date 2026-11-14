@@ -1,56 +1,90 @@
 import { Payload } from 'payload'
-import { getTestPayload, getTestUser } from '../utils/test-user'
 import { describe, it, beforeAll, expect } from 'vitest'
+
+import { getTestPayload } from '../utils/test-user'
+import { createTestUser } from './helpers'
+
+/**
+ * Member settings survive the standing engine.
+ *
+ * The users collection re-derives roles and trust on every update, so the risk is
+ * not that a field can be written — it is that a standing update silently wipes
+ * the member's own preferences (and vice versa).
+ */
 
 let payload: Payload
 
-describe('User Settings Integration', () => {
+describe('User settings and standing', () => {
   beforeAll(async () => {
     payload = await getTestPayload()
   })
 
-  it('can persist nsfw preference', async () => {
-    // 1. Get Shared User
-    const user = await getTestUser()
+  it('keeps preferences intact when standing signals change', async () => {
+    const user = await createTestUser(payload)
 
-    // Ensure we start with nsfw: false
-    // Only update if not already false to save DB calls, or just update to be safe and simple
     await payload.update({
       collection: 'users',
       id: user.id,
-      data: {
-        settings: {
-          nsfw: false,
-        },
-      },
+      data: { settings: { nsfw: true, language: 'sv' } },
       overrideAccess: true,
     })
 
-    // Re-fetch to confirm state (optional but good for test hygiene)
-    const freshUser = await payload.findByID({ collection: 'users', id: user.id, overrideAccess: true })
-    expect(freshUser.settings?.nsfw).toBe(false)
-
-    // 2. Update NSFW setting
-    const updatedUser = await payload.update({
+    await payload.update({
       collection: 'users',
       id: user.id,
-      data: {
-        settings: {
-          nsfw: true,
-        },
-      },
+      data: { contributionScore: 200 },
       overrideAccess: true,
     })
 
-    expect(updatedUser.settings?.nsfw).toBe(true)
-
-    // 3. Verify persistence
-    const fetchedUser = await payload.findByID({
+    const fresh = await payload.findByID({
       collection: 'users',
       id: user.id,
       overrideAccess: true,
     })
 
-    expect(fetchedUser.settings?.nsfw).toBe(true)
+    expect(fresh.settings?.nsfw).toBe(true)
+    expect(fresh.settings?.language).toBe('sv')
+    expect(fresh.contributionScore).toBe(200)
+    expect(fresh.username).toBe(user.username)
+  })
+
+  it('derives standing roles without touching the preference fields', async () => {
+    const user = await createTestUser(payload)
+
+    await payload.update({
+      collection: 'users',
+      id: user.id,
+      data: { settings: { nsfw: false }, contributionScore: 200, discoveryScore: 60 },
+      overrideAccess: true,
+    })
+
+    const fresh = await payload.findByID({
+      collection: 'users',
+      id: user.id,
+      overrideAccess: true,
+    })
+
+    expect(fresh.roles ?? []).toContain('uploader')
+    expect(fresh.settings?.nsfw).toBe(false)
+  })
+
+  it('does not let a member write their own standing', async () => {
+    const user = await createTestUser(payload)
+
+    await payload.update({
+      collection: 'users',
+      id: user.id,
+      data: { contributionScore: 9_999 },
+      user,
+      overrideAccess: false,
+    })
+
+    const fresh = await payload.findByID({
+      collection: 'users',
+      id: user.id,
+      overrideAccess: true,
+    })
+
+    expect(fresh.contributionScore ?? 0).toBeLessThan(9_999)
   })
 })

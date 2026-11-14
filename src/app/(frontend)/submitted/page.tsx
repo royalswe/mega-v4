@@ -141,7 +141,7 @@ const SubmittedLinksPage = async () => {
                 userVote={votes[link.id]}
               />
             </div>
-            <div className="grow flex flex-col justify-center">
+            <div className="grow min-w-0 flex flex-col justify-center">
               <div className="flex items-center space-x-2 mb-1">
                 <LinkIcon type={link.type} className="h-6 w-6 min-w-6 shrink-0" />
                 <CardTitle
@@ -166,7 +166,7 @@ const SubmittedLinksPage = async () => {
                   'Ghost'
                 )}
               </p>
-              <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                 <span
                   className={`capitalize ${
                     link._status === 'published' ? 'text-green-500' : 'text-yellow-500'
@@ -184,7 +184,7 @@ const SubmittedLinksPage = async () => {
                   isBookmarked={bookmarks[link.id]}
                   dict={dict}
                 />
-                <div className="ml-auto flex items-center gap-2">
+                <div className="ml-auto flex flex-wrap items-center gap-2">
                   {canQuickEditLinks ? (
                     <QuickEditLinkButton
                       dict={dict}

@@ -60,6 +60,25 @@ export default defineConfig({
         storageState: 'tests/playwright/.auth/user.json',
       },
     },
+    {
+      // Layout only: jsdom has no layout engine, so these run in a real browser.
+      name: 'mobile-chrome',
+      testMatch: /layout\.e2e\.spec\.ts/,
+      use: {
+        ...devices['Pixel 5'],
+        browserName: 'chromium',
+      },
+    },
+    {
+      // The narrowest phone we support. Guards the 320px column.
+      name: 'mobile-small',
+      testMatch: /layout\.e2e\.spec\.ts/,
+      use: {
+        ...devices['iPhone SE'],
+        browserName: 'chromium',
+        viewport: { width: 320, height: 568 },
+      },
+    },
   ],
   webServer: {
     command: 'pnpm dev',

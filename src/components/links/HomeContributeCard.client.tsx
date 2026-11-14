@@ -273,8 +273,8 @@ export function HomeContributeCard({
 
           {stripItems.length > 0 ? (
             <div className="mt-4 border-t pt-3 space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0 flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0 flex flex-wrap items-center gap-2">
                   <h3 className="text-sm font-semibold">{stripCopy.title}</h3>
                   <div className="inline-flex items-center gap-1 rounded-md border bg-muted/40 p-1 text-xs">
                     <button

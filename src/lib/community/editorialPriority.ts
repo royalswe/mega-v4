@@ -1,7 +1,8 @@
 import { sql } from '@payloadcms/db-postgres'
 import { createPayloadRequest, type Payload, type PayloadRequest } from 'payload'
 
-import { recalculateTargetSignals } from './contentSignals'
+import { deriveLinkDiscoveryMomentum, recalculateTargetSignals } from './contentSignals'
+import { hasRankingScoreDrifted } from './ranking'
 import { withSerializableTransaction } from '@/lib/withSerializableTransaction'
 
 /**
@@ -165,4 +166,110 @@ export const expireEditorialPriority = async (
 export const resetEditorialPrioritySweepThrottle = (): void => {
   lastSweepAt = 0
   inFlight = null
+}
+
+/**
+ * Stale-ranking refresh sweep (ticket #36).
+ *
+ * `rankingScore` is persisted on write, but freshness decay keeps lowering the
+ * score an item *would* earn as it ages. Without a periodic refresh the stored
+ * score keeps sorting content by the clock of its last write. This sweep walks
+ * the highest-ranked items in both content collections, compares the persisted
+ * score against a live computation at `now`, and recalculates the ones that
+ * drifted. Recalculating only drifted rows keeps it cheap enough to run from a
+ * maintenance/cron path.
+ */
+
+export interface RefreshStaleContentRankingResult {
+  refreshed: number
+}
+
+export interface RefreshStaleContentRankingArgs {
+  payload: Payload
+  /** Optional request scope, so callers keep their transaction. */
+  req?: PayloadRequest
+  /** Injectable clock (defaults to now). */
+  now?: Date
+  /** Absolute score delta tolerated before a row counts as drifted. */
+  tolerance?: number
+  /** How many top-ranked rows to inspect per collection. */
+  limit?: number
+}
+
+/** Structural subset of a ranking-bearing content doc used for drift checks. */
+interface RankingSignalSnapshot {
+  createdAt?: string | null
+  upvotes?: number | null
+  downvotes?: number | null
+  commentsCount?: number | null
+  sharesCount?: number | null
+  uniqueCommenters?: number | null
+  trustedInteractions?: number | null
+  discoveryMomentum?: number | null
+  clickCount?: number | null
+  editorialPriority?: boolean | null
+  editorialPriorityUntil?: string | null
+  feed?: string | null
+  rankingScore?: number | null
+}
+
+export const refreshStaleContentRanking = async ({
+  payload,
+  req,
+  now = new Date(),
+  tolerance,
+  limit = 50,
+}: RefreshStaleContentRankingArgs): Promise<RefreshStaleContentRankingResult> => {
+  const reqScope = req ? { req } : {}
+  let refreshed = 0
+
+  for (const collection of CONTENT_COLLECTIONS) {
+    const ranked = await payload.find({
+      collection,
+      sort: '-rankingScore',
+      limit,
+      depth: 0,
+      overrideAccess: true,
+      ...reqScope,
+    })
+
+    for (const doc of ranked.docs) {
+      const snapshot = doc as unknown as RankingSignalSnapshot
+
+      const drifted = hasRankingScoreDrifted(
+        {
+          createdAt: snapshot.createdAt,
+          upvotes: snapshot.upvotes ?? 0,
+          downvotes: snapshot.downvotes ?? 0,
+          commentsCount: snapshot.commentsCount ?? 0,
+          sharesCount: snapshot.sharesCount ?? 0,
+          uniqueCommenters: snapshot.uniqueCommenters ?? 0,
+          trustedInteractions: snapshot.trustedInteractions ?? 0,
+          // Links derive momentum from clicks; posts persist their own value.
+          discoveryMomentum:
+            collection === 'links'
+              ? deriveLinkDiscoveryMomentum(snapshot.clickCount ?? 0)
+              : (snapshot.discoveryMomentum ?? 0),
+          editorialPriority: snapshot.editorialPriority,
+          editorialPriorityUntil: snapshot.editorialPriorityUntil,
+          feed: snapshot.feed,
+          rankingScore: snapshot.rankingScore,
+        },
+        { now, tolerance },
+      )
+
+      if (!drifted) continue
+
+      await recalculateTargetSignals({
+        payload,
+        req,
+        targetCollection: collection,
+        targetId: doc.id,
+        now,
+      })
+      refreshed += 1
+    }
+  }
+
+  return { refreshed }
 }

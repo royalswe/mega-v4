@@ -113,7 +113,7 @@ export function PrivateChat({ profileUser, currentUser, initialMessages }: Priva
   }
 
   return (
-    <div className="flex flex-col h-[450px] border rounded-lg bg-card text-card-foreground">
+    <div className="flex flex-col h-[60svh] border rounded-lg bg-card text-card-foreground sm:h-[450px]">
       {/* Chat header */}
       <div className="p-3 border-b flex items-center justify-between bg-muted/20">
         <div>

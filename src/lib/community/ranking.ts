@@ -156,3 +156,28 @@ export const calculateRanking = (input: RankingInput): RankingOutput => {
     subfeedBoost,
   }
 }
+
+/**
+ * Ranking score an item would have *right now*, including freshness decay.
+ * Persisted `rankingScore` values age with their document, so live comparisons
+ * (e.g. the maintenance sweep) need to recompute against a reference clock.
+ */
+export const computeLiveRankingScore = (item: RankingInput, now: Date = new Date()): number =>
+  calculateRanking({ ...item, now }).score
+
+/**
+ * True when a persisted `rankingScore` no longer matches the score the item
+ * would earn at `now` (or when no score has been persisted yet). The default
+ * tolerance absorbs rounding noise from stored numeric columns.
+ */
+export const hasRankingScoreDrifted = (
+  item: RankingInput & { rankingScore?: number | null },
+  options: { now?: Date; tolerance?: number } = {},
+): boolean => {
+  const liveScore = computeLiveRankingScore(item, options.now ?? new Date())
+
+  return (
+    typeof item.rankingScore !== 'number' ||
+    Math.abs(item.rankingScore - liveScore) >= (options.tolerance ?? 1)
+  )
+}

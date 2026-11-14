@@ -21,7 +21,10 @@
     "start": "cross-env NODE_OPTIONS=--no-deprecation next start",
     "test": "pnpm run test:int && pnpm run test:e2e",
     "test:e2e": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-strip-types\" pnpm exec playwright test",
-    "test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts"
+    "test:e2e:layout": "cross-env NODE_OPTIONS=\"--no-deprecation --no-experimental-strip-types\" pnpm exec playwright test tests/playwright/e2e/layout.e2e.spec.ts",
+    "test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts",
+    "test:int:seed": "cross-env SEED_VERIFY=1 NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts tests/vitest/int/seed-scenarios.int.spec.ts",
+    "test:int:migrations": "cross-env RUN_MIGRATION_DB_TESTS=true NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts tests/vitest/int/migrations.int.spec.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

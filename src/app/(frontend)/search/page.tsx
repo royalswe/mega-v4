@@ -143,7 +143,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       {query && (
         <div className="space-y-6">
           {/* Tabs */}
-          <div className="flex border-b">
+          <div className="flex overflow-x-auto border-b">
             <Link
               href={`/search?q=${encodeURIComponent(query)}&type=links`}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-[2px] transition-colors ${
