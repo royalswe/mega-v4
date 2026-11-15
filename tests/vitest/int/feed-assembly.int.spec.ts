@@ -17,6 +17,7 @@ import {
   loadSubfeedFeed,
   mapRoster,
   mergeAndSortSubfeedItems,
+  mergeHomeItems,
   parseContentFilter,
   parseHomeSubfeedsView,
   parseMode,
@@ -26,6 +27,7 @@ import {
 } from '@/lib/community/feedAssembly'
 import { buildMainFeedWhere, buildTrendingSignalWhere } from '@/lib/community/promotion'
 import { buildPublicFeedVisibilityWhere } from '@/lib/community/visibility'
+import { computeClimbProgress } from '@/components/ui/ClimbProgressBadge'
 import type { Link as LinkDoc, Post as PostDoc, Subfeed, User } from '@/payload-types'
 
 let payload: Payload
@@ -225,6 +227,46 @@ describe('feed assembly pure helpers', () => {
     expect(
       mergeAndSortSubfeedItems(links, posts, 2).map((item) => `${item.type}-${item.id}`),
     ).toEqual(['post-5', 'link-2'])
+  })
+
+  it('merges Home items per mode and computes climb progress fractions', () => {
+    const now = Date.now()
+    const links = [
+      asLinkDoc({
+        id: 1,
+        rankingScore: 15,
+        engagementVelocity: 90,
+        createdAt: new Date(now - 5_000).toISOString(),
+      }),
+    ]
+    const posts = [
+      asPostDoc({
+        id: 2,
+        rankingScore: 40,
+        engagementVelocity: 10,
+        createdAt: new Date(now - 1_000).toISOString(),
+      }),
+    ]
+
+    expect(mergeHomeItems(links, posts, 'best').map((item) => `${item.type}-${item.id}`)).toEqual([
+      'post-2',
+      'link-1',
+    ])
+    expect(mergeHomeItems(links, posts, 'rising').map((item) => `${item.type}-${item.id}`)).toEqual([
+      'link-1',
+      'post-2',
+    ])
+    expect(mergeHomeItems(links, posts, 'new').map((item) => `${item.type}-${item.id}`)).toEqual([
+      'post-2',
+      'link-1',
+    ])
+
+    expect(computeClimbProgress({ feed: 'user', score: 2, upvotes: 5, rankingScore: 100 })).toBe(
+      0.5,
+    )
+    expect(computeClimbProgress({ feed: 'user', score: 0, upvotes: 0, rankingScore: 0, featured: true })).toBe(
+      1,
+    )
   })
 })
 

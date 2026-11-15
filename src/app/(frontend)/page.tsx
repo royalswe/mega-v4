@@ -14,9 +14,10 @@ import { FeedMixFilter } from '@/components/links/FeedMixFilter'
 import { HomeContributeCard } from '@/components/links/HomeContributeCard.client'
 import { MainFeedHighlights } from '@/components/links/MainFeedHighlights'
 import { ReorderAwareList } from '@/components/links/ReorderAwareList.client'
-import type { FeedMode, FeedSignal } from '@/lib/community/feedAssembly'
+import type { FeedMode, FeedSignal, SubfeedContentFilter } from '@/lib/community/feedAssembly'
 import {
   loadHomeFeed,
+  parseContentFilter,
   parseHomeSubfeedsView,
   parseMode,
   parseSignal,
@@ -31,12 +32,14 @@ const toQuery = (params: {
   mixSubfeeds?: string
   signal?: string
   mode?: string
+  type?: string
 }) => {
   const query = new URLSearchParams()
   if (params.bookmarks) query.set('bookmarks', params.bookmarks)
   if (params.mixSubfeeds) query.set('mixSubfeeds', params.mixSubfeeds)
   if (params.signal) query.set('signal', params.signal)
   if (params.mode && params.mode !== 'best') query.set('mode', params.mode)
+  if (params.type && params.type !== 'all') query.set('type', params.type)
   return query
 }
 
@@ -48,6 +51,7 @@ export default async function HomePage({
     mixSubfeeds?: string
     signal?: string
     mode?: string
+    type?: string
     page?: string
   }>
 }) {
@@ -80,6 +84,7 @@ export default async function HomePage({
   )
   const signal = parseSignal(resolvedSearchParams.signal)
   const mode = parseMode(resolvedSearchParams.mode)
+  const contentFilter = parseContentFilter(resolvedSearchParams.type)
 
   const buildSignalHref = (nextSignal: FeedSignal | null) => {
     const query = toQuery({
@@ -87,6 +92,7 @@ export default async function HomePage({
       mixSubfeeds: resolvedSearchParams.mixSubfeeds,
       signal: nextSignal ?? undefined,
       mode,
+      type: contentFilter,
     })
 
     const queryString = query.toString()
@@ -99,6 +105,20 @@ export default async function HomePage({
       mixSubfeeds: resolvedSearchParams.mixSubfeeds,
       signal: resolvedSearchParams.signal,
       mode: nextMode,
+      type: contentFilter,
+    })
+
+    const queryString = query.toString()
+    return queryString.length > 0 ? `/?${queryString}` : '/'
+  }
+
+  const buildTypeHref = (nextType: SubfeedContentFilter) => {
+    const query = toQuery({
+      bookmarks: resolvedSearchParams.bookmarks,
+      mixSubfeeds: resolvedSearchParams.mixSubfeeds,
+      signal: resolvedSearchParams.signal,
+      mode,
+      type: nextType,
     })
 
     const queryString = query.toString()
@@ -169,9 +189,17 @@ export default async function HomePage({
     mixSubfeeds: resolvedSearchParams.mixSubfeeds,
     signal: resolvedSearchParams.signal,
     mode,
+    type: contentFilter,
   })
   nextPageQuery.set('page', String(feedPage + 1))
   const nextFeedHref = `/?${nextPageQuery.toString()}`
+
+  const visibleItems =
+    contentFilter === 'links'
+      ? mixedItems.filter((item) => item.type === 'link')
+      : contentFilter === 'posts'
+        ? mixedItems.filter((item) => item.type === 'post')
+        : mixedItems
 
   return (
     <div className="space-y-4">
@@ -204,26 +232,45 @@ export default async function HomePage({
       <div>
         <div className="mb-4 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div className="min-w-0 space-y-2">
-            <div className="inline-flex flex-wrap items-center gap-1 rounded-md border bg-muted/40 p-1 text-xs">
-              <span className="px-2 text-muted-foreground">{dict.pages.modeLabel}</span>
-              <Link
-                href={buildModeHref('best')}
-                className={`rounded px-2 py-1 ${mode === 'best' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                {dict.pages.modes.best}
-              </Link>
-              <Link
-                href={buildModeHref('new')}
-                className={`rounded px-2 py-1 ${mode === 'new' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                {dict.pages.modes.newest}
-              </Link>
-              <Link
-                href={buildModeHref('rising')}
-                className={`rounded px-2 py-1 ${mode === 'rising' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                {dict.pages.modes.rising}
-              </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex flex-wrap items-center gap-1 rounded-md border bg-muted/40 p-1 text-xs">
+                <span className="px-2 text-muted-foreground">{dict.pages.modeLabel}</span>
+                <Link
+                  href={buildModeHref('best')}
+                  className={`rounded px-2 py-1 ${mode === 'best' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  {dict.pages.modes.best}
+                </Link>
+                <Link
+                  href={buildModeHref('new')}
+                  className={`rounded px-2 py-1 ${mode === 'new' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  {dict.pages.modes.newest}
+                </Link>
+                <Link
+                  href={buildModeHref('rising')}
+                  className={`rounded px-2 py-1 ${mode === 'rising' ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  {dict.pages.modes.rising}
+                </Link>
+              </div>
+              <div className="inline-flex flex-wrap items-center gap-1 rounded-md border bg-muted/40 p-1 text-xs">
+                {(
+                  [
+                    ['all', dict.common.contentFilter.all],
+                    ['links', dict.common.contentFilter.links],
+                    ['posts', dict.common.contentFilter.posts],
+                  ] as const
+                ).map(([value, label]) => (
+                  <Link
+                    key={value}
+                    href={buildTypeHref(value)}
+                    className={`rounded px-2 py-1 ${contentFilter === value ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    {label}
+                  </Link>
+                ))}
+              </div>
             </div>
             <p className="text-xs text-muted-foreground">{modeDescriptionByKey[mode]}</p>
             {signal ? (
@@ -253,12 +300,12 @@ export default async function HomePage({
         </div>
 
         <div>
-          {mixedItems.length > 0 ? (
+          {visibleItems.length > 0 ? (
             <>
               <ReorderAwareList
-                itemIds={mixedItems.map((item) => `${item.type}-${item.id}`)}
+                itemIds={visibleItems.map((item) => `${item.type}-${item.id}`)}
               >
-                {mixedItems.map((item) =>
+                {visibleItems.map((item) =>
                   item.type === 'link' ? (
                     <LinkCard
                       key={`link-${item.link.id}`}

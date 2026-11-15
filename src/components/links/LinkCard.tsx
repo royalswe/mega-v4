@@ -7,6 +7,7 @@ import { LinkIcon } from '@/components/links/LinkIcon'
 import { TrackedLink } from '@/components/links/TrackedLink'
 import { SubfeedAvatar } from '@/components/subfeeds/SubfeedAvatar'
 import { QuickEditLinkButton } from '@/components/links/QuickEditLinkButton'
+import { ClimbProgressBadge } from '@/components/ui/ClimbProgressBadge'
 import { getDictionary } from '@/lib/dictionaries'
 import { isEditorialPriorityActive } from '@/lib/community/ranking'
 
@@ -28,6 +29,7 @@ export async function LinkCard({
   isBookmarked,
   quickEditEnabled,
   quickEditSubfeeds,
+  actionSlot,
   className,
 }: {
   link: LinkType
@@ -36,6 +38,7 @@ export async function LinkCard({
   isBookmarked?: boolean
   quickEditEnabled?: boolean
   quickEditSubfeeds?: Array<{ id: number; name: string }>
+  actionSlot?: React.ReactNode
   className?: string
 }) {
   const { dict } = await getDictionary()
@@ -112,6 +115,13 @@ export async function LinkCard({
               {dict.common.userFeedOrigin.replace('{username}', link.user.username)}
             </span>
           ) : null}
+          {link.feed === 'user' || link.feed === 'subfeed' ? (
+            <ClimbProgressBadge
+              item={link}
+              labelTemplate={dict.common.climbProgressLabel}
+              tooltip={dict.common.climbProgressTooltip}
+            />
+          ) : null}
           {isEditorialPriorityActive(link) ? (
             <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 px-2 py-0.5 text-xs font-medium">
               {dict.common.editorialPriority || 'Editorial Priority'}
@@ -141,6 +151,7 @@ export async function LinkCard({
               <b>Ghost</b>
             )}
           </p>
+          {actionSlot}
           {quickEditEnabled ? (
             <QuickEditLinkButton
               dict={dict}

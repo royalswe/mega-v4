@@ -185,11 +185,7 @@ export default async function SubfeedDetailsPage({
     { votes: postVotes, bookmarks: postBookmarks },
   ] = await Promise.all([getUserInteractions(user, linkIds), getPostInteractions(user, postIds)])
 
-  const filterLabels = {
-    all: 'All',
-    links: 'Links',
-    posts: 'Posts',
-  }
+  const filterLabels = dict.common.contentFilter
 
   return (
     <div className="space-y-6">

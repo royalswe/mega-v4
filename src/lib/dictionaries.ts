@@ -19,6 +19,14 @@ const dictionaries = {
       loginToComment: 'Log in to comment',
       userFeedOrigin: "From {username}'s User Feed",
       editorialPriority: 'Editorial Priority',
+      climbProgressLabel: '{percent}% to Main Feed',
+      climbProgressTooltip:
+        'Progress toward the Main Feed based on upvotes, score, and engagement momentum.',
+      contentFilter: {
+        all: 'All',
+        links: 'Links',
+        posts: 'Discussions',
+      },
     },
     menu: {
       home: 'Home',
@@ -496,6 +504,14 @@ const dictionaries = {
       loginToComment: 'Logga in för att kommentera',
       userFeedOrigin: 'Från {username}s användarflöde',
       editorialPriority: 'Redaktionell prioritet',
+      climbProgressLabel: '{percent}% mot Main Feed',
+      climbProgressTooltip:
+        'Klättring mot Main Feed baserat på röster, poäng och engagemang.',
+      contentFilter: {
+        all: 'Alla',
+        links: 'Länkar',
+        posts: 'Diskussioner',
+      },
     },
     menu: {
       home: 'Hem',

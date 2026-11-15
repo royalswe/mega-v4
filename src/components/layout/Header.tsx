@@ -5,6 +5,7 @@ import { logout } from '@/app/actions/auth'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/app/(frontend)/ThemeToggle'
 import { LanguageSelector } from './LanguageSelector'
+import { HeaderNavLink } from './HeaderNavLink.client'
 import { UserMenu } from './UserMenu.client'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
@@ -84,52 +85,44 @@ export async function Header() {
                 </form>
                 <ul className="space-y-1">
                   <li>
-                    <Button variant="ghost" asChild className="w-full justify-start">
-                      <Link href="/">{dict.menu.mainFeed}</Link>
-                    </Button>
+                    <HeaderNavLink href="/" mobile>
+                      {dict.menu.mainFeed}
+                    </HeaderNavLink>
                   </li>
                   <li>
-                    <Button variant="ghost" asChild className="w-full justify-start">
-                      <Link href="/discover">{dict.menu.discover}</Link>
-                    </Button>
+                    <HeaderNavLink href="/discover" mobile>
+                      {dict.menu.discover}
+                    </HeaderNavLink>
                   </li>
                   <li>
-                    <Button variant="ghost" asChild className="w-full justify-start">
-                      <Link href="/subfeeds">{dict.menu.subfeeds || 'SubFeeds'}</Link>
-                    </Button>
+                    <HeaderNavLink href="/subfeeds" mobile>
+                      {dict.menu.subfeeds || 'SubFeeds'}
+                    </HeaderNavLink>
                   </li>
                   {user ? (
                     <li>
-                      <Button variant="ghost" asChild className="w-full justify-start">
-                        <Link href="/my-feed">{dict.menu.minFeed}</Link>
-                      </Button>
+                      <HeaderNavLink href="/my-feed" mobile>
+                        {dict.menu.minFeed}
+                      </HeaderNavLink>
                     </li>
                   ) : null}
                   <li>
-                    <Button variant="ghost" asChild className="w-full justify-start">
-                      <Link href="/new-link">{dict.menu.newLink}</Link>
-                    </Button>
+                    <HeaderNavLink href="/new-link" mobile>
+                      {dict.menu.newLink}
+                    </HeaderNavLink>
                   </li>
                   {canViewSubmitted ? (
                     <li>
-                      <Button
-                        variant="ghost"
-                        asChild
-                        className="w-full justify-start text-orange-400"
-                      >
-                        <Link href="/submitted">{dict.menu.submitted}</Link>
-                      </Button>
+                      <HeaderNavLink href="/submitted" mobile className="text-orange-400">
+                        {dict.menu.submitted}
+                      </HeaderNavLink>
                     </li>
                   ) : null}
                   {canModerate ? (
                     <li>
-                      <Button
-                        variant="ghost"
-                        asChild
-                        className="w-full justify-start text-orange-400"
-                      >
-                        <Link href="/moderation">{dict.menu.moderation || 'Moderation'}</Link>
-                      </Button>
+                      <HeaderNavLink href="/moderation" mobile className="text-orange-400">
+                        {dict.menu.moderation || 'Moderation'}
+                      </HeaderNavLink>
                     </li>
                   ) : null}
                 </ul>
@@ -165,44 +158,34 @@ export async function Header() {
         <nav className="hidden items-center gap-3 lg:flex">
           <ul className="flex items-center gap-1">
             <li>
-              <Button variant="ghost" asChild>
-                <Link href="/">{dict.menu.mainFeed}</Link>
-              </Button>
+              <HeaderNavLink href="/">{dict.menu.mainFeed}</HeaderNavLink>
             </li>
             <li>
-              <Button variant="ghost" asChild>
-                <Link href="/discover">{dict.menu.discover}</Link>
-              </Button>
+              <HeaderNavLink href="/discover">{dict.menu.discover}</HeaderNavLink>
             </li>
             <li>
-              <Button variant="ghost" asChild>
-                <Link href="/subfeeds">{dict.menu.subfeeds || 'SubFeeds'}</Link>
-              </Button>
+              <HeaderNavLink href="/subfeeds">{dict.menu.subfeeds || 'SubFeeds'}</HeaderNavLink>
             </li>
             {user ? (
               <li>
-                <Button variant="ghost" asChild>
-                  <Link href="/my-feed">{dict.menu.minFeed}</Link>
-                </Button>
+                <HeaderNavLink href="/my-feed">{dict.menu.minFeed}</HeaderNavLink>
               </li>
             ) : null}
             <li>
-              <Button variant="ghost" asChild>
-                <Link href="/new-link">{dict.menu.newLink}</Link>
-              </Button>
+              <HeaderNavLink href="/new-link">{dict.menu.newLink}</HeaderNavLink>
             </li>
             {canViewSubmitted ? (
               <li>
-                <Button variant="ghost" className="text-orange-400" asChild>
-                  <Link href="/submitted">{dict.menu.submitted}</Link>
-                </Button>
+                <HeaderNavLink href="/submitted" className="text-orange-400">
+                  {dict.menu.submitted}
+                </HeaderNavLink>
               </li>
             ) : null}
             {canModerate ? (
               <li>
-                <Button variant="ghost" className="text-orange-400" asChild>
-                  <Link href="/moderation">{dict.menu.moderation || 'Moderation'}</Link>
-                </Button>
+                <HeaderNavLink href="/moderation" className="text-orange-400">
+                  {dict.menu.moderation || 'Moderation'}
+                </HeaderNavLink>
               </li>
             ) : null}
           </ul>

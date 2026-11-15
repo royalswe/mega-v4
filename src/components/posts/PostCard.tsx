@@ -6,6 +6,7 @@ import { BookmarkButton } from '@/components/posts/BookmarkButton'
 import { getDictionary } from '@/lib/dictionaries'
 import { RichTextDisplay } from '@/components/ui/RichTextDisplay'
 import { Timestamp } from '@/components/ui/Timestamp'
+import { ClimbProgressBadge } from '@/components/ui/ClimbProgressBadge'
 import { isEditorialPriorityActive } from '@/lib/community/ranking'
 
 import type { Post } from '@/payload-types'
@@ -15,12 +16,14 @@ export async function PostCard({
   userId,
   userVote,
   isBookmarked,
+  actionSlot,
   className,
 }: {
   post: Post
   userId?: string | number | null
   userVote?: 'up' | 'down'
   isBookmarked?: boolean
+  actionSlot?: React.ReactNode
   className?: string
 }) {
   const { dict } = await getDictionary()
@@ -53,6 +56,13 @@ export async function PostCard({
               {dict.common.userFeedOrigin.replace('{username}', post.user.username)}
             </span>
           ) : null}
+          {post.feed === 'user' || post.feed === 'subfeed' ? (
+            <ClimbProgressBadge
+              item={post}
+              labelTemplate={dict.common.climbProgressLabel}
+              tooltip={dict.common.climbProgressTooltip}
+            />
+          ) : null}
           {isEditorialPriorityActive(post) ? (
             <span className="inline-flex items-center gap-1 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 px-2 py-0.5 text-xs font-medium">
               {dict.common.editorialPriority || 'Editorial Priority'}
@@ -82,6 +92,7 @@ export async function PostCard({
             new Date(post.updatedAt).getTime() > new Date(post.createdAt).getTime() + 60000 && (
               <Timestamp date={post.updatedAt} prefix="updated" />
             )}
+          {actionSlot}
         </div>
       </div>
     </Card>

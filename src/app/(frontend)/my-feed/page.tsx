@@ -3,11 +3,18 @@ export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
+import { LinkCard } from '@/components/links/LinkCard'
+import { PostCard } from '@/components/posts/PostCard'
+import { getUserInteractions } from '@/app/(frontend)/data/getInteractions'
+import { getPostInteractions } from '@/app/(frontend)/data/getPostInteractions'
 import { getAuthenticatedUser } from '@/lib/auth'
 import { getDictionary } from '@/lib/dictionaries'
 import { buildPublicFeedVisibilityWhere } from '@/lib/community/visibility'
-import { hydrateFeedCardRelations } from '@/lib/community/feedAssembly'
-import { promotionThresholdForFeed } from '@/lib/community/promotion'
+import {
+  hydrateFeedCardRelations,
+  parseContentFilter,
+  type SubfeedContentFilter,
+} from '@/lib/community/feedAssembly'
 import { buildTrustProgression } from '@/lib/community/reputation'
 import { ServerIcon, MESSAGE_CIRCLE, EXTERNAL_LINK } from '@/components/ui/ServerIcon'
 
@@ -25,21 +32,6 @@ type FeedItem = {
 const readNum = (value: number | null | undefined): number =>
   typeof value === 'number' && Number.isFinite(value) ? value : 0
 
-/** Fraction toward the Main Feed promotion gate, for the climb meter. */
-const progressOf = (item: {
-  score?: number | null
-  upvotes?: number | null
-  rankingScore?: number | null
-}): number => {
-  const threshold = promotionThresholdForFeed('user')
-  const raw = Math.min(
-    readNum(item.score) / threshold.score,
-    readNum(item.upvotes) / threshold.upvotes,
-    readNum(item.rankingScore) / threshold.rankingScore,
-  )
-  return Math.max(0, Math.min(1, raw))
-}
-
 const LINK_SELECT = {
   id: true,
   votes: true,
@@ -50,6 +42,7 @@ const LINK_SELECT = {
   feed: true,
   subfeed: true,
   user: true,
+  clickCount: true,
   commentsCount: true,
   createdAt: true,
   updatedAt: true,
@@ -57,6 +50,8 @@ const LINK_SELECT = {
   score: true,
   upvotes: true,
   rankingScore: true,
+  featured: true,
+  discoveryBoosted: true,
 } as const
 
 const POST_SELECT = {
@@ -75,9 +70,15 @@ const POST_SELECT = {
   score: true,
   upvotes: true,
   rankingScore: true,
+  featured: true,
+  discoveryBoosted: true,
 } as const
 
-export default async function MyFeedPage() {
+export default async function MyFeedPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ type?: string }>
+}) {
   const { user, payload } = await getAuthenticatedUser()
   const { dict } = await getDictionary()
 
@@ -85,6 +86,8 @@ export default async function MyFeedPage() {
     redirect('/login')
   }
 
+  const resolvedSearchParams = (await searchParams) ?? {}
+  const contentFilter = parseContentFilter(resolvedSearchParams.type)
   const copy = dict.pages.myFeed
   const withAccess = { user, overrideAccess: false as const }
 
@@ -131,6 +134,17 @@ export default async function MyFeedPage() {
     }),
   ])
 
+  const [{ votes: linkVotes, bookmarks: linkBookmarks }, postInteractions] = await Promise.all([
+    getUserInteractions(
+      user,
+      links.map((link) => link.id),
+    ),
+    getPostInteractions(
+      user,
+      posts.map((post) => post.id),
+    ),
+  ])
+
   const items: FeedItem[] = [
     ...links.map((link) => ({
       key: `link-${link.id}`,
@@ -151,7 +165,17 @@ export default async function MyFeedPage() {
       (Number.isNaN(b.createdAt) ? 0 : b.createdAt) - (Number.isNaN(a.createdAt) ? 0 : a.createdAt),
   )
 
+  const visibleItems =
+    contentFilter === 'links'
+      ? items.filter((item) => item.kind === 'link')
+      : contentFilter === 'posts'
+        ? items.filter((item) => item.kind === 'post')
+        : items
+
   const trustProgression = buildTrustProgression(readNum(user.totalMemberValue), user.trustLevel)
+
+  const buildTypeHref = (nextType: SubfeedContentFilter) =>
+    nextType === 'all' ? '/my-feed' : `/my-feed?type=${nextType}`
 
   return (
     <div className="space-y-4">
@@ -160,7 +184,24 @@ export default async function MyFeedPage() {
           <h1 className="text-2xl font-bold">{copy.title}</h1>
           <p className="text-muted-foreground max-w-2xl">{copy.subtitle}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex flex-wrap items-center gap-1 rounded-md border bg-muted/40 p-1 text-xs">
+            {(
+              [
+                ['all', dict.common.contentFilter.all],
+                ['links', dict.common.contentFilter.links],
+                ['posts', dict.common.contentFilter.posts],
+              ] as const
+            ).map(([value, label]) => (
+              <Link
+                key={value}
+                href={buildTypeHref(value)}
+                className={`rounded px-2 py-1 ${contentFilter === value ? 'bg-background font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
           <span className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2.5 py-1 text-xs font-medium">
             Trust: {trustProgression.current.label}
             {trustProgression.next ? (
@@ -184,44 +225,34 @@ export default async function MyFeedPage() {
         </div>
       </div>
 
-      {items.length > 0 ? (
-        <div className="space-y-2">
-          {items.map((item) => {
-            const isLink = item.kind === 'link'
-            const doc = isLink ? item.link! : item.post!
-            const href = isLink ? `/link/${item.id}` : `/post/${item.id}`
-            const title = isLink ? item.link!.title : item.post!.title
-            const progress = progressOf(doc)
-
-            return (
-              <div key={item.key} className="rounded-lg border bg-card p-3 shadow-sm">
-                <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>{isLink ? '🔗 Länk' : '💬 Diskussion'}</span>
-                  <span>{Math.round(progress * 100)}% mot Main Feed</span>
-                </div>
-                <Link href={href} className="mb-2 block text-base font-semibold leading-snug hover:underline">
-                  {title}
-                </Link>
-                <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-500"
-                    style={{ width: `${Math.round(progress * 100)}%` }}
-                  />
-                </div>
-                <Link
-                  href={href}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
-                >
-                  <ServerIcon icon={MESSAGE_CIRCLE} className="size-3.5" />
-                  {readNum(doc.commentsCount)} {dict.common.comments}
-                  <ServerIcon icon={EXTERNAL_LINK} className="ml-1 size-3" />
-                </Link>
-              </div>
-            )
-          })}
+      {visibleItems.length > 0 ? (
+        <div className="flex flex-col gap-3">
+          {visibleItems.map((item) =>
+            item.kind === 'link' ? (
+              <LinkCard
+                key={item.key}
+                link={item.link!}
+                userId={user.id}
+                userVote={linkVotes[item.id]}
+                isBookmarked={linkBookmarks[item.id]}
+                className={item.link!.nsfw ? 'nsfw-text' : ''}
+              />
+            ) : (
+              <PostCard
+                key={item.key}
+                post={item.post!}
+                userId={user.id}
+                userVote={postInteractions.votes[item.id]}
+                isBookmarked={postInteractions.bookmarks[item.id]}
+                className={item.post!.nsfw ? 'nsfw-text' : ''}
+              />
+            ),
+          )}
         </div>
       ) : (
-        <p className="rounded-lg border bg-card py-12 text-center text-muted-foreground">{copy.empty}</p>
+        <p className="rounded-lg border bg-card py-12 text-center text-muted-foreground">
+          {copy.empty}
+        </p>
       )}
     </div>
   )
