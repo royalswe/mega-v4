@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { SerializedLexicalNode } from 'lexical'
 
-import { lexicalStateToMarkdown, markdownToLexicalState } from '@/lib/richTextMarkdown'
+import {
+  lexicalStateToMarkdown,
+  markdownToLexicalJSON,
+  markdownToLexicalState,
+} from '@/lib/richTextMarkdown'
+import { getTestPayload } from '../utils/test-user'
+import { createFeedItem, createTestUser } from './helpers'
 
 const rootChildren = (markdown: string): SerializedLexicalNode[] =>
   markdownToLexicalState(markdown).root.children
@@ -44,5 +50,38 @@ describe('rich text markdown conversion', () => {
 
     expect(lexicalStateToMarkdown(json)).toContain('Hello\nworld')
     expect(lexicalStateToMarkdown(json)).toContain('## Heading')
+  })
+
+  it('falls back to the original value rather than accepting a partially parsed document', () => {
+    const state = markdownToLexicalState('Keep this content')
+    state.root.children.push({ type: 'unsupported-stored-node', version: 1 })
+    const serialized = JSON.stringify(state)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    try {
+      expect(lexicalStateToMarkdown(serialized)).toBe(serialized)
+      expect(lexicalStateToMarkdown(JSON.stringify(markdownToLexicalState('Next document')))).toBe(
+        'Next document',
+      )
+    } finally {
+      error.mockRestore()
+    }
+  })
+})
+
+describe('rich text links in Payload rich-text fields', () => {
+  it('saves a Markdown link to a comment and round-trips it back to Markdown', async () => {
+    const payload = await getTestPayload()
+    const user = await createTestUser(payload)
+    const post = await createFeedItem(payload, { collection: 'posts', user: user.id })
+    const markdown = '[link text](https://test.se)'
+
+    const comment = await payload.create({
+      collection: 'comments',
+      data: { post: post.id, user: user.id, comment: JSON.parse(markdownToLexicalJSON(markdown)) },
+      overrideAccess: true,
+    })
+
+    expect(lexicalStateToMarkdown(JSON.stringify(comment.comment))).toBe(markdown)
   })
 })

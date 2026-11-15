@@ -287,6 +287,7 @@ export const mergeHomeItems = (
 /* -------------------------------------------------------------------------- */
 
 export interface HomeFeedBaseWhereOptions {
+  collection?: 'links' | 'posts'
   viewer?: User | null
   bookmarkedLinkIds?: number[] | null
   includeSubfeeds?: boolean
@@ -294,9 +295,10 @@ export interface HomeFeedBaseWhereOptions {
 }
 
 export const buildHomeFeedBaseWhere = (options: HomeFeedBaseWhereOptions): Where[] => {
+  const collection = options.collection ?? 'links'
   const joinedSubfeedIds = options.joinedSubfeedIds ?? []
   const filters = [
-    ...buildPublicFeedVisibilityWhere({ collection: 'links', viewer: options.viewer }),
+    ...buildPublicFeedVisibilityWhere({ collection, viewer: options.viewer }),
   ]
 
   if (Array.isArray(options.bookmarkedLinkIds)) {
@@ -309,14 +311,14 @@ export const buildHomeFeedBaseWhere = (options: HomeFeedBaseWhereOptions): Where
   if (options.viewer && options.includeSubfeeds && joinedSubfeedIds.length > 0) {
     filters.push({
       or: [
-        buildMainFeedWhere(),
+        buildMainFeedWhere({ collection }),
         {
           and: [{ feed: { equals: 'subfeed' } }, { subfeed: { in: joinedSubfeedIds } }],
         },
       ],
     })
   } else {
-    filters.push(buildMainFeedWhere())
+    filters.push(buildMainFeedWhere({ collection }))
   }
 
   return filters
@@ -858,12 +860,14 @@ export const loadHomeFeed = async ({
 
   const links = await hydrateFeedCardRelations({ payload, docs: feed.docs })
 
-  // Posts for the merged Main Feed: same visibility + promotion policy as
-  // links, so the former Wall feed and the link feed rank side by side.
-  const postsWhereFilters: Where[] = [
-    ...buildPublicFeedVisibilityWhere({ collection: 'posts', viewer: user }),
-    buildMainFeedWhere({ collection: 'posts' }),
-  ]
+  // Posts share the visibility and mixing policy; the Subfeeds signal also
+  // admits joined-subfeed posts without requiring Main Feed promotion.
+  const postsWhereFilters = buildHomeFeedBaseWhere({
+    collection: 'posts',
+    viewer: user,
+    includeSubfeeds: includeSubfeeds || signal === 'subfeeds',
+    joinedSubfeedIds,
+  })
   if (showBookmarksOnly && user) {
     postsWhereFilters.push({
       id: { in: bookmarkedPostIds && bookmarkedPostIds.length > 0 ? bookmarkedPostIds : [0] },

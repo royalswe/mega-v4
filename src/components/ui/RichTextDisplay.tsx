@@ -1,5 +1,6 @@
 import React from 'react'
 import { SerializedLexicalNode } from 'lexical'
+import { sanitizeUrl } from 'payload/shared'
 
 interface RichTextDisplayProps {
   content: {
@@ -20,8 +21,10 @@ type RenderableLexicalNode = SerializedLexicalNode & {
   tag?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
   listType?: 'number' | 'bullet'
   url?: string
+  fields?: { url?: string }
   text?: string
   format?: number
+  headerState?: number
 }
 
 const safeHeadingTag = (tag: unknown): 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' => {
@@ -103,7 +106,7 @@ export function RichTextDisplay({ content, className = '' }: RichTextDisplayProp
         return (
           <a
             key={key}
-            href={node.url}
+            href={sanitizeUrl(node.url ?? node.fields?.url ?? '')}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline break-words"
@@ -124,15 +127,15 @@ export function RichTextDisplay({ content, className = '' }: RichTextDisplayProp
             // Italic
             text = <em>{text}</em>
           }
+          if (node.format & 4) {
+            // Strikethrough
+            text = <s>{text}</s>
+          }
           if (node.format & 8) {
             // Underline
             text = <u>{text}</u>
           }
           if (node.format & 16) {
-            // Strikethrough
-            text = <s>{text}</s>
-          }
-          if (node.format & 32) {
             // Code
             text = <code className="bg-muted px-1 py-0.5 rounded text-sm">{text}</code>
           }
@@ -157,6 +160,40 @@ export function RichTextDisplay({ content, className = '' }: RichTextDisplayProp
             {node.children?.map((child: RenderableLexicalNode, i: number) => renderNode(child, i))}
           </blockquote>
         )
+
+      case 'table':
+        return (
+          <div key={key} className="mb-3 overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <tbody>
+                {node.children?.map((child: RenderableLexicalNode, i: number) =>
+                  renderNode(child, i),
+                )}
+              </tbody>
+            </table>
+          </div>
+        )
+
+      case 'tablerow':
+        return (
+          <tr key={key}>
+            {node.children?.map((child: RenderableLexicalNode, i: number) => renderNode(child, i))}
+          </tr>
+        )
+
+      case 'tablecell': {
+        const CellTag = node.headerState ? 'th' : 'td'
+        return (
+          <CellTag
+            key={key}
+            className={`border border-border px-3 py-2 text-left align-top [&_p]:mb-0 ${
+              node.headerState ? 'bg-muted font-semibold' : ''
+            }`}
+          >
+            {node.children?.map((child: RenderableLexicalNode, i: number) => renderNode(child, i))}
+          </CellTag>
+        )
+      }
 
       case 'linebreak':
         return <br key={key} />

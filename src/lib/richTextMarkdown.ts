@@ -3,12 +3,24 @@ import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
   TRANSFORMERS,
+  type ElementTransformer,
 } from '@lexical/markdown'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
 import { CodeNode, CodeHighlightNode } from '@lexical/code'
 import { AutoLinkNode, LinkNode } from '@lexical/link'
-import { TableCellNode, TableNode, TableRowNode } from '@lexical/table'
+import {
+  $createTableCellNode,
+  $createTableNode,
+  $createTableRowNode,
+  $isTableCellNode,
+  $isTableNode,
+  $isTableRowNode,
+  TableCellHeaderStates,
+  TableCellNode,
+  TableNode,
+  TableRowNode,
+} from '@lexical/table'
 
 const NODES = [
   HeadingNode,
@@ -24,6 +36,79 @@ const NODES = [
   LinkNode,
 ]
 
+function parseTableCells(source: string): string[] {
+  const cells = ['']
+  for (let index = 0; index < source.length; index++) {
+    const character = source[index]
+    const next = source[index + 1]
+    if (character === '\\' && (next === '\\' || next === '|' || next === 'n')) {
+      cells[cells.length - 1] += next === 'n' ? '\n' : next
+      index++
+    } else if (character === '|') {
+      cells.push('')
+    } else {
+      cells[cells.length - 1] += character
+    }
+  }
+  return cells.map((cell) => cell.trim())
+}
+
+// Registering table nodes alone does not preserve cell boundaries in markdown.
+const TABLE: ElementTransformer = {
+  type: 'element',
+  dependencies: [TableNode, TableRowNode, TableCellNode],
+  regExp: /^\|(.+)\|[ \t]*$/,
+  export(node) {
+    if (!$isTableNode(node)) return null
+
+    return node
+      .getChildren()
+      .filter($isTableRowNode)
+      .flatMap((row) => {
+        const cells = row.getChildren().filter($isTableCellNode)
+        const values = cells.map((cell) =>
+          $convertToMarkdownString(EDITOR_TRANSFORMERS, cell)
+            .replace(/\\/g, '\\\\')
+            .replace(/\|/g, '\\|')
+            .replace(/\n/g, '\\n'),
+        )
+        const line = `| ${values.join(' | ')} |`
+        return cells.every((cell) => cell.hasHeaderState(TableCellHeaderStates.ROW))
+          ? [line, `| ${cells.map(() => '---').join(' | ')} |`]
+          : [line]
+      })
+      .join('\n')
+  },
+  replace(parent, _children, match) {
+    const values = parseTableCells(match[1])
+    const previous = parent.getPreviousSibling()
+    if (values.every((value) => /^:?-+:?$/.test(value))) {
+      const row = $isTableNode(previous) ? previous.getLastChild() : null
+      if (!$isTableRowNode(row)) return false
+      for (const cell of row.getChildren().filter($isTableCellNode)) {
+        cell.setHeaderStyles(TableCellHeaderStates.ROW)
+      }
+      parent.remove()
+      return
+    }
+
+    const row = $createTableRowNode()
+    for (const value of values) {
+      const cell = $createTableCellNode(TableCellHeaderStates.NO_STATUS)
+      $convertFromMarkdownString(value, EDITOR_TRANSFORMERS, cell)
+      row.append(cell)
+    }
+    if ($isTableNode(previous)) {
+      previous.append(row)
+      parent.remove()
+    } else {
+      parent.replace($createTableNode().append(row))
+    }
+  },
+}
+
+const EDITOR_TRANSFORMERS = [TABLE, ...TRANSFORMERS]
+
 /**
  * A detached Lexical editor used only for markdown <-> Lexical JSON
  * conversion. It is never attached to the DOM, so it can run on the client
@@ -37,7 +122,7 @@ function getConverter(): LexicalEditor {
       namespace: 'RichTextMarkdownConverter',
       nodes: NODES,
       onError(error) {
-        console.error(error)
+        throw error
       },
     })
   }
@@ -54,6 +139,40 @@ function isSerializedEditorState(value: unknown): value is SerializedEditorState
   )
 }
 
+type SerializedNodeLike = { type?: string; children?: SerializedNodeLike[] } & Record<
+  string,
+  unknown
+>
+
+const isLinkNode = (node: SerializedNodeLike) => node.type === 'link' || node.type === 'autolink'
+
+function mapLinkNodes(
+  node: SerializedNodeLike,
+  map: (link: SerializedNodeLike) => SerializedNodeLike,
+): SerializedNodeLike {
+  const mapped = isLinkNode(node) ? map(node) : node
+  return mapped.children
+    ? { ...mapped, children: mapped.children.map((child) => mapLinkNodes(child, map)) }
+    : mapped
+}
+
+// Payload's link feature validates `fields.url`, whereas @lexical/link stores `url` at the top level.
+function toPayloadLink({
+  url,
+  rel: _rel,
+  target: _target,
+  title: _title,
+  ...link
+}: SerializedNodeLike) {
+  return { ...link, fields: { linkType: 'custom', url, newTab: true } }
+}
+
+function fromPayloadLink(link: SerializedNodeLike) {
+  const fields = link.fields as { url?: unknown } | undefined
+  if (typeof link.url === 'string') return link
+  return { ...link, url: typeof fields?.url === 'string' ? fields.url : '' }
+}
+
 /**
  * Converts markdown source into serialized Lexical state.
  *
@@ -67,12 +186,15 @@ export function markdownToLexicalState(markdown: string): SerializedEditorState 
 
   editor.update(
     () => {
-      $convertFromMarkdownString(markdown, TRANSFORMERS)
+      $convertFromMarkdownString(markdown, EDITOR_TRANSFORMERS)
     },
     { discrete: true },
   )
 
-  return editor.getEditorState().toJSON()
+  const state = editor.getEditorState().toJSON()
+  return {
+    root: mapLinkNodes(state.root as unknown as SerializedNodeLike, toPayloadLink),
+  } as unknown as SerializedEditorState
 }
 
 export function markdownToLexicalJSON(markdown: string): string {
@@ -99,10 +221,11 @@ export function lexicalStateToMarkdown(serialized?: string | null): string {
   const editor = getConverter()
 
   try {
-    editor.setEditorState(editor.parseEditorState(parsed))
+    const root = mapLinkNodes(parsed.root as unknown as SerializedNodeLike, fromPayloadLink)
+    editor.setEditorState(editor.parseEditorState({ root } as unknown as SerializedEditorState))
   } catch {
     return serialized
   }
 
-  return editor.read(() => $convertToMarkdownString(TRANSFORMERS))
+  return editor.read(() => $convertToMarkdownString(EDITOR_TRANSFORMERS))
 }

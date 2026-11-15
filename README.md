@@ -130,3 +130,16 @@ items do not, native `feed: 'main'` content is visible through
 ## Project layout
 
 See [AGENTS.md](AGENTS.md#repo-layout) for the canonical repo layout and conventions.
+
+## Community editor
+
+The public editor accepts Markdown and older plain-text initial values, with a
+shared preview and saved-content renderer that neutralizes unsafe link schemes.
+Its toolbar inserts headings, inline formatting, links, lists, quotes, code
+blocks and tables, so writers don't need to know the Markdown syntax.
+Stored tables round-trip through pipe-delimited Markdown; inside cells, `\|`
+escapes a pipe, `\\` a backslash, and `\n` a line break.
+
+Joined-subfeed posts appear alongside links when subfeed mixing is enabled.
+The Subfeeds signal includes eligible joined-subfeed posts without requiring
+Main Feed promotion; publication and visibility filters still apply.

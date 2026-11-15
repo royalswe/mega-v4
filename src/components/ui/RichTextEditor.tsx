@@ -1,7 +1,19 @@
 'use client'
 
 import { useRef, useState, type ComponentPropsWithoutRef } from 'react'
-import { Bold, Italic } from 'lucide-react'
+import {
+  Bold,
+  Code,
+  Heading2,
+  Italic,
+  Link as LinkIcon,
+  List,
+  ListOrdered,
+  Quote,
+  SquareCode,
+  Strikethrough,
+  Table,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { RichTextDisplay } from '@/components/ui/RichTextDisplay'
 import { lexicalStateToMarkdown, markdownToLexicalJSON } from '@/lib/richTextMarkdown'
@@ -26,15 +38,15 @@ export function RichTextEditor({
   const [markdown, setMarkdown] = useState(() => lexicalStateToMarkdown(initialValue))
   const [isPreview, setIsPreview] = useState(false)
   const [jsonState, setJsonState] = useState<string | null>(() => {
-    if (!initialValue) return null
+    if (!initialValue?.trim()) return null
 
-    // Only preview values that really are serialized Lexical state.
     try {
       const parsed = JSON.parse(initialValue)
-      return parsed && typeof parsed === 'object' && 'root' in parsed ? initialValue : null
+      if (parsed && typeof parsed === 'object' && 'root' in parsed) return initialValue
     } catch {
-      return null
+      // Older values can contain plain text rather than serialized state.
     }
+    return markdownToLexicalJSON(initialValue)
   })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -52,57 +64,116 @@ export function RichTextEditor({
     onChange(json)
   }
 
-  const wrapSelection = (marker: string) => {
+  /** Replaces `start..end` with `text` and selects `text[selectFrom..selectTo]`. */
+  const replaceRange = (
+    start: number,
+    end: number,
+    text: string,
+    selectFrom = text.length,
+    selectTo = selectFrom,
+  ) => {
     const textarea = textareaRef.current
-    if (!textarea || isPreview) return
+    setEditorValue(markdown.slice(0, start) + text + markdown.slice(end))
 
-    const start = textarea.selectionStart ?? markdown.length
-    const end = textarea.selectionEnd ?? start
-    const selected = markdown.slice(start, end)
-    const nextMarkdown = markdown.slice(0, start) + marker + selected + marker + markdown.slice(end)
-
-    setEditorValue(nextMarkdown)
-
-    // Restore the selection around the wrapped text once React has rendered
-    // the updated textarea value.
+    // Restore the selection once React has rendered the updated textarea value.
     requestAnimationFrame(() => {
-      textarea.focus()
-      const selectionStart = start + marker.length
-      textarea.setSelectionRange(selectionStart, selectionStart + selected.length)
+      textarea?.focus()
+      textarea?.setSelectionRange(start + selectFrom, start + selectTo)
     })
   }
 
+  const getSelection = () => {
+    const textarea = textareaRef.current
+    const start = textarea?.selectionStart ?? markdown.length
+    const end = textarea?.selectionEnd ?? start
+    return { start, end, selected: markdown.slice(start, end) }
+  }
+
+  const wrapSelection = (marker: string, fallback: string) => {
+    const { start, end, selected } = getSelection()
+    const inner = selected || fallback
+    replaceRange(start, end, marker + inner + marker, marker.length, marker.length + inner.length)
+  }
+
+  const insertLink = () => {
+    const { start, end, selected } = getSelection()
+    const label = selected || 'link text'
+    const text = `[${label}](https://)`
+    replaceRange(start, end, text, label.length + 3, text.length - 1)
+  }
+
+  // Applies a block prefix to every line touched by the selection.
+  const prefixLines = (prefix: (index: number) => string) => {
+    const { start, end } = getSelection()
+    const lineStart = markdown.lastIndexOf('\n', start - 1) + 1
+    const nextBreak = markdown.indexOf('\n', end)
+    const lineEnd = nextBreak === -1 ? markdown.length : nextBreak
+    const text = markdown
+      .slice(lineStart, lineEnd)
+      .split('\n')
+      .map((line, index) => prefix(index) + line)
+      .join('\n')
+    replaceRange(lineStart, lineEnd, text)
+  }
+
+  // Inserts a standalone block, padded with blank lines so it parses on its own.
+  const insertBlock = (block: string, selectFrom: number, selectTo: number) => {
+    const { start, end } = getSelection()
+    const before = markdown.slice(0, start)
+    const after = markdown.slice(end)
+    const lead =
+      before === '' || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n'
+    const trail =
+      after === '' || after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n'
+    replaceRange(start, end, lead + block + trail, lead.length + selectFrom, lead.length + selectTo)
+  }
+
+  const insertCodeBlock = () => {
+    const code = getSelection().selected || 'code'
+    insertBlock('```\n' + code + '\n```', 4, 4 + code.length)
+  }
+
+  const insertTable = () => {
+    const table = '| Column 1 | Column 2 |\n| --- | --- |\n| Cell | Cell |'
+    insertBlock(table, 2, 10)
+  }
+
+  const tools = [
+    { label: 'Heading', icon: Heading2, run: () => prefixLines(() => '## ') },
+    { label: 'Bold', icon: Bold, run: () => wrapSelection('**', 'bold text') },
+    { label: 'Italic', icon: Italic, run: () => wrapSelection('*', 'italic text') },
+    { label: 'Strikethrough', icon: Strikethrough, run: () => wrapSelection('~~', 'text') },
+    { label: 'Inline code', icon: Code, run: () => wrapSelection('`', 'code') },
+    { label: 'Link', icon: LinkIcon, run: insertLink },
+    { label: 'Bulleted list', icon: List, run: () => prefixLines(() => '- ') },
+    { label: 'Numbered list', icon: ListOrdered, run: () => prefixLines((i) => `${i + 1}. `) },
+    { label: 'Quote', icon: Quote, run: () => prefixLines(() => '> ') },
+    { label: 'Code block', icon: SquareCode, run: insertCodeBlock },
+    { label: 'Insert table', icon: Table, run: insertTable },
+  ]
+
   return (
     <div className={`relative border rounded-md shadow-sm bg-background ${className || ''}`}>
-      <div className="flex items-center justify-between gap-2 border-b p-2 bg-muted/20">
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => wrapSelection('**')}
-            disabled={isPreview}
-            aria-label="Toggle Bold"
-          >
-            <Bold className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => wrapSelection('*')}
-            disabled={isPreview}
-            aria-label="Toggle Italic"
-          >
-            <Italic className="h-4 w-4" />
-          </Button>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b p-2 bg-muted/20">
+        <div className="flex flex-wrap items-center gap-1">
+          {tools.map(({ label, icon: Icon, run }) => (
+            <Button
+              key={label}
+              variant="ghost"
+              size="sm"
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => !isPreview && run()}
+              disabled={isPreview}
+              aria-label={label}
+              title={label}
+            >
+              <Icon className="h-4 w-4" />
+            </Button>
+          ))}
         </div>
         <div className="flex items-center gap-2">
-          <div className="text-xs text-muted-foreground hidden sm:block">
-            Use Markdown (e.g. ## Title)
-          </div>
+          <div className="text-xs text-muted-foreground hidden sm:block">Markdown supported</div>
           <Button
             variant={isPreview ? 'secondary' : 'outline'}
             size="sm"

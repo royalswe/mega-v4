@@ -642,6 +642,13 @@ describe('Home feed assembly (integration)', () => {
       feed: 'subfeed',
       subfeedId: subfeed.id,
     })
+    const mainPost = await createPost({ user: author.id, feed: 'main' })
+    const plainUserPost = await createPost({ user: author.id, feed: 'user' })
+    const subfeedPost = await createPost({
+      user: author.id,
+      feed: 'subfeed',
+      subfeedId: subfeed.id,
+    })
 
     const baseArgs = {
       payload,
@@ -659,12 +666,22 @@ describe('Home feed assembly (integration)', () => {
     expect(mainOnlyIds.has(mainLink.id)).toBe(true)
     expect(mainOnlyIds.has(plainUserLink.id)).toBe(false)
     expect(mainOnlyIds.has(subfeedLink.id)).toBe(false)
+    expect(mainOnly.posts.map((post) => post.id)).toContain(mainPost.id)
+    expect(mainOnly.posts.map((post) => post.id)).not.toContain(subfeedPost.id)
 
     const mixed = await loadHomeFeed({ ...baseArgs, includeSubfeeds: true })
     const mixedIds = new Set(mixed.links.map((link) => link.id))
     expect(mixedIds.has(mainLink.id)).toBe(true)
     expect(mixedIds.has(subfeedLink.id)).toBe(true)
     expect(mixedIds.has(plainUserLink.id)).toBe(false)
+    expect(mixed.posts.map((post) => post.id)).toContain(mainPost.id)
+    expect(mixed.posts.map((post) => post.id)).toContain(subfeedPost.id)
+    expect(mixed.posts.map((post) => post.id)).not.toContain(plainUserPost.id)
+
+    const joined = await loadHomeFeed({ ...baseArgs, includeSubfeeds: false, signal: 'subfeeds' })
+    expect(joined.posts.map((post) => post.id)).toContain(subfeedPost.id)
+    expect(joined.posts.map((post) => post.id)).not.toContain(mainPost.id)
+    expect(joined.posts.map((post) => post.id)).not.toContain(plainUserPost.id)
 
     const trending = await loadHomeFeed({ ...baseArgs, includeSubfeeds: false, signal: 'trending' })
     const trendingIds = new Set(trending.links.map((link) => link.id))
