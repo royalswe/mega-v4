@@ -54,13 +54,12 @@ export function RichTextDisplay({ content, className = '' }: RichTextDisplayProp
 
     switch (node.type) {
       case 'paragraph': {
-        // Lexical's editor renders empty paragraphs (blank rows from pressing
-        // Enter twice) with a line box; the serialized JSON has no children, so
-        // mirror that here with a zero-width space — otherwise blank rows
-        // collapse to zero height and paragraph breaks become invisible.
+        // The gap between paragraphs is one line, matching the blank line that
+        // separates them in the editor textarea. Each extra blank line is
+        // stored as an empty paragraph, rendered as exactly one more line.
         const isEmpty = !node.children || node.children.length === 0
         return (
-          <p key={key} className="mb-3">
+          <p key={key} className={isEmpty ? 'mb-0' : 'mb-[1lh] last:mb-3'}>
             {isEmpty
               ? '\u200B'
               : node.children?.map((child: RenderableLexicalNode, i: number) =>

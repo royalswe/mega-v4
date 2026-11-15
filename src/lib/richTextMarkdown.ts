@@ -1,4 +1,13 @@
-import { createEditor, type LexicalEditor, type SerializedEditorState } from 'lexical'
+import {
+  $createLineBreakNode,
+  $createParagraphNode,
+  $getRoot,
+  $isParagraphNode,
+  createEditor,
+  type LexicalEditor,
+  type LexicalNode,
+  type SerializedEditorState,
+} from 'lexical'
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
@@ -173,20 +182,68 @@ function fromPayloadLink(link: SerializedNodeLike) {
   return { ...link, url: typeof fields?.url === 'string' ? fields.url : '' }
 }
 
+const $isBlankParagraph = (node: LexicalNode) =>
+  $isParagraphNode(node) && node.getTextContent().trim() === ''
+
+/**
+ * Lexical's newline-preserving import yields one block per source line. This
+ * folds that back into Markdown semantics: adjacent lines join with a line
+ * break, one blank line separates blocks, and each extra blank line is kept
+ * as an empty paragraph. Leading and trailing blank lines are dropped.
+ */
+function $foldPreservedLines() {
+  let previous: LexicalNode | null = null
+  let blankLines = 0
+  for (const child of $getRoot().getChildren()) {
+    if ($isBlankParagraph(child)) {
+      if (previous && blankLines > 0) {
+        const empty = $createParagraphNode()
+        child.replace(empty)
+        previous = empty
+      } else {
+        child.remove()
+      }
+      blankLines++
+      continue
+    }
+    if (blankLines === 0 && $isParagraphNode(previous) && $isParagraphNode(child)) {
+      previous.append($createLineBreakNode(), ...child.getChildren())
+      child.remove()
+      continue
+    }
+    previous = child
+    blankLines = 0
+  }
+  let last = $getRoot().getLastChild()
+  while (last && $isBlankParagraph(last)) {
+    last.remove()
+    last = $getRoot().getLastChild()
+  }
+}
+
+/** Inverse of `$foldPreservedLines`: a blank line after every block except the last. */
+function $unfoldPreservedLines() {
+  for (const child of $getRoot().getChildren()) {
+    if (!$isBlankParagraph(child) && child.getNextSibling()) {
+      child.insertAfter($createParagraphNode())
+    }
+  }
+}
+
 /**
  * Converts markdown source into serialized Lexical state.
  *
- * Lexical's default normalization treats a single newline as a soft line
- * break (`<br>`), so pressing Enter once produces a row break rather than a
- * new paragraph with extra vertical spacing. A blank line still starts a new
- * paragraph.
+ * A single newline is a soft line break (`<br>`) and a blank line starts a new
+ * paragraph. Further blank lines are kept as empty paragraphs, so the preview
+ * shows the same vertical gap as the textarea.
  */
 export function markdownToLexicalState(markdown: string): SerializedEditorState {
   const editor = getConverter()
 
   editor.update(
     () => {
-      $convertFromMarkdownString(markdown, EDITOR_TRANSFORMERS)
+      $convertFromMarkdownString(markdown, EDITOR_TRANSFORMERS, undefined, true)
+      $foldPreservedLines()
     },
     { discrete: true },
   )
@@ -220,12 +277,20 @@ export function lexicalStateToMarkdown(serialized?: string | null): string {
 
   const editor = getConverter()
 
+  let markdown = ''
   try {
     const root = mapLinkNodes(parsed.root as unknown as SerializedNodeLike, fromPayloadLink)
     editor.setEditorState(editor.parseEditorState({ root } as unknown as SerializedEditorState))
+    editor.update(
+      () => {
+        $unfoldPreservedLines()
+        markdown = $convertToMarkdownString(EDITOR_TRANSFORMERS, undefined, true)
+      },
+      { discrete: true },
+    )
   } catch {
     return serialized
   }
 
-  return editor.read(() => $convertToMarkdownString(EDITOR_TRANSFORMERS))
+  return markdown
 }

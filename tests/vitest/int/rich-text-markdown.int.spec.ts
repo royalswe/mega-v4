@@ -31,6 +31,21 @@ describe('rich text markdown conversion', () => {
     expect(children.map((child) => child.type)).toEqual(['paragraph', 'paragraph'])
   })
 
+  it.each([
+    ['a\n\n\nb', 1],
+    ['a\n\n\n\n\nb', 3],
+    ['- x\n\n\nc', 1],
+  ])('keeps extra blank lines in %j as %i empty paragraphs', (markdown, empties) => {
+    const children = rootChildren(markdown) as Array<{ children?: unknown[] }>
+    expect(children.slice(1, -1)).toHaveLength(empties)
+    expect(children.slice(1, -1).every((child) => child.children?.length === 0)).toBe(true)
+    expect(lexicalStateToMarkdown(markdownToLexicalJSON(markdown))).toBe(markdown)
+  })
+
+  it('drops leading and trailing blank lines', () => {
+    expect(lexicalStateToMarkdown(markdownToLexicalJSON('\n\nText\n\n\n'))).toBe('Text')
+  })
+
   it('converts markdown formatting only when producing Lexical state', () => {
     const [paragraph] = rootChildren('This is **bold** and *italic*') as Array<{
       children?: Array<{ type: string; format?: number; text?: string }>
@@ -74,7 +89,7 @@ describe('rich text links in Payload rich-text fields', () => {
     const payload = await getTestPayload()
     const user = await createTestUser(payload)
     const post = await createFeedItem(payload, { collection: 'posts', user: user.id })
-    const markdown = '[link text](https://test.se)'
+    const markdown = '[link text](https://test.se)\n\n\n\nAfter three blank lines'
 
     const comment = await payload.create({
       collection: 'comments',

@@ -136,7 +136,9 @@ See [AGENTS.md](AGENTS.md#repo-layout) for the canonical repo layout and convent
 The public editor accepts Markdown and older plain-text initial values, with a
 shared preview and saved-content renderer that neutralizes unsafe link schemes.
 Its toolbar inserts headings, inline formatting, links, lists, quotes, code
-blocks and tables, so writers don't need to know the Markdown syntax.
+blocks and tables, so writers don't need to know the Markdown syntax. Each
+extra blank line is kept as an empty paragraph, and the preview renders the
+paragraph gap as one line, so spacing matches the textarea.
 Stored tables round-trip through pipe-delimited Markdown; inside cells, `\|`
 escapes a pipe, `\\` a backslash, and `\n` a line break.
 

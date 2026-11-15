@@ -49,6 +49,7 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /tests/playwright/.auth/user.json
+.playwright-mcp
 
 # Vitest
 /tests/vitest/report/**/*
